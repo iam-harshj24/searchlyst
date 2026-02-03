@@ -39,7 +39,7 @@ const CustomDot = (props) => {
 
 export default function GrowthTrajectorySection() {
     return (
-        <section className="relative bg-black py-24 overflow-hidden">
+        <section className="relative bg-[var(--bg-primary)] py-24 overflow-hidden">
             <div className="relative max-w-6xl mx-auto px-6">
                 {/* Badge */}
                 <motion.div 
@@ -62,10 +62,10 @@ export default function GrowthTrajectorySection() {
                     transition={{ delay: 0.1 }}
                     className="text-center mb-6"
                 >
-                    <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
+                    <h2 className="text-4xl md:text-5xl font-bold text-[var(--text-primary)] mb-4">
                         Growth Trajectory
                     </h2>
-                    <p className="text-gray-400">
+                    <p className="text-[var(--text-secondary)]">
                         From baseline discovery to total domination. <span className="text-red-500">Every step is AI-Enhanced.</span>
                     </p>
                 </motion.div>
@@ -76,13 +76,13 @@ export default function GrowthTrajectorySection() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: 0.2 }}
-                    className="bg-zinc-900/50 border border-white/10 rounded-2xl p-6 mb-8"
+                    className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-6 mb-8"
                 >
                     {/* Chart header */}
                     <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-white font-semibold">Visibility score</h3>
-                        <div className="flex items-center gap-2 text-sm text-gray-400">
-                            <CheckCircle className="w-4 h-4 text-green-500" />
+                        <h3 className="text-[var(--text-primary)] font-semibold">Visibility score</h3>
+                        <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+                            <CheckCircle className="w-4 h-4 text-red-500" />
                             Avg time to first citation: 18 days
                         </div>
                     </div>
@@ -153,10 +153,10 @@ export default function GrowthTrajectorySection() {
                     className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12"
                 >
                     {metrics.map((metric, index) => (
-                        <div key={index} className="bg-zinc-900/50 border border-white/10 rounded-xl p-6 text-center">
+                        <div key={index} className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-xl p-6 text-center">
                             <metric.icon className={`w-8 h-8 ${metric.color} mx-auto mb-3`} />
-                            <div className="text-2xl md:text-3xl font-bold text-white mb-1">{metric.value}</div>
-                            <div className="text-gray-500 text-sm">{metric.label}</div>
+                            <div className="text-2xl md:text-3xl font-bold text-[var(--text-primary)] mb-1">{metric.value}</div>
+                            <div className="text-[var(--text-secondary)] text-sm">{metric.label}</div>
                         </div>
                     ))}
                 </motion.div>
@@ -169,22 +169,22 @@ export default function GrowthTrajectorySection() {
                     transition={{ delay: 0.4 }}
                     className="text-center"
                 >
-                    <Button className="bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 text-white px-8 h-12 rounded-xl font-medium group">
+                    <Button className="bg-red-600 hover:bg-red-700 text-white px-8 h-12 rounded-xl font-medium group">
                         Get Your Free AI Visibility Score
                         <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
                     </Button>
                     
-                    <div className="flex flex-wrap justify-center gap-6 mt-6 text-sm text-gray-500">
+                    <div className="flex flex-wrap justify-center gap-6 mt-6 text-sm text-[var(--text-secondary)]">
                         <div className="flex items-center gap-2">
                             <Clock className="w-4 h-4 text-red-500" />
                             Setup in 5 minutes
                         </div>
                         <div className="flex items-center gap-2">
-                            <CheckCircle className="w-4 h-4 text-green-500" />
+                            <CheckCircle className="w-4 h-4 text-[var(--text-primary)]" />
                             No technical skills needed
                         </div>
                         <div className="flex items-center gap-2">
-                            <XCircle className="w-4 h-4 text-red-400" />
+                            <XCircle className="w-4 h-4 text-red-500" />
                             Cancel anytime
                         </div>
                     </div>

@@ -46,9 +46,9 @@ const faqs = [
 
 export default function FAQSection() {
     return (
-        <section id="faq" className="relative bg-black py-24 overflow-hidden">
+        <section id="faq" className="relative bg-[var(--bg-primary)] py-24 overflow-hidden">
             {/* Gradient line at top */}
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-px bg-gradient-to-r from-transparent via-gray-600 to-transparent" />
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-px bg-gradient-to-r from-transparent via-[var(--border)] to-transparent" />
             
             <div className="relative max-w-3xl mx-auto px-6">
                 {/* Badge */}
@@ -73,7 +73,7 @@ export default function FAQSection() {
                     className="text-center mb-6"
                 >
                     <h2 className="text-4xl md:text-5xl font-bold mb-4">
-                        <span className="text-white">Common Questions About </span>
+                        <span className="text-[var(--text-primary)]">Common Questions About </span>
                         <span className="text-red-500">AI<br />Search Optimization</span>
                     </h2>
                 </motion.div>
@@ -83,7 +83,7 @@ export default function FAQSection() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: 0.2 }}
-                    className="text-gray-400 text-center mb-12"
+                    className="text-[var(--text-secondary)] text-center mb-12"
                 >
                     Everything you need to know about getting your brand discovered in AI search.
                 </motion.p>
@@ -100,12 +100,12 @@ export default function FAQSection() {
                             <AccordionItem 
                                 key={index} 
                                 value={`item-${index}`}
-                                className="bg-zinc-900/50 border border-white/10 rounded-xl px-6 data-[state=open]:border-red-500/30"
+                                className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-xl px-6 data-[state=open]:border-red-500/30"
                             >
-                                <AccordionTrigger className="text-white hover:no-underline text-left py-5">
+                                <AccordionTrigger className="text-[var(--text-primary)] hover:no-underline text-left py-5">
                                     {faq.question}
                                 </AccordionTrigger>
-                                <AccordionContent className="text-gray-400 pb-5">
+                                <AccordionContent className="text-[var(--text-secondary)] pb-5">
                                     {faq.answer}
                                 </AccordionContent>
                             </AccordionItem>
@@ -121,8 +121,8 @@ export default function FAQSection() {
                     transition={{ delay: 0.4 }}
                     className="text-center mt-12"
                 >
-                    <p className="text-gray-500 mb-4">Still have questions?</p>
-                    <Button className="bg-transparent border border-white/20 text-white hover:bg-white/5 rounded-xl">
+                    <p className="text-[var(--text-secondary)] mb-4">Still have questions?</p>
+                    <Button className="bg-transparent border border-[var(--border)] text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] rounded-xl">
                         <MessageSquare className="w-4 h-4 mr-2" />
                         Chat with our team
                     </Button>

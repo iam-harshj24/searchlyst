@@ -4,9 +4,9 @@ import { Sparkles } from 'lucide-react';
 
 export default function IndustryInsightSection() {
     return (
-        <section className="relative bg-black py-24 overflow-hidden">
+        <section className="relative bg-[var(--bg-primary)] py-24 overflow-hidden">
             {/* Gradient line at top */}
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-px bg-gradient-to-r from-transparent via-gray-600 to-transparent" />
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-px bg-gradient-to-r from-transparent via-[var(--border)] to-transparent" />
             
             {/* Background glow */}
             <div className="absolute bottom-0 left-1/4 w-[400px] h-[300px] bg-red-600/10 rounded-full blur-[120px]" />
@@ -33,7 +33,7 @@ export default function IndustryInsightSection() {
                     transition={{ delay: 0.1 }}
                     className="text-4xl md:text-5xl font-bold mb-6"
                 >
-                    <span className="text-white">AI Search: </span>
+                    <span className="text-[var(--text-primary)]">AI Search: </span>
                     <span className="text-red-500">The New Frontier of Search</span>
                 </motion.h2>
 
@@ -42,7 +42,7 @@ export default function IndustryInsightSection() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: 0.2 }}
-                    className="text-gray-400 text-lg mb-12 max-w-2xl mx-auto"
+                    className="text-[var(--text-secondary)] text-lg mb-12 max-w-2xl mx-auto"
                 >
                     Traditional SEO is evolving. Brands must now optimize for AI discovery<br />
                     engines to stay visible in the new search landscape.
@@ -54,19 +54,19 @@ export default function IndustryInsightSection() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: 0.3 }}
-                    className="inline-flex items-center gap-8 bg-zinc-900/80 border border-white/10 rounded-2xl px-10 py-8"
+                    className="inline-flex items-center gap-8 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl px-10 py-8"
                 >
                     <div className="text-left">
                         <div className="text-5xl md:text-6xl font-bold text-red-500 mb-2">50%</div>
-                        <div className="text-gray-400 text-sm">
+                        <div className="text-[var(--text-secondary)] text-sm">
                             of consumers use AI<br />
                             for buying decisions
                         </div>
                     </div>
-                    <div className="h-16 w-px bg-white/10" />
+                    <div className="h-16 w-px bg-[var(--border)]" />
                     <div className="text-left">
-                        <div className="text-2xl md:text-3xl font-serif text-white">McKinsey</div>
-                        <div className="text-gray-400 text-sm">&Company</div>
+                        <div className="text-2xl md:text-3xl font-serif text-[var(--text-primary)]">McKinsey</div>
+                        <div className="text-[var(--text-secondary)] text-sm">&Company</div>
                     </div>
                 </motion.div>
             </div>

@@ -60,7 +60,7 @@ export default function PricingSection() {
     const [isAnnual, setIsAnnual] = useState(false);
 
     return (
-        <section id="pricing" className="relative bg-black py-24 overflow-hidden">
+        <section id="pricing" className="relative bg-[var(--bg-primary)] py-24 overflow-hidden">
             <div className="relative max-w-6xl mx-auto px-6">
                 {/* Badge */}
                 <motion.div 
@@ -83,7 +83,7 @@ export default function PricingSection() {
                     transition={{ delay: 0.1 }}
                     className="text-center mb-6"
                 >
-                    <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
+                    <h2 className="text-4xl md:text-5xl font-bold text-[var(--text-primary)] mb-4">
                         Plans That Scale With
                     </h2>
                     <p className="text-3xl md:text-4xl font-bold text-red-500">
@@ -96,7 +96,7 @@ export default function PricingSection() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: 0.2 }}
-                    className="text-gray-400 text-center max-w-xl mx-auto mb-10"
+                    className="text-[var(--text-secondary)] text-center max-w-xl mx-auto mb-10"
                 >
                     Choose the perfect plan to dominate AI search results and grow your<br />
                     brand visibility
@@ -110,9 +110,9 @@ export default function PricingSection() {
                     transition={{ delay: 0.3 }}
                     className="flex justify-center items-center gap-4 mb-12"
                 >
-                    <span className={`text-sm ${!isAnnual ? 'text-white' : 'text-gray-500'}`}>Monthly</span>
+                    <span className={`text-sm ${!isAnnual ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>Monthly</span>
                     <Switch checked={isAnnual} onCheckedChange={setIsAnnual} />
-                    <span className={`text-sm ${isAnnual ? 'text-white' : 'text-gray-500'}`}>Annual</span>
+                    <span className={`text-sm ${isAnnual ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>Annual</span>
                 </motion.div>
 
                 {/* Pricing cards */}
@@ -128,8 +128,8 @@ export default function PricingSection() {
                             key={index}
                             className={`relative rounded-2xl p-6 ${
                                 plan.highlighted 
-                                    ? 'bg-gradient-to-b from-zinc-800 to-zinc-900 border-2 border-red-500/50 -mt-4 mb-4 md:mb-0' 
-                                    : 'bg-zinc-900/50 border border-white/10'
+                                    ? 'bg-[var(--bg-secondary)] border-2 border-red-500/50 -mt-4 mb-4 md:mb-0' 
+                                    : 'bg-[var(--bg-secondary)] border border-[var(--border)]'
                             }`}
                         >
                             {plan.highlighted && (
@@ -139,22 +139,22 @@ export default function PricingSection() {
                             )}
                             
                             <div className="text-center mb-6">
-                                <h3 className="text-xl font-bold text-white mb-1">{plan.name}</h3>
-                                <p className="text-gray-500 text-sm">{plan.subtitle}</p>
+                                <h3 className="text-xl font-bold text-[var(--text-primary)] mb-1">{plan.name}</h3>
+                                <p className="text-[var(--text-secondary)] text-sm">{plan.subtitle}</p>
                             </div>
                             
                             <div className="text-center mb-6">
                                 <span className="text-4xl font-bold text-red-500">
                                     ${isAnnual ? plan.price.annual : plan.price.monthly}
                                 </span>
-                                <span className="text-gray-500">/month</span>
+                                <span className="text-[var(--text-secondary)]">/month</span>
                             </div>
                             
                             <ul className="space-y-3 mb-8">
                                 {plan.features.map((feature, featureIndex) => (
                                     <li key={featureIndex} className="flex items-start gap-3">
                                         <Check className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
-                                        <span className="text-gray-400 text-sm">{feature}</span>
+                                        <span className="text-[var(--text-secondary)] text-sm">{feature}</span>
                                     </li>
                                 ))}
                             </ul>
@@ -162,8 +162,8 @@ export default function PricingSection() {
                             <Button 
                                 className={`w-full rounded-xl ${
                                     plan.highlighted
-                                        ? 'bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 text-white'
-                                        : 'bg-transparent border border-white/20 text-white hover:bg-white/5'
+                                        ? 'bg-red-600 hover:bg-red-700 text-white'
+                                        : 'bg-transparent border border-[var(--border)] text-[var(--text-primary)] hover:bg-[var(--bg-primary)]'
                                 }`}
                             >
                                 Start 7 Days Free Trial
@@ -178,16 +178,16 @@ export default function PricingSection() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: 0.5 }}
-                    className="bg-zinc-900/50 border border-white/10 rounded-2xl p-8 flex flex-col md:flex-row items-center justify-between gap-6"
+                    className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-8 flex flex-col md:flex-row items-center justify-between gap-6"
                 >
                     <div>
-                        <h3 className="text-xl font-bold text-white mb-2">Enterprise & Custom Solutions</h3>
-                        <p className="text-gray-400 text-sm">
+                        <h3 className="text-xl font-bold text-[var(--text-primary)] mb-2">Enterprise & Custom Solutions</h3>
+                        <p className="text-[var(--text-secondary)] text-sm">
                             Need unlimited prompts, API access, custom integrations, or dedicated support? Let's build a plan<br />
                             tailored to your organization's needs.
                         </p>
                     </div>
-                    <Button className="bg-transparent border border-white/20 text-white hover:bg-white/5 rounded-xl flex items-center gap-2 whitespace-nowrap">
+                    <Button className="bg-transparent border border-[var(--border)] text-[var(--text-primary)] hover:bg-[var(--bg-primary)] rounded-xl flex items-center gap-2 whitespace-nowrap">
                         <Mail className="w-4 h-4" />
                         Contact Us
                     </Button>

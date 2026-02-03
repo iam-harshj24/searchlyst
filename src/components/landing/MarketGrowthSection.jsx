@@ -26,7 +26,7 @@ const stats = [
 
 export default function MarketGrowthSection() {
     return (
-        <section className="relative bg-black py-24 overflow-hidden">
+        <section className="relative bg-[var(--bg-primary)] py-24 overflow-hidden">
             {/* Background glow */}
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-red-600/5 rounded-full blur-[100px]" />
             
@@ -52,7 +52,7 @@ export default function MarketGrowthSection() {
                     transition={{ delay: 0.1 }}
                     className="text-center mb-6"
                 >
-                    <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
+                    <h2 className="text-4xl md:text-5xl font-bold text-[var(--text-primary)] mb-4">
                         The AI search revolution is here
                     </h2>
                     <p className="text-3xl md:text-4xl font-bold text-red-500">
@@ -65,7 +65,7 @@ export default function MarketGrowthSection() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: 0.2 }}
-                    className="text-gray-400 text-center max-w-2xl mx-auto mb-12"
+                    className="text-[var(--text-secondary)] text-center max-w-2xl mx-auto mb-12"
                 >
                     Over 1.5 billion people now search with AI platforms. Don't let your competitors<br />
                     capture this traffic while you're invisible.
@@ -77,25 +77,25 @@ export default function MarketGrowthSection() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: 0.3 }}
-                    className="bg-zinc-900/50 border border-white/10 rounded-2xl p-6 mb-8"
+                    className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-6 mb-8"
                 >
                     {/* Legend */}
                     <div className="flex flex-wrap gap-6 mb-6">
                         <div className="flex items-center gap-2">
                             <div className="w-3 h-3 rounded-full bg-emerald-500" />
-                            <span className="text-gray-400 text-sm">ChatGPT</span>
+                            <span className="text-[var(--text-secondary)] text-sm">ChatGPT</span>
                         </div>
                         <div className="flex items-center gap-2">
                             <div className="w-3 h-3 rounded-full bg-blue-500" />
-                            <span className="text-gray-400 text-sm">Gemini</span>
+                            <span className="text-[var(--text-secondary)] text-sm">Gemini</span>
                         </div>
                         <div className="flex items-center gap-2">
                             <div className="w-3 h-3 rounded-full bg-cyan-400" />
-                            <span className="text-gray-400 text-sm">Perplexity</span>
+                            <span className="text-[var(--text-secondary)] text-sm">Perplexity</span>
                         </div>
                         <div className="flex items-center gap-2">
                             <div className="w-3 h-3 rounded-full bg-orange-400" />
-                            <span className="text-gray-400 text-sm">Claude</span>
+                            <span className="text-[var(--text-secondary)] text-sm">Claude</span>
                         </div>
                     </div>
 
@@ -132,9 +132,9 @@ export default function MarketGrowthSection() {
 
                     {/* Total indicator */}
                     <div className="flex justify-center mt-4">
-                        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-800/50 border border-white/5">
-                            <Users className="w-4 h-4 text-gray-400" />
-                            <span className="text-gray-300 text-sm">Total: 1.5B+ people now search with AI</span>
+                        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--bg-primary)] border border-[var(--border)]">
+                            <Users className="w-4 h-4 text-[var(--text-secondary)]" />
+                            <span className="text-[var(--text-primary)] text-sm">Total: 1.5B+ people now search with AI</span>
                         </div>
                     </div>
                 </motion.div>
@@ -148,10 +148,10 @@ export default function MarketGrowthSection() {
                     className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12"
                 >
                     {stats.map((stat, index) => (
-                        <div key={index} className="bg-zinc-900/50 border border-white/10 rounded-xl p-6 text-center">
+                        <div key={index} className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-xl p-6 text-center">
                             <stat.icon className={`w-8 h-8 ${stat.color} mx-auto mb-3`} />
-                            <div className="text-3xl md:text-4xl font-bold text-white mb-1">{stat.value}</div>
-                            <div className="text-gray-500 text-sm">{stat.label}</div>
+                            <div className="text-3xl md:text-4xl font-bold text-[var(--text-primary)] mb-1">{stat.value}</div>
+                            <div className="text-[var(--text-secondary)] text-sm">{stat.label}</div>
                         </div>
                     ))}
                 </motion.div>
@@ -164,7 +164,7 @@ export default function MarketGrowthSection() {
                     transition={{ delay: 0.5 }}
                     className="flex justify-center"
                 >
-                    <Button className="bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 text-white px-8 h-12 rounded-xl font-medium">
+                    <Button className="bg-red-600 hover:bg-red-700 text-white px-8 h-12 rounded-xl font-medium">
                         Don't Get Left Behind - Start Tracking Now
                     </Button>
                 </motion.div>
