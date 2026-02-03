@@ -4,7 +4,7 @@ import { Layers, Users } from 'lucide-react';
 
 export default function BusinessModelSection() {
     return (
-        <section className="relative bg-black py-24 overflow-hidden">
+        <section className="relative bg-[var(--bg-primary)] py-24 overflow-hidden">
             {/* Gradient line at top */}
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/2 h-px bg-gradient-to-r from-transparent via-gray-700 to-transparent" />
             
@@ -31,9 +31,9 @@ export default function BusinessModelSection() {
                     className="text-center mb-12"
                 >
                     <h2 className="text-4xl md:text-5xl font-bold">
-                        <span className="text-white">Scalable SaaS with </span>
+                        <span className="text-[var(--text-primary)]">Scalable SaaS with </span>
                         <span className="text-red-500">"Land & Expand"</span>
-                        <span className="text-white"> Potential.</span>
+                        <span className="text-[var(--text-primary)]"> Potential.</span>
                     </h2>
                 </motion.div>
 
@@ -43,13 +43,13 @@ export default function BusinessModelSection() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: 0.2 }}
-                    className="bg-gradient-to-br from-gray-900/80 to-gray-900/40 border border-gray-800 rounded-2xl p-8 max-w-2xl mx-auto"
+                    className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-8 max-w-2xl mx-auto transition-all duration-300 hover:scale-[1.02] cursor-pointer"
                 >
                     <div className="flex items-center gap-3 mb-4">
                         <Users className="w-6 h-6 text-red-500" />
-                        <h3 className="text-white text-xl font-semibold">Agency Partnership Strategy</h3>
+                        <h3 className="text-[var(--text-primary)] text-xl font-semibold">Agency Partnership Strategy</h3>
                     </div>
-                    <p className="text-gray-400">
+                    <p className="text-[var(--text-secondary)]">
                         We enable marketing agencies to sell "AI SEO Services" using our white-label reports, creating a B2B2B viral loop.
                     </p>
                 </motion.div>

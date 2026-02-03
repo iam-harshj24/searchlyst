@@ -16,21 +16,21 @@ const socialLinks = [
 
 export default function AboutFooter() {
     return (
-        <footer className="bg-black border-t border-gray-800 py-16">
+        <footer className="bg-[var(--bg-primary)] border-t border-[var(--border)] py-16">
             <div className="max-w-6xl mx-auto px-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12 mb-12">
                     {/* Brand column */}
                     <div className="lg:col-span-1">
-                        <div className="text-white text-xl font-semibold tracking-tight italic mb-4">
+                        <div className="text-[var(--text-primary)] text-xl font-semibold tracking-tight italic mb-4">
                             searchlyst
                         </div>
-                        <p className="text-gray-500 text-sm mb-6">
+                        <p className="text-[var(--text-secondary)] text-sm mb-6">
                             Making brands visible in the age of AI search. Track, optimize, and dominate AI search results.
                         </p>
                         <div className="flex gap-2">
                             <Input 
                                 placeholder="Enter your email"
-                                className="bg-gray-900 border-gray-800 text-white text-sm placeholder:text-gray-600"
+                                className="bg-[var(--bg-secondary)] border-[var(--border)] text-[var(--text-primary)] text-sm placeholder:text-[var(--text-secondary)]"
                             />
                         </div>
                     </div>
@@ -38,11 +38,11 @@ export default function AboutFooter() {
                     {/* Links columns */}
                     {Object.entries(footerLinks).map(([category, links]) => (
                         <div key={category}>
-                            <h4 className="text-white font-semibold mb-4">{category}</h4>
+                            <h4 className="text-[var(--text-primary)] font-semibold mb-4">{category}</h4>
                             <ul className="space-y-3">
                                 {links.map((link) => (
                                     <li key={link}>
-                                        <a href="#" className="text-gray-500 hover:text-white text-sm transition-colors">
+                                        <a href="#" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm transition-colors">
                                             {link}
                                         </a>
                                     </li>
@@ -53,13 +53,13 @@ export default function AboutFooter() {
 
                     {/* Connect column */}
                     <div>
-                        <h4 className="text-white font-semibold mb-4">Connect</h4>
+                        <h4 className="text-[var(--text-primary)] font-semibold mb-4">Connect</h4>
                         <div className="flex gap-3">
                             {socialLinks.map((social) => (
                                 <a 
                                     key={social.name}
                                     href="#"
-                                    className="w-8 h-8 rounded-full bg-gray-900 border border-gray-800 flex items-center justify-center text-gray-500 hover:text-white hover:border-white transition-colors text-sm"
+                                    className="w-8 h-8 rounded-full bg-[var(--bg-secondary)] border border-[var(--border)] flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--text-primary)] transition-all duration-300 hover:scale-110 text-sm"
                                 >
                                     {social.icon}
                                 </a>
@@ -69,14 +69,14 @@ export default function AboutFooter() {
                 </div>
 
                 {/* Bottom bar */}
-                <div className="border-t border-gray-800 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
-                    <p className="text-gray-500 text-sm">
+                <div className="border-t border-[var(--border)] pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
+                    <p className="text-[var(--text-secondary)] text-sm">
                         © 2026 Searchlyst. Making brands visible in the age of AI search. v2.1
                     </p>
                     <div className="flex gap-6">
-                        <a href="#" className="text-gray-500 hover:text-white text-sm transition-colors">Privacy</a>
-                        <a href="#" className="text-gray-500 hover:text-white text-sm transition-colors">Terms</a>
-                        <a href="#" className="text-gray-500 hover:text-white text-sm transition-colors">Cookies</a>
+                        <a href="#" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm transition-colors">Privacy</a>
+                        <a href="#" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm transition-colors">Terms</a>
+                        <a href="#" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm transition-colors">Cookies</a>
                     </div>
                 </div>
             </div>

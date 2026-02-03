@@ -27,7 +27,7 @@ const milestones = [
 
 export default function TractionSection() {
     return (
-        <section className="relative bg-black py-24 overflow-hidden">
+        <section className="relative bg-[var(--bg-primary)] py-24 overflow-hidden">
             {/* Gradient line at top */}
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/2 h-px bg-gradient-to-r from-transparent via-gray-700 to-transparent" />
             
@@ -54,7 +54,7 @@ export default function TractionSection() {
                     className="text-center mb-4"
                 >
                     <h2 className="text-4xl md:text-5xl font-bold">
-                        <span className="text-white">The "Hockey Stick" is </span>
+                        <span className="text-[var(--text-primary)]">The "Hockey Stick" is </span>
                         <span className="text-red-500">Real.</span>
                     </h2>
                 </motion.div>
@@ -64,7 +64,7 @@ export default function TractionSection() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: 0.2 }}
-                    className="text-gray-400 text-center mb-12"
+                    className="text-[var(--text-secondary)] text-center mb-12"
                 >
                     We consistently deliver exponential visibility growth within one quarter.
                 </motion.p>
@@ -75,10 +75,10 @@ export default function TractionSection() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: 0.3 }}
-                    className="bg-gray-950 border border-gray-800 rounded-2xl p-8"
+                    className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-8 transition-all duration-300 hover:scale-[1.01]"
                 >
-                    <h3 className="text-white text-lg font-semibold mb-1">AI Visibility Growth Trajectory</h3>
-                    <p className="text-gray-500 text-sm mb-8">Your journey to AI search dominance</p>
+                    <h3 className="text-[var(--text-primary)] text-lg font-semibold mb-1">AI Visibility Growth Trajectory</h3>
+                    <p className="text-[var(--text-secondary)] text-sm mb-8">Your journey to AI search dominance</p>
 
                     <div className="h-80 relative">
                         <ResponsiveContainer width="100%" height="100%">
@@ -146,7 +146,7 @@ export default function TractionSection() {
                         </div>
                     </div>
 
-                    <p className="text-center text-gray-400 text-sm mt-6">
+                    <p className="text-center text-[var(--text-secondary)] text-sm mt-6">
                         Average <span className="text-green-400 font-semibold">180% visibility increase</span> in 90 days
                     </p>
                 </motion.div>

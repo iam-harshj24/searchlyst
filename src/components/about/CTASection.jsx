@@ -39,7 +39,7 @@ export default function CTASection() {
     };
 
     return (
-        <section className="relative bg-black py-24 overflow-hidden">
+        <section className="relative bg-[var(--bg-primary)] py-24 overflow-hidden">
             {/* Gradient line at top */}
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/2 h-px bg-gradient-to-r from-transparent via-gray-700 to-transparent" />
             
@@ -51,13 +51,13 @@ export default function CTASection() {
                     viewport={{ once: true }}
                     className="flex justify-center mb-8"
                 >
-                    <div className="inline-flex bg-gray-900 rounded-full p-1">
+                    <div className="inline-flex bg-[var(--bg-secondary)] rounded-full p-1">
                         <button
                             onClick={() => setActiveTab('brand')}
                             className={`flex items-center gap-2 px-6 py-3 rounded-full text-sm font-medium transition-all ${
                                 activeTab === 'brand' 
                                     ? 'bg-red-600 text-white' 
-                                    : 'text-gray-400 hover:text-white'
+                                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                             }`}
                         >
                             <User className="w-4 h-4" />
@@ -68,7 +68,7 @@ export default function CTASection() {
                             className={`flex items-center gap-2 px-6 py-3 rounded-full text-sm font-medium transition-all ${
                                 activeTab === 'investor' 
                                     ? 'bg-red-600 text-white' 
-                                    : 'text-gray-400 hover:text-white'
+                                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                             }`}
                         >
                             <Briefcase className="w-4 h-4" />
@@ -83,20 +83,20 @@ export default function CTASection() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: 0.1 }}
-                    className="bg-gray-950 border border-gray-800 rounded-2xl p-8"
+                    className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-8"
                 >
                     {success ? (
                         <div className="py-8 text-center">
                             <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-                            <h3 className="text-2xl font-bold mb-2 text-white">You're on the list!</h3>
-                            <p className="text-gray-400">We'll be in touch soon.</p>
+                            <h3 className="text-2xl font-bold mb-2 text-[var(--text-primary)]">You're on the list!</h3>
+                            <p className="text-[var(--text-secondary)]">We'll be in touch soon.</p>
                         </div>
                     ) : (
                         <>
-                            <h3 className="text-2xl font-bold text-white mb-2">
+                            <h3 className="text-2xl font-bold text-[var(--text-primary)] mb-2">
                                 {activeTab === 'brand' ? 'Stop Being Invisible' : 'Join Our Journey'}
                             </h3>
-                            <p className="text-gray-400 mb-6">
+                            <p className="text-[var(--text-secondary)] mb-6">
                                 {activeTab === 'brand' 
                                     ? 'Secure early access to the Searchlyst Discovery Engine. Optimize your brand for ChatGPT, Perplexity, and Gemini.'
                                     : 'Get in touch to learn more about our investment opportunity.'
@@ -105,41 +105,41 @@ export default function CTASection() {
 
                             <form onSubmit={handleSubmit} className="space-y-4">
                                 <div>
-                                    <label className="text-gray-400 text-sm mb-2 block">Full Name</label>
+                                    <label className="text-[var(--text-secondary)] text-sm mb-2 block">Full Name</label>
                                     <div className="relative">
-                                        <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                                        <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-secondary)]" />
                                         <Input 
                                             placeholder="John Smith"
                                             value={formData.fullName}
                                             onChange={(e) => setFormData({...formData, fullName: e.target.value})}
-                                            className="bg-gray-900 border-gray-800 text-white placeholder:text-gray-600 pl-10"
+                                            className="bg-[var(--bg-primary)] border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] pl-10"
                                             required
                                         />
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="text-gray-400 text-sm mb-2 block">Work Email</label>
+                                    <label className="text-[var(--text-secondary)] text-sm mb-2 block">Work Email</label>
                                     <div className="relative">
-                                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-secondary)]" />
                                         <Input 
                                             type="email"
                                             placeholder="john@company.com"
                                             value={formData.email}
                                             onChange={(e) => setFormData({...formData, email: e.target.value})}
-                                            className="bg-gray-900 border-gray-800 text-white placeholder:text-gray-600 pl-10"
+                                            className="bg-[var(--bg-primary)] border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] pl-10"
                                             required
                                         />
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="text-gray-400 text-sm mb-2 block">Company Website URL</label>
+                                    <label className="text-[var(--text-secondary)] text-sm mb-2 block">Company Website URL</label>
                                     <div className="relative">
-                                        <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                                        <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-secondary)]" />
                                         <Input 
                                             placeholder="https://yourcompany.com"
                                             value={formData.website}
                                             onChange={(e) => setFormData({...formData, website: e.target.value})}
-                                            className="bg-gray-900 border-gray-800 text-white placeholder:text-gray-600 pl-10"
+                                            className="bg-[var(--bg-primary)] border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] pl-10"
                                             required
                                         />
                                     </div>

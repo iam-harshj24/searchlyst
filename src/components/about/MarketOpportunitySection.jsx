@@ -28,7 +28,7 @@ const markets = [
 
 export default function MarketOpportunitySection() {
     return (
-        <section className="relative bg-black py-24 overflow-hidden">
+        <section className="relative bg-[var(--bg-primary)] py-24 overflow-hidden">
             {/* Gradient line at top */}
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/2 h-px bg-gradient-to-r from-transparent via-gray-700 to-transparent" />
             
@@ -55,9 +55,9 @@ export default function MarketOpportunitySection() {
                     className="text-center mb-12"
                 >
                     <h2 className="text-4xl md:text-5xl font-bold">
-                        <span className="text-white">Capturing the </span>
+                        <span className="text-[var(--text-primary)]">Capturing the </span>
                         <span className="text-red-500">$600B</span>
-                        <span className="text-white"> Ad Spend Transition.</span>
+                        <span className="text-[var(--text-primary)]"> Ad Spend Transition.</span>
                     </h2>
                 </motion.div>
 
@@ -70,7 +70,7 @@ export default function MarketOpportunitySection() {
                     className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12"
                 >
                     {markets.map((market, index) => (
-                        <div key={index} className={`bg-gray-950 border rounded-2xl p-6 ${
+                        <div key={index} className={`bg-[var(--bg-secondary)] border rounded-2xl p-6 transition-all duration-300 hover:scale-105 cursor-pointer ${
                             market.color === 'red' ? 'border-red-500/30' :
                             market.color === 'orange' ? 'border-orange-500/30' :
                             'border-green-500/30'
@@ -80,13 +80,13 @@ export default function MarketOpportunitySection() {
                                 market.color === 'orange' ? 'text-orange-500' :
                                 'text-green-500'
                             }`}>{market.label}</div>
-                            <p className="text-gray-500 text-sm mb-4">{market.title}</p>
+                            <p className="text-[var(--text-secondary)] text-sm mb-4">{market.title}</p>
                             <div className={`text-4xl font-bold mb-4 ${
                                 market.color === 'red' ? 'text-red-500' :
                                 market.color === 'orange' ? 'text-orange-500' :
                                 'text-green-500'
                             }`}>{market.value}</div>
-                            <p className="text-gray-500 text-sm">{market.description}</p>
+                            <p className="text-[var(--text-secondary)] text-sm">{market.description}</p>
                         </div>
                     ))}
                 </motion.div>
@@ -99,13 +99,13 @@ export default function MarketOpportunitySection() {
                     transition={{ delay: 0.3 }}
                     className="flex flex-wrap justify-center gap-8"
                 >
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 transition-transform duration-300 hover:scale-110 cursor-pointer">
                         <Zap className="w-5 h-5 text-yellow-500" />
-                        <span className="text-white font-semibold">3x Higher Intent</span>
+                        <span className="text-[var(--text-primary)] font-semibold">3x Higher Intent</span>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 transition-transform duration-300 hover:scale-110 cursor-pointer">
                         <TrendingUp className="w-5 h-5 text-red-500" />
-                        <span className="text-white font-semibold">30% Traffic Loss</span>
+                        <span className="text-[var(--text-primary)] font-semibold">30% Traffic Loss</span>
                     </div>
                 </motion.div>
             </div>

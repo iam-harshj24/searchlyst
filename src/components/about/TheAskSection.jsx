@@ -10,7 +10,7 @@ const fundAllocation = [
 
 export default function TheAskSection() {
     return (
-        <section className="relative bg-black py-24 overflow-hidden">
+        <section className="relative bg-[var(--bg-primary)] py-24 overflow-hidden">
             {/* Gradient line at top */}
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/2 h-px bg-gradient-to-r from-transparent via-gray-700 to-transparent" />
             
@@ -36,7 +36,7 @@ export default function TheAskSection() {
                     transition={{ delay: 0.1 }}
                     className="text-center mb-12"
                 >
-                    <h2 className="text-4xl md:text-5xl font-bold text-white">
+                    <h2 className="text-4xl md:text-5xl font-bold text-[var(--text-primary)]">
                         Fueling the Future of Search
                     </h2>
                 </motion.div>
@@ -49,20 +49,20 @@ export default function TheAskSection() {
                     transition={{ delay: 0.2 }}
                     className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12"
                 >
-                    <div className="bg-gray-950 border border-red-500/30 rounded-2xl p-6 text-center">
-                        <p className="text-gray-500 text-sm mb-2">Raise</p>
+                    <div className="bg-[var(--bg-secondary)] border border-red-500/30 rounded-2xl p-6 text-center transition-all duration-300 hover:scale-105 cursor-pointer">
+                        <p className="text-[var(--text-secondary)] text-sm mb-2">Raise</p>
                         <p className="text-4xl font-bold text-red-500">$1,000,000</p>
-                        <p className="text-gray-500 text-sm">USD</p>
+                        <p className="text-[var(--text-secondary)] text-sm">USD</p>
                     </div>
-                    <div className="bg-gray-950 border border-gray-800 rounded-2xl p-6 text-center">
-                        <p className="text-gray-500 text-sm mb-2">Equity</p>
-                        <p className="text-4xl font-bold text-white">17%</p>
-                        <p className="text-gray-500 text-sm">Offered</p>
+                    <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-6 text-center transition-all duration-300 hover:scale-105 cursor-pointer">
+                        <p className="text-[var(--text-secondary)] text-sm mb-2">Equity</p>
+                        <p className="text-4xl font-bold text-[var(--text-primary)]">17%</p>
+                        <p className="text-[var(--text-secondary)] text-sm">Offered</p>
                     </div>
-                    <div className="bg-gray-950 border border-gray-800 rounded-2xl p-6 text-center">
-                        <p className="text-gray-500 text-sm mb-2">Valuation</p>
-                        <p className="text-4xl font-bold text-white">~$5.8M</p>
-                        <p className="text-gray-500 text-sm">Post-Money</p>
+                    <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-6 text-center transition-all duration-300 hover:scale-105 cursor-pointer">
+                        <p className="text-[var(--text-secondary)] text-sm mb-2">Valuation</p>
+                        <p className="text-4xl font-bold text-[var(--text-primary)]">~$5.8M</p>
+                        <p className="text-[var(--text-secondary)] text-sm">Post-Money</p>
                     </div>
                 </motion.div>
 
@@ -72,28 +72,28 @@ export default function TheAskSection() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: 0.3 }}
-                    className="bg-gray-950 border border-gray-800 rounded-2xl p-8"
+                    className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-8"
                 >
                     <div className="flex items-center gap-2 mb-6">
                         <DollarSign className="w-5 h-5 text-green-500" />
-                        <h3 className="text-white font-semibold">Use of Funds</h3>
-                        <span className="text-gray-500 text-sm ml-auto">18-Month Runway</span>
+                        <h3 className="text-[var(--text-primary)] font-semibold">Use of Funds</h3>
+                        <span className="text-[var(--text-secondary)] text-sm ml-auto">18-Month Runway</span>
                     </div>
 
                     <div className="space-y-6">
                         {fundAllocation.map((item, index) => (
-                            <div key={index}>
+                            <div key={index} className="transition-transform duration-200 hover:translate-x-2">
                                 <div className="flex justify-between items-center mb-2">
-                                    <span className="text-white">{item.label}</span>
+                                    <span className="text-[var(--text-primary)]">{item.label}</span>
                                     <span className="text-red-500 font-semibold">{item.percent}%</span>
                                 </div>
-                                <div className="w-full bg-gray-800 rounded-full h-2 mb-2">
+                                <div className="w-full bg-[var(--bg-primary)] rounded-full h-2 mb-2">
                                     <div 
                                         className="bg-gradient-to-r from-red-500 to-red-600 h-2 rounded-full"
                                         style={{ width: `${item.percent}%` }}
                                     />
                                 </div>
-                                <p className="text-gray-500 text-sm">{item.description}</p>
+                                <p className="text-[var(--text-secondary)] text-sm">{item.description}</p>
                             </div>
                         ))}
                     </div>
