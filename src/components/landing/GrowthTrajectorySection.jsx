@@ -30,10 +30,23 @@ const CustomDot = (props) => {
     const { cx, cy, payload } = props;
     if (!payload.milestone) return null;
     
+    const isGreen = payload.score >= 90;
+    const fillColor = isGreen ? "#22c55e" : "#f97316";
+    const innerColor = isGreen ? "#16a34a" : "#ea580c";
+    const textColor = isGreen ? "#4ade80" : "#fb923c";
+    
     return (
         <g>
-            <circle cx={cx} cy={cy} r={8} fill="#22c55e" />
-            <circle cx={cx} cy={cy} r={4} fill="#16a34a" />
+            {/* Label above the dot */}
+            <text x={cx} y={cy - 35} textAnchor="middle" fill={textColor} fontSize="12" fontWeight="600">
+                {payload.label}
+            </text>
+            <text x={cx} y={cy - 20} textAnchor="middle" fill="#9ca3af" fontSize="10">
+                {payload.milestone}
+            </text>
+            {/* Dot */}
+            <circle cx={cx} cy={cy} r={8} fill={fillColor} />
+            <circle cx={cx} cy={cy} r={4} fill={innerColor} />
         </g>
     );
 };
@@ -123,28 +136,6 @@ export default function GrowthTrajectorySection() {
                                 </defs>
                             </LineChart>
                         </ResponsiveContainer>
-                        
-                        {/* Milestone labels - positioned manually */}
-                        <div className="absolute top-8 left-[10%] text-xs text-orange-400">
-                            <div className="font-medium">8%</div>
-                            <div className="text-gray-500">Discovery & Baseline</div>
-                        </div>
-                        <div className="absolute top-[35%] left-[30%] text-xs text-orange-400">
-                            <div className="font-medium">33%</div>
-                            <div className="text-gray-500">Technical Foundation</div>
-                        </div>
-                        <div className="absolute top-[25%] left-[50%] text-xs text-orange-400">
-                            <div className="font-medium">63%</div>
-                            <div className="text-gray-500">Content Optimization</div>
-                        </div>
-                        <div className="absolute top-[15%] left-[70%] text-xs text-green-400">
-                            <div className="font-medium">93%</div>
-                            <div className="text-gray-500">Citation Strategy</div>
-                        </div>
-                        <div className="absolute top-2 right-[5%] text-xs text-green-400">
-                            <div className="font-medium">180%</div>
-                            <div className="text-gray-500">AI Domination</div>
-                        </div>
                     </div>
                 </motion.div>
 
