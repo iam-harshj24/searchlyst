@@ -1,4 +1,5 @@
 import React from 'react';
+import { ThemeProvider } from '@/components/landing/ThemeToggle';
 import Navbar from '@/components/landing/Navbar';
 import HeroSection from '@/components/landing/HeroSection';
 import MarketGrowthSection from '@/components/landing/MarketGrowthSection';
@@ -10,15 +11,17 @@ import Footer from '@/components/landing/Footer';
 
 export default function Home() {
     return (
-        <div className="min-h-screen bg-black">
-            <Navbar />
-            <HeroSection />
-            <MarketGrowthSection />
-            <IndustryInsightSection />
-            <GrowthTrajectorySection />
-            <PricingSection />
-            <FAQSection />
-            <Footer />
-        </div>
+        <ThemeProvider>
+            <div className="min-h-screen bg-[var(--bg-primary)]">
+                <Navbar />
+                <HeroSection />
+                <MarketGrowthSection />
+                <IndustryInsightSection />
+                <GrowthTrajectorySection />
+                <PricingSection />
+                <FAQSection />
+                <Footer />
+            </div>
+        </ThemeProvider>
     );
 }
