@@ -59,16 +59,21 @@ export default function HeroSection() {
                     className="h-16 mb-6 flex items-center justify-center"
                 >
                     <AnimatePresence mode="wait">
-                        <motion.div
-                            key={currentPlatform}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -20 }}
-                            className="flex items-center gap-3 text-3xl md:text-4xl text-[var(--text-primary)] font-semibold"
-                        >
-                            <aiPlatforms[currentPlatform].Logo className="w-10 h-10 text-[var(--text-primary)]" />
-                            {aiPlatforms[currentPlatform].name}
-                        </motion.div>
+                        {(() => {
+                            const CurrentLogo = aiPlatforms[currentPlatform].Logo;
+                            return (
+                                <motion.div
+                                    key={currentPlatform}
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -20 }}
+                                    className="flex items-center gap-3 text-3xl md:text-4xl text-[var(--text-primary)] font-semibold"
+                                >
+                                    <CurrentLogo className="w-10 h-10 text-[var(--text-primary)]" />
+                                    {aiPlatforms[currentPlatform].name}
+                                </motion.div>
+                            );
+                        })()}
                     </AnimatePresence>
                 </motion.div>
 
