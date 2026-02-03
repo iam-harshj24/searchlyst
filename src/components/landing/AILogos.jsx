@@ -1,52 +1,73 @@
 import React from 'react';
 
-// Perplexity - geometric star/compass shape
+// Perplexity - geometric arrows pointing outward with square frame
 export const PerplexityLogo = ({ className = "w-8 h-8" }) => (
-    <svg viewBox="0 0 100 100" className={className} fill="none" stroke="currentColor" strokeWidth="6">
-        <path d="M50 5 L50 95" />
-        <path d="M5 50 L95 50" />
-        <path d="M20 20 L80 80" />
-        <path d="M80 20 L20 80" />
-        <rect x="25" y="25" width="50" height="50" />
+    <svg viewBox="0 0 100 100" className={className} fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="square">
+        {/* Outer square frame */}
+        <path d="M25 35 L25 75 L75 75 L75 35" />
+        {/* Center vertical line */}
+        <path d="M50 15 L50 85" />
+        {/* Left diagonal arrow */}
+        <path d="M50 15 L25 40" />
+        <path d="M25 40 L25 55" />
+        {/* Right diagonal arrow */}
+        <path d="M50 15 L75 40" />
+        <path d="M75 40 L75 55" />
+        {/* Bottom left diagonal */}
+        <path d="M50 85 L30 65" />
+        {/* Bottom right diagonal */}
+        <path d="M50 85 L70 65" />
+        {/* Center cross lines */}
+        <path d="M35 50 L65 50" />
     </svg>
 );
 
-// ChatGPT - interlocking knot/flower pattern
+// ChatGPT - interlocking hexagonal knot
 export const ChatGPTLogo = ({ className = "w-8 h-8" }) => (
-    <svg viewBox="0 0 100 100" className={className} fill="none" stroke="currentColor" strokeWidth="5">
-        <path d="M50 15 C65 15 75 25 75 40 C75 50 65 55 50 55" />
-        <path d="M50 55 C35 55 25 65 25 75 C25 85 35 90 50 85" />
-        <path d="M50 85 C65 80 80 75 85 60 C90 45 80 35 65 35" />
-        <path d="M65 35 C55 35 45 30 40 20 C35 15 40 10 50 15" />
-        <path d="M35 40 C25 45 15 55 15 70 C15 80 25 85 35 80" />
-        <path d="M35 80 C45 75 55 75 65 80 C75 85 80 75 75 65" />
+    <svg viewBox="0 0 100 100" className={className} fill="none" stroke="currentColor" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round">
+        {/* Top loop */}
+        <path d="M50 20 C70 20, 80 35, 75 50" />
+        {/* Top right to bottom */}
+        <path d="M75 50 C70 65, 55 70, 50 70" />
+        {/* Bottom center going left */}
+        <path d="M50 70 C35 70, 25 60, 25 50" />
+        {/* Left side going up */}
+        <path d="M25 50 C25 35, 35 25, 50 20" />
+        {/* Inner connections */}
+        <path d="M40 35 L60 50 L40 65" />
+        <path d="M60 35 L40 50 L60 65" />
     </svg>
 );
 
-// Gemini - sparkle/star burst
+// Gemini - 4-pointed star
 export const GeminiLogo = ({ className = "w-8 h-8" }) => (
     <svg viewBox="0 0 100 100" className={className} fill="currentColor">
-        <ellipse cx="50" cy="50" rx="8" ry="45" />
-        <ellipse cx="50" cy="50" rx="45" ry="8" />
-        <ellipse cx="50" cy="50" rx="8" ry="45" transform="rotate(45 50 50)" />
-        <ellipse cx="50" cy="50" rx="45" ry="8" transform="rotate(45 50 50)" />
+        <path d="M50 5 Q52 45 95 50 Q52 55 50 95 Q48 55 5 50 Q48 45 50 5 Z" />
     </svg>
 );
 
-// Claude - sunburst/asterisk pattern
+// Claude - sunburst/asterisk with rounded pill-shaped rays
 export const ClaudeLogo = ({ className = "w-8 h-8" }) => (
     <svg viewBox="0 0 100 100" className={className} fill="currentColor">
-        <rect x="47" y="10" width="6" height="35" rx="3" />
-        <rect x="47" y="55" width="6" height="35" rx="3" />
-        <rect x="10" y="47" width="35" height="6" rx="3" />
-        <rect x="55" y="47" width="35" height="6" rx="3" />
-        <rect x="47" y="10" width="6" height="35" rx="3" transform="rotate(45 50 50)" />
-        <rect x="47" y="55" width="6" height="35" rx="3" transform="rotate(45 50 50)" />
-        <rect x="10" y="47" width="35" height="6" rx="3" transform="rotate(45 50 50)" />
-        <rect x="55" y="47" width="35" height="6" rx="3" transform="rotate(45 50 50)" />
-        <rect x="47" y="10" width="6" height="35" rx="3" transform="rotate(22.5 50 50)" />
-        <rect x="47" y="55" width="6" height="35" rx="3" transform="rotate(22.5 50 50)" />
-        <rect x="47" y="10" width="6" height="35" rx="3" transform="rotate(67.5 50 50)" />
-        <rect x="47" y="55" width="6" height="35" rx="3" transform="rotate(67.5 50 50)" />
+        {/* 12 rays arranged in a circle */}
+        <rect x="46" y="8" width="8" height="28" rx="4" />
+        <rect x="46" y="64" width="8" height="28" rx="4" />
+        <rect x="8" y="46" width="28" height="8" rx="4" />
+        <rect x="64" y="46" width="28" height="8" rx="4" />
+        
+        <rect x="46" y="8" width="8" height="28" rx="4" transform="rotate(30 50 50)" />
+        <rect x="46" y="64" width="8" height="28" rx="4" transform="rotate(30 50 50)" />
+        
+        <rect x="46" y="8" width="8" height="28" rx="4" transform="rotate(60 50 50)" />
+        <rect x="46" y="64" width="8" height="28" rx="4" transform="rotate(60 50 50)" />
+        
+        <rect x="46" y="8" width="8" height="28" rx="4" transform="rotate(90 50 50)" />
+        <rect x="46" y="64" width="8" height="28" rx="4" transform="rotate(90 50 50)" />
+        
+        <rect x="46" y="8" width="8" height="28" rx="4" transform="rotate(120 50 50)" />
+        <rect x="46" y="64" width="8" height="28" rx="4" transform="rotate(120 50 50)" />
+        
+        <rect x="46" y="8" width="8" height="28" rx="4" transform="rotate(150 50 50)" />
+        <rect x="46" y="64" width="8" height="28" rx="4" transform="rotate(150 50 50)" />
     </svg>
 );
