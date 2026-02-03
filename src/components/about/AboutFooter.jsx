@@ -1,0 +1,85 @@
+import React from 'react';
+import { Input } from "@/components/ui/input";
+
+const footerLinks = {
+    Product: ['Features', 'Pricing', 'How It Works', 'Case Studies', 'API Documentation'],
+    Resources: ['Blog', 'AI Search Guide', 'Help Center', 'Status Page'],
+    Company: ['About Us', 'Careers', 'Contact', 'Privacy Policy', 'Terms of Service'],
+};
+
+const socialLinks = [
+    { name: 'Instagram', icon: '📷' },
+    { name: 'X', icon: '𝕏' },
+    { name: 'LinkedIn', icon: 'in' },
+    { name: 'YouTube', icon: '▶' },
+];
+
+export default function AboutFooter() {
+    return (
+        <footer className="bg-black border-t border-gray-800 py-16">
+            <div className="max-w-6xl mx-auto px-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12 mb-12">
+                    {/* Brand column */}
+                    <div className="lg:col-span-1">
+                        <div className="text-white text-xl font-semibold tracking-tight italic mb-4">
+                            searchlyst
+                        </div>
+                        <p className="text-gray-500 text-sm mb-6">
+                            Making brands visible in the age of AI search. Track, optimize, and dominate AI search results.
+                        </p>
+                        <div className="flex gap-2">
+                            <Input 
+                                placeholder="Enter your email"
+                                className="bg-gray-900 border-gray-800 text-white text-sm placeholder:text-gray-600"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Links columns */}
+                    {Object.entries(footerLinks).map(([category, links]) => (
+                        <div key={category}>
+                            <h4 className="text-white font-semibold mb-4">{category}</h4>
+                            <ul className="space-y-3">
+                                {links.map((link) => (
+                                    <li key={link}>
+                                        <a href="#" className="text-gray-500 hover:text-white text-sm transition-colors">
+                                            {link}
+                                        </a>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    ))}
+
+                    {/* Connect column */}
+                    <div>
+                        <h4 className="text-white font-semibold mb-4">Connect</h4>
+                        <div className="flex gap-3">
+                            {socialLinks.map((social) => (
+                                <a 
+                                    key={social.name}
+                                    href="#"
+                                    className="w-8 h-8 rounded-full bg-gray-900 border border-gray-800 flex items-center justify-center text-gray-500 hover:text-white hover:border-white transition-colors text-sm"
+                                >
+                                    {social.icon}
+                                </a>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Bottom bar */}
+                <div className="border-t border-gray-800 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
+                    <p className="text-gray-500 text-sm">
+                        © 2026 Searchlyst. Making brands visible in the age of AI search. v2.1
+                    </p>
+                    <div className="flex gap-6">
+                        <a href="#" className="text-gray-500 hover:text-white text-sm transition-colors">Privacy</a>
+                        <a href="#" className="text-gray-500 hover:text-white text-sm transition-colors">Terms</a>
+                        <a href="#" className="text-gray-500 hover:text-white text-sm transition-colors">Cookies</a>
+                    </div>
+                </div>
+            </div>
+        </footer>
+    );
+}

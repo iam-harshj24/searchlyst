@@ -1,0 +1,107 @@
+import React from 'react';
+import { motion } from 'framer-motion';
+import { ArrowRight, Clock, CheckCircle, XCircle, ArrowLeft } from 'lucide-react';
+import { Button } from "@/components/ui/button";
+import { Link } from 'react-router-dom';
+import { createPageUrl } from '@/utils';
+
+export default function AboutHeroSection() {
+    return (
+        <section className="relative bg-black min-h-screen pt-8 pb-24 overflow-hidden">
+            {/* Red glow effects */}
+            <div className="absolute bottom-0 left-0 w-96 h-96 bg-red-600/20 rounded-full blur-[150px]" />
+            <div className="absolute bottom-0 right-0 w-96 h-96 bg-red-600/20 rounded-full blur-[150px]" />
+            
+            <div className="relative max-w-6xl mx-auto px-6">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-8">
+                    <div className="text-white text-xl font-semibold tracking-tight italic">
+                        searchlyst
+                    </div>
+                    <h1 className="text-white text-xl font-medium">About Us</h1>
+                    <div className="w-20" />
+                </div>
+
+                {/* Back to Home */}
+                <Link to={createPageUrl('Home')} className="inline-flex items-center gap-2 text-gray-400 hover:text-white text-sm mb-12 transition-colors">
+                    <ArrowLeft className="w-4 h-4" />
+                    Back to Home
+                </Link>
+
+                {/* Badge */}
+                <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex justify-center mb-8"
+                >
+                    <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-red-500/30 bg-red-500/10">
+                        <span className="text-red-400 text-sm font-medium">AI search optimisation platform</span>
+                    </div>
+                </motion.div>
+
+                {/* Heading */}
+                <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1 }}
+                    className="text-center mb-6"
+                >
+                    <h2 className="text-4xl md:text-6xl font-bold mb-4">
+                        <span className="text-white">Get Your Brand Discovered</span><br />
+                        <span className="text-white">Where </span>
+                        <span className="text-red-500">1.5 Billion+</span>
+                        <span className="text-white"> People</span><br />
+                        <span className="text-white">Search with AI</span>
+                    </h2>
+                </motion.div>
+
+                <motion.p 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2 }}
+                    className="text-gray-400 text-center max-w-2xl mx-auto mb-10"
+                >
+                    The first platform built to make your brand visible in ChatGPT, Perplexity, Claude, and Gemini. Track, optimize, and dominate AI search results.
+                </motion.p>
+
+                {/* CTA Buttons */}
+                <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 }}
+                    className="flex flex-col sm:flex-row gap-4 justify-center mb-8"
+                >
+                    <Button className="bg-red-600 hover:bg-red-700 text-white px-8 h-12 rounded-full font-medium group">
+                        Start Free 7-Day Trial
+                        <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                    </Button>
+                    <Button variant="outline" className="border-gray-700 text-white hover:bg-gray-900 px-8 h-12 rounded-full font-medium group">
+                        See How It Works
+                        <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                    </Button>
+                </motion.div>
+
+                {/* Trust badges */}
+                <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4 }}
+                    className="flex flex-wrap justify-center gap-6 text-sm text-gray-500"
+                >
+                    <div className="flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-gray-600" />
+                        Setup in 5 minutes
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-gray-600" />
+                        No technical skills needed
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <XCircle className="w-4 h-4 text-gray-600" />
+                        Cancel anytime
+                    </div>
+                </motion.div>
+            </div>
+        </section>
+    );
+}
