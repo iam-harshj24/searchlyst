@@ -1,73 +1,78 @@
 import React from 'react';
 
-// Perplexity - geometric arrows pointing outward with square frame
+// Perplexity - geometric arrows with square frame (matching official logo)
 export const PerplexityLogo = ({ className = "w-8 h-8" }) => (
-    <svg viewBox="0 0 100 100" className={className} fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="square">
-        {/* Outer square frame */}
-        <path d="M25 35 L25 75 L75 75 L75 35" />
-        {/* Center vertical line */}
-        <path d="M50 15 L50 85" />
-        {/* Left diagonal arrow */}
-        <path d="M50 15 L25 40" />
-        <path d="M25 40 L25 55" />
-        {/* Right diagonal arrow */}
-        <path d="M50 15 L75 40" />
-        <path d="M75 40 L75 55" />
-        {/* Bottom left diagonal */}
-        <path d="M50 85 L30 65" />
-        {/* Bottom right diagonal */}
-        <path d="M50 85 L70 65" />
-        {/* Center cross lines */}
-        <path d="M35 50 L65 50" />
+    <svg viewBox="0 0 100 100" className={className} fill="none" stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round">
+        {/* Top arrow pointing up */}
+        <path d="M50 10 L50 45" />
+        <path d="M30 30 L50 10 L70 30" />
+        {/* Left vertical */}
+        <path d="M30 30 L30 70" />
+        {/* Right vertical */}
+        <path d="M70 30 L70 70" />
+        {/* Bottom horizontal */}
+        <path d="M30 70 L70 70" />
+        {/* Bottom arrow pointing down */}
+        <path d="M50 55 L50 90" />
+        <path d="M35 75 L50 90 L65 75" />
+        {/* Center horizontal */}
+        <path d="M30 45 L70 45" />
     </svg>
 );
 
-// ChatGPT - interlocking hexagonal knot
+// ChatGPT - hexagonal interlocking knot (matching official logo)
 export const ChatGPTLogo = ({ className = "w-8 h-8" }) => (
-    <svg viewBox="0 0 100 100" className={className} fill="none" stroke="currentColor" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round">
-        {/* Top loop */}
-        <path d="M50 20 C70 20, 80 35, 75 50" />
-        {/* Top right to bottom */}
-        <path d="M75 50 C70 65, 55 70, 50 70" />
-        {/* Bottom center going left */}
-        <path d="M50 70 C35 70, 25 60, 25 50" />
-        {/* Left side going up */}
-        <path d="M25 50 C25 35, 35 25, 50 20" />
+    <svg viewBox="0 0 100 100" className={className} fill="none" stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round">
+        {/* Outer hexagonal flower pattern */}
+        <path d="M50 15 L50 30" />
+        <path d="M50 15 C65 15, 78 25, 80 40" />
+        <path d="M80 40 L67 47" />
+        <path d="M80 40 C85 55, 78 70, 65 78" />
+        <path d="M65 78 L58 65" />
+        <path d="M65 78 C55 85, 40 85, 30 78" />
+        <path d="M30 78 L37 65" />
+        <path d="M30 78 C18 70, 12 55, 17 40" />
+        <path d="M17 40 L30 47" />
+        <path d="M17 40 C20 25, 35 15, 50 15" />
         {/* Inner connections */}
-        <path d="M40 35 L60 50 L40 65" />
-        <path d="M60 35 L40 50 L60 65" />
+        <path d="M50 30 L67 47 L58 65 L37 65 L30 47 L50 30" />
     </svg>
 );
 
-// Gemini - 4-pointed star
+// Gemini - 4-pointed star (matching official logo)
 export const GeminiLogo = ({ className = "w-8 h-8" }) => (
     <svg viewBox="0 0 100 100" className={className} fill="currentColor">
-        <path d="M50 5 Q52 45 95 50 Q52 55 50 95 Q48 55 5 50 Q48 45 50 5 Z" />
+        <path d="M50 0 C50 50, 50 50, 100 50 C50 50, 50 50, 50 100 C50 50, 50 50, 0 50 C50 50, 50 50, 50 0 Z" />
     </svg>
 );
 
-// Claude - sunburst/asterisk with rounded pill-shaped rays
+// Claude - sunburst with rounded pill rays (matching official logo)
 export const ClaudeLogo = ({ className = "w-8 h-8" }) => (
     <svg viewBox="0 0 100 100" className={className} fill="currentColor">
-        {/* 12 rays arranged in a circle */}
-        <rect x="46" y="8" width="8" height="28" rx="4" />
-        <rect x="46" y="64" width="8" height="28" rx="4" />
-        <rect x="8" y="46" width="28" height="8" rx="4" />
-        <rect x="64" y="46" width="28" height="8" rx="4" />
-        
-        <rect x="46" y="8" width="8" height="28" rx="4" transform="rotate(30 50 50)" />
-        <rect x="46" y="64" width="8" height="28" rx="4" transform="rotate(30 50 50)" />
-        
-        <rect x="46" y="8" width="8" height="28" rx="4" transform="rotate(60 50 50)" />
-        <rect x="46" y="64" width="8" height="28" rx="4" transform="rotate(60 50 50)" />
-        
-        <rect x="46" y="8" width="8" height="28" rx="4" transform="rotate(90 50 50)" />
-        <rect x="46" y="64" width="8" height="28" rx="4" transform="rotate(90 50 50)" />
-        
-        <rect x="46" y="8" width="8" height="28" rx="4" transform="rotate(120 50 50)" />
-        <rect x="46" y="64" width="8" height="28" rx="4" transform="rotate(120 50 50)" />
-        
-        <rect x="46" y="8" width="8" height="28" rx="4" transform="rotate(150 50 50)" />
-        <rect x="46" y="64" width="8" height="28" rx="4" transform="rotate(150 50 50)" />
+        {/* Top ray */}
+        <rect x="46" y="5" width="8" height="30" rx="4" />
+        {/* Bottom ray */}
+        <rect x="46" y="65" width="8" height="30" rx="4" />
+        {/* Right ray */}
+        <rect x="65" y="46" width="30" height="8" rx="4" />
+        {/* Left ray */}
+        <rect x="5" y="46" width="30" height="8" rx="4" />
+        {/* Top-right ray */}
+        <rect x="46" y="5" width="8" height="30" rx="4" transform="rotate(45 50 50)" />
+        {/* Bottom-left ray */}
+        <rect x="46" y="65" width="8" height="30" rx="4" transform="rotate(45 50 50)" />
+        {/* Top-left ray */}
+        <rect x="46" y="5" width="8" height="30" rx="4" transform="rotate(-45 50 50)" />
+        {/* Bottom-right ray */}
+        <rect x="46" y="65" width="8" height="30" rx="4" transform="rotate(-45 50 50)" />
+        {/* Additional rays for fuller sunburst */}
+        <rect x="46" y="5" width="8" height="30" rx="4" transform="rotate(22.5 50 50)" />
+        <rect x="46" y="65" width="8" height="30" rx="4" transform="rotate(22.5 50 50)" />
+        <rect x="46" y="5" width="8" height="30" rx="4" transform="rotate(-22.5 50 50)" />
+        <rect x="46" y="65" width="8" height="30" rx="4" transform="rotate(-22.5 50 50)" />
+        <rect x="46" y="5" width="8" height="30" rx="4" transform="rotate(67.5 50 50)" />
+        <rect x="46" y="65" width="8" height="30" rx="4" transform="rotate(67.5 50 50)" />
+        <rect x="46" y="5" width="8" height="30" rx="4" transform="rotate(-67.5 50 50)" />
+        <rect x="46" y="65" width="8" height="30" rx="4" transform="rotate(-67.5 50 50)" />
     </svg>
 );
