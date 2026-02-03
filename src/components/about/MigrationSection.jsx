@@ -19,7 +19,7 @@ const chartData = [
 
 export default function MigrationSection() {
     return (
-        <section className="relative bg-black py-24 overflow-hidden">
+        <section className="relative bg-[var(--bg-primary)] py-24 overflow-hidden">
             {/* Gradient line at top */}
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/2 h-px bg-gradient-to-r from-transparent via-gray-700 to-transparent" />
             
@@ -45,9 +45,9 @@ export default function MigrationSection() {
                     className="text-center mb-4"
                 >
                     <h2 className="text-4xl md:text-5xl font-bold">
-                        <span className="text-white">The Migration is Here</span><br />
+                        <span className="text-[var(--text-primary)]">The Migration is Here</span><br />
                         <span className="text-red-500">1.5 Billion Users</span>
-                        <span className="text-white"> Have Shifted</span>
+                        <span className="text-[var(--text-primary)]"> Have Shifted</span>
                     </h2>
                 </motion.div>
 
@@ -56,7 +56,7 @@ export default function MigrationSection() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: 0.2 }}
-                    className="text-gray-400 text-center mb-12"
+                    className="text-[var(--text-secondary)] text-center mb-12"
                 >
                     Search volume is moving from "Blue Links" to "Generative Answers" at unprecedented speed.
                 </motion.p>
@@ -67,28 +67,28 @@ export default function MigrationSection() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: 0.3 }}
-                    className="bg-gray-950 border border-gray-800 rounded-2xl p-8"
+                    className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-8"
                 >
-                    <h3 className="text-white text-xl font-semibold text-center mb-2">Monthly Active Users by Platform</h3>
-                    <p className="text-gray-500 text-sm text-center mb-6">In millions • 2023-2026 projected</p>
+                    <h3 className="text-[var(--text-primary)] text-xl font-semibold text-center mb-2">Monthly Active Users by Platform</h3>
+                    <p className="text-[var(--text-secondary)] text-sm text-center mb-6">In millions • 2023-2026 projected</p>
 
                     {/* Legend */}
                     <div className="flex flex-wrap justify-center gap-6 mb-8">
-                        <div className="flex items-center gap-2">
-                            <ChatGPTLogo className="w-4 h-4 text-gray-400" />
-                            <span className="text-gray-400 text-sm">ChatGPT</span>
+                        <div className="flex items-center gap-2 cursor-pointer transition-transform duration-300 hover:scale-110">
+                            <ChatGPTLogo className="w-4 h-4 text-[var(--text-secondary)]" />
+                            <span className="text-[var(--text-secondary)] text-sm">ChatGPT</span>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 cursor-pointer transition-transform duration-300 hover:scale-110">
                             <GeminiLogo className="w-4 h-4 text-blue-400" />
-                            <span className="text-gray-400 text-sm">Gemini</span>
+                            <span className="text-[var(--text-secondary)] text-sm">Gemini</span>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 cursor-pointer transition-transform duration-300 hover:scale-110">
                             <PerplexityLogo className="w-4 h-4 text-teal-400" />
-                            <span className="text-gray-400 text-sm">Perplexity</span>
+                            <span className="text-[var(--text-secondary)] text-sm">Perplexity</span>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 cursor-pointer transition-transform duration-300 hover:scale-110">
                             <ClaudeLogo className="w-4 h-4 text-orange-400" />
-                            <span className="text-gray-400 text-sm">Claude</span>
+                            <span className="text-[var(--text-secondary)] text-sm">Claude</span>
                         </div>
                     </div>
 
@@ -117,9 +117,9 @@ export default function MigrationSection() {
 
                     {/* Total badge */}
                     <div className="flex justify-center mt-6">
-                        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gray-900 border border-gray-800">
-                            <Users className="w-4 h-4 text-gray-400" />
-                            <span className="text-gray-400 text-sm">Total: 1.5B+ people now search with AI</span>
+                        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[var(--bg-primary)] border border-[var(--border)]">
+                            <Users className="w-4 h-4 text-[var(--text-secondary)]" />
+                            <span className="text-[var(--text-secondary)] text-sm">Total: 1.5B+ people now search with AI</span>
                         </div>
                     </div>
                 </motion.div>
