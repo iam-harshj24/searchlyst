@@ -37,7 +37,7 @@ const solutions = [
 
 export default function SolutionSection() {
     return (
-        <section className="relative bg-black py-24 overflow-hidden">
+        <section className="relative bg-[var(--bg-primary)] py-24 overflow-hidden">
             {/* Gradient line at top */}
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/2 h-px bg-gradient-to-r from-transparent via-gray-700 to-transparent" />
             
@@ -64,9 +64,9 @@ export default function SolutionSection() {
                     className="text-center mb-4"
                 >
                     <h2 className="text-4xl md:text-5xl font-bold">
-                        <span className="text-white">The </span>
+                        <span className="text-[var(--text-primary)]">The </span>
                         <span className="text-red-500">AI Search</span>
-                        <span className="text-white"> Infrastructure</span>
+                        <span className="text-[var(--text-primary)]"> Infrastructure</span>
                     </h2>
                 </motion.div>
 
@@ -75,7 +75,7 @@ export default function SolutionSection() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: 0.2 }}
-                    className="text-gray-400 text-center mb-12"
+                    className="text-[var(--text-secondary)] text-center mb-12"
                 >
                     We turn brand invisibility into authoritative citations.
                 </motion.p>
@@ -89,35 +89,35 @@ export default function SolutionSection() {
                     className="grid grid-cols-1 md:grid-cols-3 gap-6"
                 >
                     {solutions.map((solution, index) => (
-                        <div key={index} className="bg-gray-950 border border-gray-800 rounded-2xl p-6">
+                        <div key={index} className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-6 transition-all duration-300 hover:scale-105 hover:border-teal-500/30 cursor-pointer">
                             <div className="flex items-start justify-between mb-4">
                                 <div>
-                                    <h3 className="text-white font-bold text-sm tracking-wider">{solution.industry}</h3>
-                                    <p className="text-gray-500 text-sm">{solution.subtext}</p>
+                                    <h3 className="text-[var(--text-primary)] font-bold text-sm tracking-wider">{solution.industry}</h3>
+                                    <p className="text-[var(--text-secondary)] text-sm">{solution.subtext}</p>
                                 </div>
                                 <solution.icon className="w-6 h-6 text-red-500" />
                             </div>
                             
                             <div className="mb-4">
                                 <div className="flex items-center gap-2 mb-1">
-                                    <Search className="w-3 h-3 text-gray-500" />
-                                    <span className="text-gray-500 text-xs">{solution.queryType}</span>
+                                    <Search className="w-3 h-3 text-[var(--text-secondary)]" />
+                                    <span className="text-[var(--text-secondary)] text-xs">{solution.queryType}</span>
                                 </div>
-                                <p className="text-gray-400 text-sm italic">{solution.query}</p>
+                                <p className="text-[var(--text-secondary)] text-sm italic">{solution.query}</p>
                             </div>
 
                             <div className="mb-4">
                                 <div className="flex items-center gap-2 mb-2">
                                     <Sparkles className="w-3 h-3 text-red-500" />
-                                    <span className="text-gray-500 text-xs">AI Citation Result</span>
+                                    <span className="text-[var(--text-secondary)] text-xs">AI Citation Result</span>
                                 </div>
-                                <div className="bg-gray-900 rounded-xl p-4 border-l-2 border-red-500">
+                                <div className="bg-[var(--bg-primary)] rounded-xl p-4 border-l-2 border-red-500">
                                     <h4 className="text-red-500 font-semibold mb-1">{solution.resultTitle}</h4>
-                                    <p className="text-gray-500 text-xs mb-3">{solution.resultDescription}</p>
+                                    <p className="text-[var(--text-secondary)] text-xs mb-3">{solution.resultDescription}</p>
                                     <ul className="space-y-1">
                                         {solution.features.map((feature, idx) => (
-                                            <li key={idx} className="text-gray-400 text-xs flex items-center gap-2">
-                                                <span className="w-1 h-1 bg-gray-600 rounded-full" />
+                                            <li key={idx} className="text-[var(--text-secondary)] text-xs flex items-center gap-2">
+                                                <span className="w-1 h-1 bg-[var(--text-secondary)] rounded-full" />
                                                 {feature}
                                             </li>
                                         ))}

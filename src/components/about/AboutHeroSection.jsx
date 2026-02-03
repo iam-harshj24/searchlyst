@@ -7,7 +7,7 @@ import { createPageUrl } from '@/utils';
 
 export default function AboutHeroSection() {
     return (
-        <section className="relative bg-black min-h-screen pt-8 pb-24 overflow-hidden">
+        <section className="relative bg-[var(--bg-primary)] min-h-screen pt-8 pb-24 overflow-hidden">
             {/* Red glow effects */}
             <div className="absolute bottom-0 left-0 w-96 h-96 bg-red-600/20 rounded-full blur-[150px]" />
             <div className="absolute bottom-0 right-0 w-96 h-96 bg-red-600/20 rounded-full blur-[150px]" />
@@ -15,15 +15,15 @@ export default function AboutHeroSection() {
             <div className="relative max-w-6xl mx-auto px-6">
                 {/* Header */}
                 <div className="flex items-center justify-between mb-8">
-                    <div className="text-white text-xl font-semibold tracking-tight italic">
+                    <div className="text-[var(--text-primary)] text-xl font-semibold tracking-tight italic">
                         searchlyst
                     </div>
-                    <h1 className="text-white text-xl font-medium">About Us</h1>
+                    <h1 className="text-[var(--text-primary)] text-xl font-medium">About Us</h1>
                     <div className="w-20" />
                 </div>
 
                 {/* Back to Home */}
-                <Link to={createPageUrl('Home')} className="inline-flex items-center gap-2 text-gray-400 hover:text-white text-sm mb-12 transition-colors">
+                <Link to={createPageUrl('Home')} className="inline-flex items-center gap-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm mb-12 transition-colors">
                     <ArrowLeft className="w-4 h-4" />
                     Back to Home
                 </Link>
@@ -47,11 +47,11 @@ export default function AboutHeroSection() {
                     className="text-center mb-6"
                 >
                     <h2 className="text-4xl md:text-6xl font-bold mb-4">
-                        <span className="text-white">Get Your Brand Discovered</span><br />
-                        <span className="text-white">Where </span>
+                        <span className="text-[var(--text-primary)]">Get Your Brand Discovered</span><br />
+                        <span className="text-[var(--text-primary)]">Where </span>
                         <span className="text-red-500">1.5 Billion+</span>
-                        <span className="text-white"> People</span><br />
-                        <span className="text-white">Search with AI</span>
+                        <span className="text-[var(--text-primary)]"> People</span><br />
+                        <span className="text-[var(--text-primary)]">Search with AI</span>
                     </h2>
                 </motion.div>
 
@@ -59,7 +59,7 @@ export default function AboutHeroSection() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.2 }}
-                    className="text-gray-400 text-center max-w-2xl mx-auto mb-10"
+                    className="text-[var(--text-secondary)] text-center max-w-2xl mx-auto mb-10"
                 >
                     The first platform built to make your brand visible in ChatGPT, Perplexity, Claude, and Gemini. Track, optimize, and dominate AI search results.
                 </motion.p>
@@ -71,11 +71,11 @@ export default function AboutHeroSection() {
                     transition={{ delay: 0.3 }}
                     className="flex flex-col sm:flex-row gap-4 justify-center mb-8"
                 >
-                    <Button className="bg-red-600 hover:bg-red-700 text-white px-8 h-12 rounded-full font-medium group">
+                    <Button className="bg-red-600 hover:bg-red-700 text-white px-8 h-12 rounded-full font-medium group transition-transform duration-300 hover:scale-105">
                         Start Free 7-Day Trial
                         <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
                     </Button>
-                    <Button variant="outline" className="border-gray-700 text-white hover:bg-gray-900 px-8 h-12 rounded-full font-medium group">
+                    <Button variant="outline" className="border-[var(--border)] text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] px-8 h-12 rounded-full font-medium group transition-transform duration-300 hover:scale-105">
                         See How It Works
                         <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
                     </Button>
@@ -86,18 +86,18 @@ export default function AboutHeroSection() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.4 }}
-                    className="flex flex-wrap justify-center gap-6 text-sm text-gray-500"
+                    className="flex flex-wrap justify-center gap-6 text-sm text-[var(--text-secondary)]"
                 >
-                    <div className="flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-gray-600" />
+                    <div className="flex items-center gap-2 transition-transform duration-300 hover:scale-110 cursor-pointer">
+                        <Clock className="w-4 h-4 text-red-500" />
                         Setup in 5 minutes
                     </div>
-                    <div className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-gray-600" />
+                    <div className="flex items-center gap-2 transition-transform duration-300 hover:scale-110 cursor-pointer">
+                        <CheckCircle className="w-4 h-4 text-[var(--text-primary)]" />
                         No technical skills needed
                     </div>
-                    <div className="flex items-center gap-2">
-                        <XCircle className="w-4 h-4 text-gray-600" />
+                    <div className="flex items-center gap-2 transition-transform duration-300 hover:scale-110 cursor-pointer">
+                        <XCircle className="w-4 h-4 text-red-500" />
                         Cancel anytime
                     </div>
                 </motion.div>

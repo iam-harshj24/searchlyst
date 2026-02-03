@@ -28,7 +28,7 @@ const problems = [
 
 export default function ProblemSection() {
     return (
-        <section className="relative bg-black py-24 overflow-hidden">
+        <section className="relative bg-[var(--bg-primary)] py-24 overflow-hidden">
             {/* Red glow effect */}
             <div className="absolute top-0 left-0 w-96 h-96 bg-red-600/10 rounded-full blur-[150px]" />
             
@@ -58,8 +58,8 @@ export default function ProblemSection() {
                     className="text-center mb-4"
                 >
                     <h2 className="text-4xl md:text-5xl font-bold">
-                        <span className="text-white">The "Invisible Brand" Crisis</span><br />
-                        <span className="text-white">is Costing </span>
+                        <span className="text-[var(--text-primary)]">The "Invisible Brand" Crisis</span><br />
+                        <span className="text-[var(--text-primary)]">is Costing </span>
                         <span className="text-red-500">Billions.</span>
                     </h2>
                 </motion.div>
@@ -69,7 +69,7 @@ export default function ProblemSection() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: 0.2 }}
-                    className="text-gray-400 text-center mb-12"
+                    className="text-[var(--text-secondary)] text-center mb-12"
                 >
                     90% of brands ranking on Google Page 1 are completely invisible in ChatGPT.
                 </motion.p>
@@ -83,13 +83,13 @@ export default function ProblemSection() {
                     className="grid grid-cols-1 md:grid-cols-3 gap-6"
                 >
                     {problems.map((problem, index) => (
-                        <div key={index} className="bg-gray-950 border border-gray-800 rounded-2xl p-6">
-                            <problem.icon className="w-8 h-8 text-gray-400 mb-4" />
-                            <h3 className="text-white font-semibold text-lg mb-2">{problem.title}</h3>
-                            <p className="text-gray-500 text-sm mb-6">{problem.description}</p>
+                        <div key={index} className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-6 transition-all duration-300 hover:scale-105 hover:border-red-500/30 cursor-pointer">
+                            <problem.icon className="w-8 h-8 text-[var(--text-secondary)] mb-4" />
+                            <h3 className="text-[var(--text-primary)] font-semibold text-lg mb-2">{problem.title}</h3>
+                            <p className="text-[var(--text-secondary)] text-sm mb-6">{problem.description}</p>
                             <div className="flex items-baseline gap-2">
                                 <span className="text-3xl font-bold text-red-500">{problem.stat}</span>
-                                <span className="text-gray-500 text-sm">{problem.statLabel}</span>
+                                <span className="text-[var(--text-secondary)] text-sm">{problem.statLabel}</span>
                             </div>
                         </div>
                     ))}

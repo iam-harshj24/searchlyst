@@ -20,7 +20,7 @@ const ourApproach = [
 
 export default function MoatSection() {
     return (
-        <section className="relative bg-black py-24 overflow-hidden">
+        <section className="relative bg-[var(--bg-primary)] py-24 overflow-hidden">
             {/* Gradient line at top */}
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/2 h-px bg-gradient-to-r from-transparent via-gray-700 to-transparent" />
             
@@ -47,7 +47,7 @@ export default function MoatSection() {
                     className="text-center mb-4"
                 >
                     <h2 className="text-4xl md:text-5xl font-bold">
-                        <span className="text-white">We Don't Guess. </span>
+                        <span className="text-[var(--text-primary)]">We Don't Guess. </span>
                         <span className="text-red-500">We Engineer Authority.</span>
                     </h2>
                 </motion.div>
@@ -57,7 +57,7 @@ export default function MoatSection() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: 0.2 }}
-                    className="text-gray-400 text-center mb-12"
+                    className="text-[var(--text-secondary)] text-center mb-12"
                 >
                     Transforming SEO from a "Black Box" into a Scientific Process.
                 </motion.p>
@@ -71,30 +71,30 @@ export default function MoatSection() {
                     className="grid grid-cols-1 md:grid-cols-2 gap-6"
                 >
                     {/* Traditional */}
-                    <div className="bg-gray-950 border border-gray-800 rounded-2xl p-6">
-                        <h3 className="text-gray-400 font-semibold mb-6">Traditional Approach</h3>
+                    <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-6 transition-all duration-300 hover:scale-[1.02]">
+                        <h3 className="text-[var(--text-secondary)] font-semibold mb-6">Traditional Approach</h3>
                         <ul className="space-y-4">
                             {traditionalApproach.map((item, index) => (
-                                <li key={index} className="flex items-center gap-3">
-                                    <div className="w-6 h-6 rounded-full bg-gray-800 flex items-center justify-center">
-                                        <X className="w-3 h-3 text-gray-500" />
+                                <li key={index} className="flex items-center gap-3 transition-transform duration-200 hover:translate-x-2">
+                                    <div className="w-6 h-6 rounded-full bg-[var(--bg-primary)] flex items-center justify-center">
+                                        <X className="w-3 h-3 text-[var(--text-secondary)]" />
                                     </div>
-                                    <span className="text-gray-500">{item}</span>
+                                    <span className="text-[var(--text-secondary)]">{item}</span>
                                 </li>
                             ))}
                         </ul>
                     </div>
 
                     {/* Our Approach */}
-                    <div className="bg-gray-950 border border-red-500/30 rounded-2xl p-6">
+                    <div className="bg-[var(--bg-secondary)] border border-red-500/30 rounded-2xl p-6 transition-all duration-300 hover:scale-[1.02]">
                         <h3 className="text-red-500 font-semibold mb-6">Our AI-Enhanced Process</h3>
                         <ul className="space-y-4">
                             {ourApproach.map((item, index) => (
-                                <li key={index} className="flex items-center gap-3">
+                                <li key={index} className="flex items-center gap-3 transition-transform duration-200 hover:translate-x-2">
                                     <div className="w-6 h-6 rounded-full bg-red-500/20 flex items-center justify-center">
                                         <Check className="w-3 h-3 text-red-500" />
                                     </div>
-                                    <span className="text-gray-300">{item}</span>
+                                    <span className="text-[var(--text-primary)]">{item}</span>
                                 </li>
                             ))}
                         </ul>
