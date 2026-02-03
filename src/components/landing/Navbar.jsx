@@ -10,18 +10,18 @@ export default function Navbar() {
                     searchlyst
                 </div>
                 
-                <div className="hidden md:flex items-center gap-8">
+                <div className="hidden md:flex items-center gap-8 absolute left-1/2 -translate-x-1/2">
                     <a href="#features" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm transition-colors">Features</a>
                     <a href="#how-it-works" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm transition-colors">How It Works</a>
                     <a href="#pricing" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm transition-colors">Pricing</a>
                     <a href="#faq" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm transition-colors">FAQ</a>
                 </div>
                 
-                <div className="flex items-center gap-3">
-                    <ThemeToggle />
+                <div className="flex items-center gap-2">
                     <Button variant="ghost" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-secondary)]">
                         Log in
                     </Button>
+                    <ThemeToggle />
                     <Button className="bg-transparent border border-[var(--border)] text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] rounded-full px-5">
                         Start for free
                     </Button>
