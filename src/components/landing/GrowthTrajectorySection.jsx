@@ -32,21 +32,19 @@ const CustomDot = (props) => {
     
     const isGreen = payload.score >= 90;
     const fillColor = isGreen ? "#22c55e" : "#f97316";
-    const innerColor = isGreen ? "#16a34a" : "#ea580c";
     const textColor = isGreen ? "#4ade80" : "#fb923c";
     
     return (
         <g>
             {/* Label above the dot */}
-            <text x={cx} y={cy - 35} textAnchor="middle" fill={textColor} fontSize="12" fontWeight="600">
+            <text x={cx} y={cy - 25} textAnchor="middle" fill={textColor} fontSize="13" fontWeight="700">
                 {payload.label}
             </text>
-            <text x={cx} y={cy - 20} textAnchor="middle" fill="#9ca3af" fontSize="10">
+            <text x={cx} y={cy - 10} textAnchor="middle" fill="#6b7280" fontSize="11">
                 {payload.milestone}
             </text>
             {/* Dot */}
-            <circle cx={cx} cy={cy} r={8} fill={fillColor} />
-            <circle cx={cx} cy={cy} r={4} fill={innerColor} />
+            <circle cx={cx} cy={cy} r={6} fill={fillColor} />
         </g>
     );
 };
@@ -106,7 +104,7 @@ export default function GrowthTrajectorySection() {
 
                     <div className="h-80 relative">
                         <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={trajectoryData} margin={{ top: 40, right: 30, left: 0, bottom: 0 }}>
+                            <LineChart data={trajectoryData} margin={{ top: 60, right: 40, left: 10, bottom: 20 }}>
                                 <XAxis 
                                     dataKey="week" 
                                     stroke="#525252" 
