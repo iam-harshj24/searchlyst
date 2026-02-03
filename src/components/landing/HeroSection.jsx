@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Globe, Mail, ArrowRight, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { Globe, Mail, ArrowRight, Clock, CheckCircle, XCircle, User, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PerplexityLogo, ChatGPTLogo, GeminiLogo, ClaudeLogo } from './AILogos';
+import { base44 } from '@/api/base44Client';
+import { toast } from 'sonner';
 
 const aiPlatforms = [
     { name: 'Perplexity', Logo: PerplexityLogo },
@@ -14,8 +16,29 @@ const aiPlatforms = [
 
 export default function HeroSection() {
     const [currentPlatform, setCurrentPlatform] = useState(0);
+    const [fullName, setFullName] = useState('');
     const [websiteUrl, setWebsiteUrl] = useState('');
     const [email, setEmail] = useState('');
+    const [loading, setLoading] = useState(false);
+
+    const handleSubmit = async () => {
+        if (!fullName || !email || !websiteUrl) {
+            toast.error('Please fill in all fields');
+            return;
+        }
+        setLoading(true);
+        await base44.entities.Waitlist.create({
+            full_name: fullName,
+            email: email,
+            website_url: websiteUrl,
+            source: 'home'
+        });
+        setLoading(false);
+        toast.success('Successfully joined the waitlist!');
+        setFullName('');
+        setEmail('');
+        setWebsiteUrl('');
+    };
 
     useEffect(() => {
         const interval = setInterval(() => {
@@ -107,32 +130,54 @@ export default function HeroSection() {
                     transition={{ delay: 0.4 }}
                     className="max-w-2xl mx-auto bg-[var(--bg-secondary)] backdrop-blur-sm border border-[var(--border)] rounded-2xl p-6"
                 >
-                    <div className="flex flex-col md:flex-row gap-4 mb-4">
-                        <div className="flex-1 relative">
-                            <Globe className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-secondary)]" />
+                    <div className="flex flex-col gap-4 mb-4">
+                        <div className="relative">
+                            <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-secondary)]" />
                             <Input 
                                 type="text"
-                                placeholder="Enter Your Website URL"
-                                value={websiteUrl}
-                                onChange={(e) => setWebsiteUrl(e.target.value)}
+                                placeholder="Your Full Name"
+                                value={fullName}
+                                onChange={(e) => setFullName(e.target.value)}
                                 className="w-full bg-[var(--bg-primary)] border-[var(--border)] text-[var(--text-primary)] pl-12 h-12 rounded-xl placeholder:text-[var(--text-secondary)]"
                             />
                         </div>
-                        <div className="flex-1 relative">
-                            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-secondary)]" />
-                            <Input 
-                                type="email"
-                                placeholder="Your Work Email"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                className="w-full bg-[var(--bg-primary)] border-[var(--border)] text-[var(--text-primary)] pl-12 h-12 rounded-xl placeholder:text-[var(--text-secondary)]"
-                            />
+                        <div className="flex flex-col md:flex-row gap-4">
+                            <div className="flex-1 relative">
+                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-secondary)]" />
+                                <Input 
+                                    type="email"
+                                    placeholder="Your Work Email"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    className="w-full bg-[var(--bg-primary)] border-[var(--border)] text-[var(--text-primary)] pl-12 h-12 rounded-xl placeholder:text-[var(--text-secondary)]"
+                                />
+                            </div>
+                            <div className="flex-1 relative">
+                                <Globe className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-secondary)]" />
+                                <Input 
+                                    type="text"
+                                    placeholder="Company Website URL"
+                                    value={websiteUrl}
+                                    onChange={(e) => setWebsiteUrl(e.target.value)}
+                                    className="w-full bg-[var(--bg-primary)] border-[var(--border)] text-[var(--text-primary)] pl-12 h-12 rounded-xl placeholder:text-[var(--text-secondary)]"
+                                />
+                            </div>
                         </div>
                     </div>
                     
-                    <Button className="w-full bg-red-600 hover:bg-red-700 text-white h-12 rounded-xl font-medium text-base group">
-                        Get Your Free AI Visibility Score
-                        <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                    <Button 
+                        onClick={handleSubmit}
+                        disabled={loading}
+                        className="w-full bg-red-600 hover:bg-red-700 text-white h-12 rounded-xl font-medium text-base group"
+                    >
+                        {loading ? (
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                        ) : (
+                            <>
+                                Join Waitlist
+                                <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                            </>
+                        )}
                     </Button>
 
                     {/* Trust badges */}
