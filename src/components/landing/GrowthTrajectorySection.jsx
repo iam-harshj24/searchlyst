@@ -6,16 +6,16 @@ import { Button } from "@/components/ui/button";
 import WaitlistModal from '../WaitlistModal';
 
 const trajectoryData = [
-    { week: 'Week 1', score: 8, label: '8%', milestone: 'Discovery & Baseline' },
-    { week: 'Week 2', score: 15 },
-    { week: 'Week 3', score: 25 },
+    { week: 'Week 1', score: 0 },
+    { week: 'Week 2', score: 8, label: '8%', milestone: 'Discovery & Baseline' },
+    { week: 'Week 3', score: 20 },
     { week: 'Week 4', score: 33, label: '33%', milestone: 'Technical Foundation' },
-    { week: 'Week 5', score: 45 },
+    { week: 'Week 5', score: 50 },
     { week: 'Week 6', score: 63, label: '63%', milestone: 'Content Optimization' },
-    { week: 'Week 7', score: 80 },
-    { week: 'Week 8', score: 93, label: '93%', milestone: 'Citation Strategy' },
-    { week: 'Week 9', score: 130 },
-    { week: 'Week 10', score: 160 },
+    { week: 'Week 7', score: 90 },
+    { week: 'Week 8', score: 120, label: '93%', milestone: 'Citation Strategy' },
+    { week: 'Week 9', score: 140 },
+    { week: 'Week 10', score: 165 },
     { week: 'Week 11', score: 180, label: '180%', milestone: 'AI Domination' },
 ];
 
@@ -35,7 +35,7 @@ const CustomDot = (props) => {
     const textColor = isGreen ? "#4ade80" : "#fb923c";
     
     return (
-        <g>
+        <g className="cursor-pointer">
             {/* Label above the dot */}
             <text x={cx} y={cy - 25} textAnchor="middle" fill={textColor} fontSize="13" fontWeight="700">
                 {payload.label}
@@ -43,8 +43,10 @@ const CustomDot = (props) => {
             <text x={cx} y={cy - 10} textAnchor="middle" fill="#6b7280" fontSize="11">
                 {payload.milestone}
             </text>
+            {/* Outer glow on hover */}
+            <circle cx={cx} cy={cy} r={12} fill={fillColor} fillOpacity={0.2} className="transition-all duration-300 hover:fill-opacity-40" />
             {/* Dot */}
-            <circle cx={cx} cy={cy} r={6} fill={fillColor} />
+            <circle cx={cx} cy={cy} r={6} fill={fillColor} className="transition-transform duration-300 hover:scale-125" style={{ transformOrigin: `${cx}px ${cy}px` }} />
         </g>
     );
 };
