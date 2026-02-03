@@ -1,11 +1,19 @@
 import React from 'react';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Link } from 'react-router-dom';
+import { createPageUrl } from '@/utils';
 
 const footerLinks = {
     Product: ['Features', 'Pricing', 'How It Works', 'Case Studies', 'API Documentation'],
     Resources: ['Blog', 'AI Search Guide', 'Help Center', 'Status Page'],
-    Company: ['About Us', 'Careers', 'Contact', 'Privacy Policy', 'Terms of Service'],
+    Company: [
+        { label: 'About Us', href: 'AboutUs', isPage: true },
+        { label: 'Careers', href: '#' },
+        { label: 'Contact', href: '#' },
+        { label: 'Privacy Policy', href: '#' },
+        { label: 'Terms of Service', href: '#' }
+    ],
 };
 
 const socialLinks = [
@@ -41,13 +49,31 @@ export default function Footer() {
                         <div key={category}>
                             <h4 className="text-[var(--text-primary)] font-semibold mb-4">{category}</h4>
                             <ul className="space-y-3">
-                                {links.map((link) => (
-                                    <li key={link}>
-                                        <a href="#" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm transition-colors">
-                                            {link}
-                                        </a>
-                                    </li>
-                                ))}
+                                {links.map((link) => {
+                                    const isObject = typeof link === 'object';
+                                    const label = isObject ? link.label : link;
+                                    const isPage = isObject && link.isPage;
+                                    
+                                    return (
+                                        <li key={label}>
+                                            {isPage ? (
+                                                <Link 
+                                                    to={createPageUrl(link.href)} 
+                                                    className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm transition-colors"
+                                                >
+                                                    {label}
+                                                </Link>
+                                            ) : (
+                                                <a 
+                                                    href={isObject ? link.href : '#'} 
+                                                    className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm transition-colors"
+                                                >
+                                                    {label}
+                                                </a>
+                                            )}
+                                        </li>
+                                    );
+                                })}
                             </ul>
                         </div>
                     ))}

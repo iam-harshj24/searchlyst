@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { Sparkles, Zap, TrendingUp, Target, DollarSign, ArrowRight, Clock, CheckCircle, XCircle } from 'lucide-react';
 import { Button } from "@/components/ui/button";
+import WaitlistModal from '../WaitlistModal';
 
 const trajectoryData = [
     { week: 'Week 1', score: 8, label: '8%', milestone: 'Discovery & Baseline' },
@@ -38,7 +39,10 @@ const CustomDot = (props) => {
 };
 
 export default function GrowthTrajectorySection() {
+    const [showWaitlist, setShowWaitlist] = useState(false);
+    
     return (
+        <>
         <section className="relative bg-[var(--bg-primary)] py-24 overflow-hidden">
             <div className="relative max-w-6xl mx-auto px-6">
                 {/* Badge */}
@@ -169,8 +173,11 @@ export default function GrowthTrajectorySection() {
                     transition={{ delay: 0.4 }}
                     className="text-center"
                 >
-                    <Button className="bg-red-600 hover:bg-red-700 text-white px-8 h-12 rounded-xl font-medium group">
-                        Get Your Free AI Visibility Score
+                    <Button 
+                        onClick={() => setShowWaitlist(true)}
+                        className="bg-red-600 hover:bg-red-700 text-white px-8 h-12 rounded-xl font-medium group"
+                    >
+                        Join Waitlist
                         <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
                     </Button>
                     
@@ -191,5 +198,7 @@ export default function GrowthTrajectorySection() {
                 </motion.div>
             </div>
         </section>
+        <WaitlistModal open={showWaitlist} onOpenChange={setShowWaitlist} source="home" />
+        </>
     );
 }
