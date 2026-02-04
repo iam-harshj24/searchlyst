@@ -300,7 +300,7 @@ export default function CTASection() {
                                 <Button 
                                     type="submit"
                                     disabled={loading}
-                                    className="w-full bg-teal-600 hover:bg-teal-700 text-white h-12 rounded-xl font-medium group"
+                                    className="w-full bg-red-600 hover:bg-red-700 text-white h-12 rounded-xl font-medium group"
                                 >
                                     {loading ? (
                                         <Loader2 className="w-5 h-5 animate-spin" />
