@@ -214,39 +214,41 @@ export default function BlogPost() {
                         </motion.div>
 
                         {/* FAQ Section */}
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.4 }}
-                            className="mt-16 border-t border-[var(--border)] pt-12"
-                        >
-                            <h2 className="text-3xl font-bold mb-8">Frequently Asked Questions</h2>
-                            <div className="space-y-4">
-                                {faqData.map((faq, index) => (
-                                    <div
-                                        key={index}
-                                        className="border border-[var(--border)] rounded-lg overflow-hidden bg-[var(--bg-secondary)]"
-                                    >
-                                        <button
-                                            onClick={() => setExpandedFaq(expandedFaq === index ? null : index)}
-                                            className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-[var(--bg-primary)] transition-colors"
+                        {blog.faq && blog.faq.length > 0 && (
+                            <motion.div
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.4 }}
+                                className="mt-16 border-t border-[var(--border)] pt-12"
+                            >
+                                <h2 className="text-3xl font-bold mb-8">Frequently Asked Questions</h2>
+                                <div className="space-y-4">
+                                    {blog.faq.map((faq, index) => (
+                                        <div
+                                            key={index}
+                                            className="border border-[var(--border)] rounded-lg overflow-hidden bg-[var(--bg-secondary)]"
                                         >
-                                            <span className="font-semibold text-[var(--text-primary)]">{faq.question}</span>
-                                            {expandedFaq === index ? (
-                                                <ChevronUp className="w-5 h-5 text-red-500 flex-shrink-0" />
-                                            ) : (
-                                                <ChevronDown className="w-5 h-5 text-[var(--text-secondary)] flex-shrink-0" />
+                                            <button
+                                                onClick={() => setExpandedFaq(expandedFaq === index ? null : index)}
+                                                className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-[var(--bg-primary)] transition-colors"
+                                            >
+                                                <span className="font-semibold text-[var(--text-primary)]">{faq.question}</span>
+                                                {expandedFaq === index ? (
+                                                    <ChevronUp className="w-5 h-5 text-red-500 flex-shrink-0" />
+                                                ) : (
+                                                    <ChevronDown className="w-5 h-5 text-[var(--text-secondary)] flex-shrink-0" />
+                                                )}
+                                            </button>
+                                            {expandedFaq === index && (
+                                                <div className="px-6 pb-4 text-[var(--text-secondary)] leading-relaxed">
+                                                    {faq.answer}
+                                                </div>
                                             )}
-                                        </button>
-                                        {expandedFaq === index && (
-                                            <div className="px-6 pb-4 text-[var(--text-secondary)] leading-relaxed">
-                                                {faq.answer}
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        </motion.div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </motion.div>
+                        )}
 
                         {/* About the Author */}
                         <motion.div
