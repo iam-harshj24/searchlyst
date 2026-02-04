@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 // Claude logo - uses uploaded image, inverts based on theme
@@ -6,7 +5,7 @@ export const ClaudeLogo = ({ className = "w-8 h-8" }) => (
     <img 
         src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69824440a17c76d392c103dc/4f844e269_image.png" 
         alt="Claude" 
-        className={`${className} dark:invert brightness-0 dark:brightness-100`}
+        className={`${className} brightness-0 dark:brightness-0 dark:invert`}
     />
 );
 
