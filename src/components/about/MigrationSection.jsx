@@ -118,9 +118,9 @@ export default function MigrationSection() {
 
                     <div className="h-80">
                         <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                            <LineChart data={chartData} margin={{ top: 20, right: 50, left: 10, bottom: 10 }}>
                                 <XAxis 
-                                    dataKey="quarter" 
+                                    dataKey="name" 
                                     stroke="#525252" 
                                     tick={{ fill: '#737373', fontSize: 12 }}
                                     axisLine={{ stroke: '#404040' }}
@@ -130,11 +130,53 @@ export default function MigrationSection() {
                                     tick={{ fill: '#737373', fontSize: 12 }}
                                     axisLine={{ stroke: '#404040' }}
                                     tickFormatter={(value) => `${value}M`}
+                                    domain={[0, 1200]}
+                                    ticks={[0, 300, 600, 900, 1200]}
                                 />
-                                <Line type="monotone" dataKey="chatgpt" stroke="var(--text-primary)" strokeWidth={2} dot={false} />
-                                <Line type="monotone" dataKey="gemini" stroke="var(--text-primary)" strokeWidth={2} dot={false} strokeDasharray="5 5" />
-                                <Line type="monotone" dataKey="perplexity" stroke="var(--text-primary)" strokeWidth={2} dot={false} strokeDasharray="10 5" />
-                                <Line type="monotone" dataKey="claude" stroke="var(--text-primary)" strokeWidth={2} dot={false} strokeDasharray="2 2" />
+                                <Tooltip 
+                                    contentStyle={{ 
+                                        backgroundColor: '#18181b', 
+                                        border: '1px solid #27272a',
+                                        borderRadius: '8px',
+                                        color: '#fff'
+                                    }}
+                                    formatter={(value, name) => [`${value}M users`, name.charAt(0).toUpperCase() + name.slice(1)]}
+                                />
+                                <Line 
+                                    type="monotone" 
+                                    dataKey="chatgpt" 
+                                    stroke="#ffffff" 
+                                    strokeWidth={2} 
+                                    dot={(props) => <CustomEndDot {...props} data={chartData} />}
+                                    name="ChatGPT"
+                                />
+                                <Line 
+                                    type="monotone" 
+                                    dataKey="gemini" 
+                                    stroke="#ffffff" 
+                                    strokeWidth={2} 
+                                    dot={(props) => <CustomEndDot {...props} data={chartData} />}
+                                    name="Gemini"
+                                    strokeDasharray="8 4"
+                                />
+                                <Line 
+                                    type="monotone" 
+                                    dataKey="perplexity" 
+                                    stroke="#ffffff" 
+                                    strokeWidth={2} 
+                                    dot={(props) => <CustomEndDot {...props} data={chartData} />}
+                                    name="Perplexity"
+                                    strokeDasharray="4 4"
+                                />
+                                <Line 
+                                    type="monotone" 
+                                    dataKey="claude" 
+                                    stroke="#ffffff" 
+                                    strokeWidth={2} 
+                                    dot={(props) => <CustomEndDot {...props} data={chartData} />}
+                                    name="Claude"
+                                    strokeDasharray="2 2"
+                                />
                             </LineChart>
                         </ResponsiveContainer>
                     </div>
