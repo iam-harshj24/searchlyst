@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts';
 import { TrendingUp, Zap, DollarSign, Target, Users } from 'lucide-react';
 import { Button } from "@/components/ui/button";
+import { ChatGPTLogo, GeminiLogo, PerplexityLogo, ClaudeLogo } from './AILogos';
 
 const chartData = [
     { name: '2023', chatgpt: 100, gemini: 50, perplexity: 20, claude: 10 },
@@ -18,10 +19,10 @@ const chartData = [
 ];
 
 const stats = [
-    { icon: Zap, value: '40%', label: 'month-over-month growth', color: 'text-yellow-500' },
-    { icon: DollarSign, value: '2.1x', label: 'better conversion from AI traffic', color: 'text-green-500' },
-    { icon: Target, value: '3x', label: 'higher intent than traditional search', color: 'text-red-500' },
-    { icon: Users, value: '65%', label: 'of professionals use AI search weekly', color: 'text-blue-500' },
+    { icon: Zap, value: '40%', label: 'month-over-month growth', color: 'text-[var(--text-primary)]' },
+    { icon: DollarSign, value: '2.1x', label: 'better conversion from AI traffic', color: 'text-[var(--text-primary)]' },
+    { icon: Target, value: '3x', label: 'higher intent than traditional search', color: 'text-[var(--text-primary)]' },
+    { icon: Users, value: '65%', label: 'of professionals use AI search weekly', color: 'text-[var(--text-primary)]' },
 ];
 
 export default function MarketGrowthSection() {
@@ -82,20 +83,24 @@ export default function MarketGrowthSection() {
                     {/* Legend */}
                     <div className="flex flex-wrap gap-6 mb-6">
                         <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-full bg-emerald-500" />
+                            <ChatGPTLogo className="w-4 h-4" />
                             <span className="text-[var(--text-secondary)] text-sm">ChatGPT</span>
+                            <div className="w-6 h-0.5 bg-[var(--text-primary)]"></div>
                         </div>
                         <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-full bg-blue-500" />
+                            <GeminiLogo className="w-4 h-4" />
                             <span className="text-[var(--text-secondary)] text-sm">Gemini</span>
+                            <div className="w-6 h-0.5 bg-[var(--text-primary)]" style={{ backgroundImage: 'repeating-linear-gradient(90deg, var(--text-primary) 0, var(--text-primary) 5px, transparent 5px, transparent 10px)' }}></div>
                         </div>
                         <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-full bg-cyan-400" />
+                            <PerplexityLogo className="w-4 h-4" />
                             <span className="text-[var(--text-secondary)] text-sm">Perplexity</span>
+                            <div className="w-6 h-0.5" style={{ backgroundImage: 'repeating-linear-gradient(90deg, var(--text-primary) 0, var(--text-primary) 10px, transparent 10px, transparent 15px)' }}></div>
                         </div>
                         <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-full bg-orange-400" />
+                            <ClaudeLogo className="w-4 h-4" />
                             <span className="text-[var(--text-secondary)] text-sm">Claude</span>
+                            <div className="w-6 h-0.5" style={{ backgroundImage: 'repeating-linear-gradient(90deg, var(--text-primary) 0, var(--text-primary) 2px, transparent 2px, transparent 4px)' }}></div>
                         </div>
                     </div>
 
@@ -122,10 +127,10 @@ export default function MarketGrowthSection() {
                                         color: '#fff'
                                     }}
                                 />
-                                <Line type="monotone" dataKey="chatgpt" stroke="#10b981" strokeWidth={2} dot={false} />
-                                <Line type="monotone" dataKey="gemini" stroke="#3b82f6" strokeWidth={2} dot={false} />
-                                <Line type="monotone" dataKey="perplexity" stroke="#22d3ee" strokeWidth={2} dot={false} />
-                                <Line type="monotone" dataKey="claude" stroke="#fb923c" strokeWidth={2} dot={false} />
+                                <Line type="monotone" dataKey="chatgpt" stroke="var(--text-primary)" strokeWidth={2} dot={false} />
+                                <Line type="monotone" dataKey="gemini" stroke="var(--text-primary)" strokeWidth={2} dot={false} strokeDasharray="5 5" />
+                                <Line type="monotone" dataKey="perplexity" stroke="var(--text-primary)" strokeWidth={2} dot={false} strokeDasharray="10 5" />
+                                <Line type="monotone" dataKey="claude" stroke="var(--text-primary)" strokeWidth={2} dot={false} strokeDasharray="2 2" />
                             </LineChart>
                         </ResponsiveContainer>
                     </div>
