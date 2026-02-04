@@ -184,32 +184,6 @@ export default function MarketGrowthSection() {
                                 />
                             </LineChart>
                         </ResponsiveContainer>
-                        
-                        {/* Brand logos positioned at end points of each line */}
-                        {/* ChatGPT: 1100M = ~8% from top */}
-                        <div className="absolute" style={{ right: '12px', top: 'calc(8% + 10px)' }}>
-                            <div className="w-7 h-7 rounded-full bg-[var(--bg-secondary)] border border-white/30 flex items-center justify-center">
-                                <ChatGPTLogo className="w-4 h-4" />
-                            </div>
-                        </div>
-                        {/* Gemini: 900M = ~25% from top */}
-                        <div className="absolute" style={{ right: '12px', top: 'calc(25% + 10px)' }}>
-                            <div className="w-7 h-7 rounded-full bg-[var(--bg-secondary)] border border-white/30 flex items-center justify-center">
-                                <GeminiLogo className="w-4 h-4" />
-                            </div>
-                        </div>
-                        {/* Perplexity: 800M = ~33% from top */}
-                        <div className="absolute" style={{ right: '12px', top: 'calc(33% + 10px)' }}>
-                            <div className="w-7 h-7 rounded-full bg-[var(--bg-secondary)] border border-white/30 flex items-center justify-center">
-                                <PerplexityLogo className="w-4 h-4" />
-                            </div>
-                        </div>
-                        {/* Claude: 600M = ~50% from top */}
-                        <div className="absolute" style={{ right: '12px', top: 'calc(50% + 10px)' }}>
-                            <div className="w-7 h-7 rounded-full bg-[var(--bg-secondary)] border border-white/30 flex items-center justify-center">
-                                <ClaudeLogo className="w-4 h-4" />
-                            </div>
-                        </div>
                     </div>
 
                     {/* Total indicator */}
