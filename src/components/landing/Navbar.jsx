@@ -12,9 +12,11 @@ export default function Navbar() {
         <>
             <nav className="fixed top-0 left-0 right-0 z-50 bg-[var(--bg-primary)] backdrop-blur-md border-b border-[var(--border)]">
                 <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-                    <div className="text-[var(--text-primary)] text-xl font-semibold tracking-tight italic">
-                        searchlyst
-                    </div>
+                    <img 
+                        src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69824440a17c76d392c103dc/2787700e8_Group123-Picsart-BackgroundRemover.png" 
+                        alt="Searchlyst" 
+                        className="h-6"
+                    />
                     
                     <div className="hidden md:flex items-center gap-8 absolute left-1/2 -translate-x-1/2">
                         <Link to={createPageUrl('AboutUs')} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm transition-colors">About Us</Link>
