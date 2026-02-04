@@ -45,13 +45,40 @@ import { format } from 'date-fns';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function AdminPanel() {
+    const [activeTab, setActiveTab] = useState('waitlist');
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
     const [sourceFilter, setSourceFilter] = useState('all');
+    
+    // Blog states
+    const [blogDialog, setBlogDialog] = useState(false);
+    const [editingBlog, setEditingBlog] = useState(null);
+    const [blogForm, setBlogForm] = useState({
+        title: '',
+        summary: '',
+        featured_image: '',
+        category: 'Product',
+        read_time: 5,
+        content: '',
+        key_takeaways: ['', '', '', '', ''],
+        faq: [{ question: '', answer: '' }],
+        author_name: '',
+        author_title: '',
+        author_bio: '',
+        author_initials: '',
+        status: 'draft'
+    });
+
+    const queryClient = useQueryClient();
 
     const { data: waitlistEntries = [], isLoading, refetch } = useQuery({
         queryKey: ['waitlist'],
         queryFn: () => base44.entities.Waitlist.list('-created_date'),
+    });
+
+    const { data: blogs = [], isLoading: blogsLoading, refetch: refetchBlogs } = useQuery({
+        queryKey: ['blogs-admin'],
+        queryFn: () => base44.entities.Blog.list('-created_date'),
     });
 
     const filteredEntries = waitlistEntries.filter(entry => {
