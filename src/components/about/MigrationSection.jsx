@@ -3,23 +3,20 @@ import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'rec
 import { Users } from 'lucide-react';
 import { ChatGPTLogo, GeminiLogo, PerplexityLogo, ClaudeLogo } from '../landing/AILogos';
 
-// Custom dot with logo at end of line - same as Home page
+// Simplified dot for Safari performance - removed foreignObject which causes WebKit issues
 const CustomEndDot = ({ cx, cy, payload, dataKey, index, data }) => {
     if (index !== data.length - 1) return null;
     
-    const LogoComponent = dataKey === 'chatgpt' ? ChatGPTLogo : 
-                         dataKey === 'gemini' ? GeminiLogo :
-                         dataKey === 'perplexity' ? PerplexityLogo :
-                         ClaudeLogo;
+    const colors = {
+        chatgpt: '#10a37f',
+        gemini: '#4285f4',
+        perplexity: '#20b2aa',
+        claude: '#cc785c'
+    };
     
     return (
         <g>
-            <circle cx={cx} cy={cy} r={14} fill="var(--bg-secondary)" stroke="white" strokeWidth="1.5" />
-            <foreignObject x={cx - 10} y={cy - 10} width={20} height={20}>
-                <div className="flex items-center justify-center w-full h-full">
-                    <LogoComponent className="w-4 h-4" />
-                </div>
-            </foreignObject>
+            <circle cx={cx} cy={cy} r={8} fill={colors[dataKey] || '#fff'} stroke="white" strokeWidth="2" />
         </g>
     );
 };
