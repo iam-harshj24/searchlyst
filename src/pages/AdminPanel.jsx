@@ -119,6 +119,97 @@ export default function AdminPanel() {
         refetch();
     };
 
+    // Blog functions
+    const openNewBlog = () => {
+        setEditingBlog(null);
+        setBlogForm({
+            title: '',
+            summary: '',
+            featured_image: '',
+            category: 'Product',
+            read_time: 5,
+            content: '',
+            key_takeaways: ['', '', '', '', ''],
+            faq: [{ question: '', answer: '' }],
+            author_name: '',
+            author_title: '',
+            author_bio: '',
+            author_initials: '',
+            status: 'draft'
+        });
+        setBlogDialog(true);
+    };
+
+    const openEditBlog = (blog) => {
+        setEditingBlog(blog);
+        setBlogForm({
+            title: blog.title || '',
+            summary: blog.summary || '',
+            featured_image: blog.featured_image || '',
+            category: blog.category || 'Product',
+            read_time: blog.read_time || 5,
+            content: blog.content || '',
+            key_takeaways: blog.key_takeaways?.length ? blog.key_takeaways : ['', '', '', '', ''],
+            faq: blog.faq?.length ? blog.faq : [{ question: '', answer: '' }],
+            author_name: blog.author_name || '',
+            author_title: blog.author_title || '',
+            author_bio: blog.author_bio || '',
+            author_initials: blog.author_initials || '',
+            status: blog.status || 'draft'
+        });
+        setBlogDialog(true);
+    };
+
+    const saveBlog = async () => {
+        const cleanedForm = {
+            ...blogForm,
+            key_takeaways: blogForm.key_takeaways.filter(t => t.trim()),
+            faq: blogForm.faq.filter(f => f.question.trim() && f.answer.trim())
+        };
+        
+        if (editingBlog) {
+            await base44.entities.Blog.update(editingBlog.id, cleanedForm);
+        } else {
+            await base44.entities.Blog.create(cleanedForm);
+        }
+        setBlogDialog(false);
+        refetchBlogs();
+    };
+
+    const deleteBlog = async (id) => {
+        if (confirm('Are you sure you want to delete this blog?')) {
+            await base44.entities.Blog.delete(id);
+            refetchBlogs();
+        }
+    };
+
+    const toggleBlogStatus = async (blog) => {
+        const newStatus = blog.status === 'published' ? 'draft' : 'published';
+        await base44.entities.Blog.update(blog.id, { status: newStatus });
+        refetchBlogs();
+    };
+
+    const updateKeyTakeaway = (index, value) => {
+        const newTakeaways = [...blogForm.key_takeaways];
+        newTakeaways[index] = value;
+        setBlogForm({ ...blogForm, key_takeaways: newTakeaways });
+    };
+
+    const updateFaq = (index, field, value) => {
+        const newFaq = [...blogForm.faq];
+        newFaq[index] = { ...newFaq[index], [field]: value };
+        setBlogForm({ ...blogForm, faq: newFaq });
+    };
+
+    const addFaq = () => {
+        setBlogForm({ ...blogForm, faq: [...blogForm.faq, { question: '', answer: '' }] });
+    };
+
+    const removeFaq = (index) => {
+        const newFaq = blogForm.faq.filter((_, i) => i !== index);
+        setBlogForm({ ...blogForm, faq: newFaq });
+    };
+
     return (
         <div className="min-h-screen bg-gray-950 p-6">
             <div className="max-w-7xl mx-auto">
