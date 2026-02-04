@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Globe, Mail, ArrowRight, Clock, CheckCircle, XCircle, User, Loader2 } from 'lucide-react';
@@ -6,6 +6,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { PerplexityLogo, ChatGPTLogo, GeminiLogo, ClaudeLogo } from './AILogos';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
+
+// Reduced motion for better performance
+const fadeIn = {
+    initial: { opacity: 0 },
+    animate: { opacity: 1 },
+    transition: { duration: 0.3 }
+};
 
 const aiPlatforms = [
     { name: 'Perplexity', Logo: PerplexityLogo },
@@ -55,41 +62,28 @@ export default function HeroSection() {
             
             <div className="relative max-w-4xl mx-auto px-4 md:px-6 text-center">
                 {/* Badge */}
-                <motion.div 
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-red-500/30 bg-red-500/10 mb-8"
-                >
+                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-red-500/30 bg-red-500/10 mb-8">
                     <span className="text-red-500 text-sm">★</span>
                     <span className="text-red-500 text-sm font-medium">AI search optimisation platform</span>
-                </motion.div>
+                </div>
 
                 {/* Main heading */}
-                <motion.h1 
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 }}
-                    className="text-3xl md:text-5xl lg:text-7xl font-bold text-[var(--text-primary)] mb-4 md:mb-6 tracking-tight"
-                >
+                <h1 className="text-3xl md:text-5xl lg:text-7xl font-bold text-[var(--text-primary)] mb-4 md:mb-6 tracking-tight">
                     Get your brand<br />recommended by
-                </motion.h1>
+                </h1>
 
                 {/* Animated platform name */}
-                <motion.div 
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 }}
-                    className="h-12 md:h-16 mb-4 md:mb-6 flex items-center justify-center"
-                >
+                <div className="h-12 md:h-16 mb-4 md:mb-6 flex items-center justify-center">
                     <AnimatePresence mode="wait">
                         {(() => {
                             const CurrentLogo = aiPlatforms[currentPlatform].Logo;
                             return (
                                 <motion.div
                                     key={currentPlatform}
-                                    initial={{ opacity: 0, y: 20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: -20 }}
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    transition={{ duration: 0.2 }}
                                     className="flex items-center gap-2 md:gap-3 text-2xl md:text-3xl lg:text-4xl text-[var(--text-primary)] font-semibold"
                                 >
                                     <CurrentLogo className="w-8 h-8 md:w-10 md:h-10 text-[var(--text-primary)]" />
@@ -98,7 +92,7 @@ export default function HeroSection() {
                             );
                         })()}
                     </AnimatePresence>
-                </motion.div>
+                </div>
 
                 {/* Platform indicators */}
                 <div className="flex justify-center gap-2 mb-8">
@@ -113,22 +107,12 @@ export default function HeroSection() {
                 </div>
 
                 {/* Description */}
-                <motion.p 
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.3 }}
-                    className="text-[var(--text-secondary)] text-base md:text-lg mb-6 md:mb-10 max-w-2xl mx-auto px-4"
-                >
+                <p className="text-[var(--text-secondary)] text-base md:text-lg mb-6 md:mb-10 max-w-2xl mx-auto px-4">
                     The all-in-one platform to track, optimize, and control your brand's presence in the age of AI search.
-                </motion.p>
+                </p>
 
                 {/* Form */}
-                <motion.div 
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.4 }}
-                    className="max-w-2xl mx-auto bg-[var(--bg-secondary)] backdrop-blur-sm border border-[var(--border)] rounded-2xl p-4 md:p-6"
-                >
+                <div className="max-w-2xl mx-auto bg-[var(--bg-secondary)] backdrop-blur-sm border border-[var(--border)] rounded-2xl p-4 md:p-6">
                     <div className="flex flex-col gap-4 mb-4">
                         <div className="relative">
                             <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-secondary)]" />
@@ -194,7 +178,7 @@ export default function HeroSection() {
                             Cancel anytime
                         </div>
                     </div>
-                </motion.div>
+                </div>
             </div>
         </section>
     );
