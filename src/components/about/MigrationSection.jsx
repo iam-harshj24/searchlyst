@@ -75,20 +75,24 @@ export default function MigrationSection() {
                     {/* Legend */}
                     <div className="flex flex-wrap justify-center gap-6 mb-8">
                         <div className="flex items-center gap-2 cursor-pointer transition-transform duration-300 hover:scale-110">
-                            <ChatGPTLogo className="w-4 h-4 text-[var(--text-secondary)]" />
+                            <ChatGPTLogo className="w-4 h-4" />
                             <span className="text-[var(--text-secondary)] text-sm">ChatGPT</span>
+                            <div className="w-6 h-0.5 bg-[var(--text-primary)]"></div>
                         </div>
                         <div className="flex items-center gap-2 cursor-pointer transition-transform duration-300 hover:scale-110">
-                            <GeminiLogo className="w-4 h-4 text-blue-400" />
+                            <GeminiLogo className="w-4 h-4" />
                             <span className="text-[var(--text-secondary)] text-sm">Gemini</span>
+                            <div className="w-6 h-0.5 bg-[var(--text-primary)]" style={{ backgroundImage: 'repeating-linear-gradient(90deg, var(--text-primary) 0, var(--text-primary) 5px, transparent 5px, transparent 10px)' }}></div>
                         </div>
                         <div className="flex items-center gap-2 cursor-pointer transition-transform duration-300 hover:scale-110">
-                            <PerplexityLogo className="w-4 h-4 text-teal-400" />
+                            <PerplexityLogo className="w-4 h-4" />
                             <span className="text-[var(--text-secondary)] text-sm">Perplexity</span>
+                            <div className="w-6 h-0.5" style={{ backgroundImage: 'repeating-linear-gradient(90deg, var(--text-primary) 0, var(--text-primary) 10px, transparent 10px, transparent 15px)' }}></div>
                         </div>
                         <div className="flex items-center gap-2 cursor-pointer transition-transform duration-300 hover:scale-110">
-                            <ClaudeLogo className="w-4 h-4 text-orange-400" />
+                            <ClaudeLogo className="w-4 h-4" />
                             <span className="text-[var(--text-secondary)] text-sm">Claude</span>
+                            <div className="w-6 h-0.5" style={{ backgroundImage: 'repeating-linear-gradient(90deg, var(--text-primary) 0, var(--text-primary) 2px, transparent 2px, transparent 4px)' }}></div>
                         </div>
                     </div>
 
@@ -107,10 +111,10 @@ export default function MigrationSection() {
                                     axisLine={{ stroke: '#404040' }}
                                     tickFormatter={(value) => `${value}M`}
                                 />
-                                <Line type="monotone" dataKey="chatgpt" stroke="#ef4444" strokeWidth={2} dot={false} />
-                                <Line type="monotone" dataKey="gemini" stroke="#3b82f6" strokeWidth={2} dot={false} />
-                                <Line type="monotone" dataKey="perplexity" stroke="#14b8a6" strokeWidth={2} dot={false} />
-                                <Line type="monotone" dataKey="claude" stroke="#f97316" strokeWidth={2} dot={false} />
+                                <Line type="monotone" dataKey="chatgpt" stroke="var(--text-primary)" strokeWidth={2} dot={false} />
+                                <Line type="monotone" dataKey="gemini" stroke="var(--text-primary)" strokeWidth={2} dot={false} strokeDasharray="5 5" />
+                                <Line type="monotone" dataKey="perplexity" stroke="var(--text-primary)" strokeWidth={2} dot={false} strokeDasharray="10 5" />
+                                <Line type="monotone" dataKey="claude" stroke="var(--text-primary)" strokeWidth={2} dot={false} strokeDasharray="2 2" />
                             </LineChart>
                         </ResponsiveContainer>
                     </div>
