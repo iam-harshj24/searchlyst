@@ -88,44 +88,70 @@ export default function CookieConsent() {
                         initial={{ y: 100, opacity: 0 }}
                         animate={{ y: 0, opacity: 1 }}
                         exit={{ y: 100, opacity: 0 }}
-                        className="fixed bottom-0 left-0 right-0 z-50 p-4 md:p-6"
+                        className="fixed bottom-4 left-4 right-4 md:bottom-6 md:left-6 md:right-6 z-50"
                     >
-                        <div className="max-w-6xl mx-auto bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-6 shadow-2xl">
-                            <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
-                                <div className="flex items-start gap-3 flex-1">
-                                    <Cookie className="w-6 h-6 text-red-500 flex-shrink-0 mt-1" />
-                                    <div>
-                                        <h3 className="text-[var(--text-primary)] font-semibold mb-2">
-                                            We value your privacy
-                                        </h3>
+                        {/* Mobile: Compact popup */}
+                        <div className="md:hidden bg-[var(--bg-secondary)] border border-[var(--border)] rounded-xl p-4 shadow-2xl">
+                            <div className="flex items-center gap-2 mb-3">
+                                <Cookie className="w-4 h-4 text-red-500 flex-shrink-0" />
+                                <p className="text-[var(--text-primary)] text-sm font-medium">We use cookies</p>
+                            </div>
+                            <div className="flex gap-2">
+                                <Button
+                                    onClick={() => setShowSettings(true)}
+                                    variant="outline"
+                                    size="sm"
+                                    className="flex-1 text-xs h-8"
+                                >
+                                    <Settings className="w-3 h-3 mr-1" />
+                                    Customize
+                                </Button>
+                                <Button
+                                    onClick={handleAcceptAll}
+                                    size="sm"
+                                    className="flex-1 bg-red-600 hover:bg-red-700 text-white text-xs h-8"
+                                >
+                                    Accept
+                                </Button>
+                            </div>
+                        </div>
+
+                        {/* Desktop: Bottom strip */}
+                        <div className="hidden md:block max-w-5xl mx-auto">
+                            <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-xl px-4 py-3 shadow-2xl">
+                                <div className="flex items-center justify-between gap-4">
+                                    <div className="flex items-center gap-3">
+                                        <Cookie className="w-4 h-4 text-red-500 flex-shrink-0" />
                                         <p className="text-[var(--text-secondary)] text-sm">
-                                            We use cookies to enhance your browsing experience and analyze our traffic. 
-                                            You can choose which cookies to accept.
+                                            We use cookies to enhance your experience.
                                         </p>
                                     </div>
-                                </div>
-                                <div className="flex flex-wrap gap-3 w-full md:w-auto">
-                                    <Button
-                                        onClick={() => setShowSettings(true)}
-                                        variant="outline"
-                                        className="flex-1 md:flex-none"
-                                    >
-                                        <Settings className="w-4 h-4 mr-2" />
-                                        Customize
-                                    </Button>
-                                    <Button
-                                        onClick={handleRejectAll}
-                                        variant="outline"
-                                        className="flex-1 md:flex-none"
-                                    >
-                                        Reject All
-                                    </Button>
-                                    <Button
-                                        onClick={handleAcceptAll}
-                                        className="bg-red-600 hover:bg-red-700 text-white flex-1 md:flex-none"
-                                    >
-                                        Accept All
-                                    </Button>
+                                    <div className="flex gap-2">
+                                        <Button
+                                            onClick={() => setShowSettings(true)}
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-8 text-xs"
+                                        >
+                                            <Settings className="w-3 h-3 mr-1" />
+                                            Customize
+                                        </Button>
+                                        <Button
+                                            onClick={handleRejectAll}
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-8 text-xs"
+                                        >
+                                            Reject
+                                        </Button>
+                                        <Button
+                                            onClick={handleAcceptAll}
+                                            size="sm"
+                                            className="bg-red-600 hover:bg-red-700 text-white h-8 text-xs"
+                                        >
+                                            Accept All
+                                        </Button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
