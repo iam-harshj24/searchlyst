@@ -113,11 +113,9 @@ export default function PricingSection() {
                     <span className={`text-sm ${!isAnnual ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>Monthly</span>
                     <Switch checked={isAnnual} onCheckedChange={setIsAnnual} />
                     <span className={`text-sm ${isAnnual ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>Annual</span>
-                    {isAnnual && (
-                        <span className="px-3 py-1 bg-green-500/20 border border-green-500/30 text-green-400 text-xs font-medium rounded-full">
-                            Save 30%
-                        </span>
-                    )}
+                    <span className="px-3 py-1 bg-green-500/20 border border-green-500/30 text-green-400 text-xs font-medium rounded-full">
+                        Save 30%
+                    </span>
                 </motion.div>
 
                 {/* Pricing cards */}
@@ -131,10 +129,10 @@ export default function PricingSection() {
                     {plans.map((plan, index) => (
                         <div 
                             key={index}
-                            className={`relative rounded-2xl p-6 ${
+                            className={`relative rounded-2xl p-6 hover:scale-105 transition-all duration-300 ${
                                 plan.highlighted 
-                                    ? 'bg-[var(--bg-secondary)] border-2 border-red-500/50 -mt-4 mb-4 md:mb-0' 
-                                    : 'bg-[var(--bg-secondary)] border border-[var(--border)]'
+                                    ? 'bg-[var(--bg-secondary)] border-2 border-red-500/50 -mt-4 mb-4 md:mb-0 hover:shadow-lg hover:shadow-red-500/20' 
+                                    : 'bg-[var(--bg-secondary)] border border-[var(--border)] hover:border-red-500/30 hover:shadow-lg hover:shadow-red-500/10'
                             }`}
                         >
                             {plan.highlighted && (

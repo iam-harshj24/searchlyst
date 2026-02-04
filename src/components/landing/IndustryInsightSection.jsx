@@ -54,7 +54,7 @@ export default function IndustryInsightSection() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: 0.3 }}
-                    className="inline-flex items-center gap-8 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl px-10 py-8"
+                    className="inline-flex items-center gap-8 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl px-10 py-8 hover:border-red-500/30 hover:shadow-lg hover:shadow-red-500/10 hover:scale-105 transition-all duration-300 cursor-pointer"
                 >
                     <div className="text-left">
                         <div className="text-5xl md:text-6xl font-bold text-red-500 mb-2">50%</div>

@@ -93,7 +93,7 @@ export default function GrowthTrajectorySection() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: 0.2 }}
-                    className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-4 md:p-6 mb-8 transition-all duration-300 hover:scale-[1.01]"
+                    className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-4 md:p-6 mb-8 hover:border-red-500/30 hover:shadow-lg hover:shadow-red-500/10 transition-all duration-300 hover:scale-[1.01]"
                 >
                     {/* Chart header */}
                     <div className="flex justify-between items-center mb-4">

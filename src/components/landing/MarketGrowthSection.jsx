@@ -98,7 +98,7 @@ export default function MarketGrowthSection() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: 0.3 }}
-                    className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-4 md:p-6 mb-8"
+                    className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-4 md:p-6 mb-8 hover:border-red-500/30 hover:shadow-lg hover:shadow-red-500/10 transition-all duration-300"
                 >
                     {/* Legend */}
                     <div className="flex flex-wrap gap-6 mb-6">
