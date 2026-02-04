@@ -3,20 +3,35 @@ import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'rec
 import { Users } from 'lucide-react';
 import { ChatGPTLogo, GeminiLogo, PerplexityLogo, ClaudeLogo } from '../landing/AILogos';
 
-// Simplified dot for Safari performance - removed foreignObject which causes WebKit issues
+// Custom dot with logo at end of line
 const CustomEndDot = ({ cx, cy, payload, dataKey, index, data }) => {
     if (index !== data.length - 1) return null;
     
-    const colors = {
+    const logoUrls = {
+        chatgpt: 'https://upload.wikimedia.org/wikipedia/commons/0/04/ChatGPT_logo.svg',
+        gemini: 'https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690345.svg',
+        perplexity: 'https://pplx-res.cloudinary.com/image/upload/v1679085725/pplx-icon_lltyxy.svg',
+        claude: 'https://upload.wikimedia.org/wikipedia/commons/8/8a/Claude_AI_logo.svg'
+    };
+    
+    const bgColors = {
         chatgpt: '#10a37f',
         gemini: '#4285f4',
-        perplexity: '#20b2aa',
+        perplexity: '#1a1a2e',
         claude: '#cc785c'
     };
     
     return (
         <g>
-            <circle cx={cx} cy={cy} r={8} fill={colors[dataKey] || '#fff'} stroke="white" strokeWidth="2" />
+            <circle cx={cx} cy={cy} r={14} fill={bgColors[dataKey]} stroke="white" strokeWidth="2" />
+            <image 
+                x={cx - 8} 
+                y={cy - 8} 
+                width={16} 
+                height={16} 
+                href={logoUrls[dataKey]}
+                style={{ filter: dataKey === 'perplexity' ? 'invert(1)' : 'none' }}
+            />
         </g>
     );
 };
