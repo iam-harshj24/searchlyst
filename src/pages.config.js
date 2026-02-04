@@ -50,7 +50,6 @@
 import AboutUs from './pages/AboutUs';
 import AdminPanel from './pages/AdminPanel';
 import Home from './pages/Home';
-import BlogPost from './pages/BlogPost';
 import Blogs from './pages/Blogs';
 
 
@@ -58,7 +57,6 @@ export const PAGES = {
     "AboutUs": AboutUs,
     "AdminPanel": AdminPanel,
     "Home": Home,
-    "BlogPost": BlogPost,
     "Blogs": Blogs,
 }
 
