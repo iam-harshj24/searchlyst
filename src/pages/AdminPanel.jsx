@@ -216,27 +216,42 @@ export default function AdminPanel() {
                 {/* Header */}
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
                     <div>
-                        <h1 className="text-3xl font-bold text-white">Waitlist Admin</h1>
-                        <p className="text-gray-400 mt-1">Manage and export waitlist submissions</p>
-                    </div>
-                    <div className="flex gap-3">
-                        <Button 
-                            variant="outline" 
-                            onClick={() => refetch()}
-                            className="border-gray-700 text-gray-300 hover:bg-gray-800"
-                        >
-                            <RefreshCw className="w-4 h-4 mr-2" />
-                            Refresh
-                        </Button>
-                        <Button 
-                            onClick={exportToCSV}
-                            className="bg-red-600 hover:bg-red-700 text-white"
-                        >
-                            <Download className="w-4 h-4 mr-2" />
-                            Export CSV
-                        </Button>
+                        <h1 className="text-3xl font-bold text-white">Admin Panel</h1>
+                        <p className="text-gray-400 mt-1">Manage waitlist and blog content</p>
                     </div>
                 </div>
+
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                    <TabsList className="bg-gray-900 border border-gray-800 mb-6">
+                        <TabsTrigger value="waitlist" className="data-[state=active]:bg-red-600">
+                            <Users className="w-4 h-4 mr-2" />
+                            Waitlist
+                        </TabsTrigger>
+                        <TabsTrigger value="blogs" className="data-[state=active]:bg-red-600">
+                            <FileText className="w-4 h-4 mr-2" />
+                            Blogs
+                        </TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="waitlist">
+                        {/* Waitlist Header */}
+                        <div className="flex justify-end gap-3 mb-6">
+                            <Button 
+                                variant="outline" 
+                                onClick={() => refetch()}
+                                className="border-gray-700 text-gray-300 hover:bg-gray-800"
+                            >
+                                <RefreshCw className="w-4 h-4 mr-2" />
+                                Refresh
+                            </Button>
+                            <Button 
+                                onClick={exportToCSV}
+                                className="bg-red-600 hover:bg-red-700 text-white"
+                            >
+                                <Download className="w-4 h-4 mr-2" />
+                                Export CSV
+                            </Button>
+                        </div>
 
                 {/* Stats Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
