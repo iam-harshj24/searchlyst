@@ -105,7 +105,7 @@ export default function TractionSection() {
 
                     <div className="h-64 md:h-80 relative">
                         <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={trajectoryData} margin={{ top: 60, right: 10, left: -20, bottom: 20 }}>
+                            <LineChart data={trajectoryData} margin={{ top: 60, right: 30, left: -20, bottom: 20 }}>
                                 <XAxis 
                                     dataKey="week" 
                                     stroke="#525252" 

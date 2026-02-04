@@ -1,6 +1,7 @@
 import React from 'react';
 import { ThemeProvider } from '@/components/landing/ThemeToggle';
 import Navbar from '@/components/landing/Navbar';
+import AboutHeroSection from '../components/about/AboutHeroSection';
 import BornFromRevolutionSection from '../components/about/BornFromRevolutionSection';
 import MigrationSection from '../components/about/MigrationSection';
 import ProblemSection from '../components/about/ProblemSection';
@@ -20,20 +21,19 @@ export default function AboutUs() {
         <ThemeProvider>
             <div className="min-h-screen bg-[var(--bg-primary)]">
                 <Navbar />
-                <div className="pt-20">
-                    <BornFromRevolutionSection />
-                    <MigrationSection />
-                    <ProblemSection />
-                    <SolutionSection />
-                    <MoatSection />
-                    <TractionSection />
-                    <MarketOpportunitySection />
-                    <BusinessModelSection />
-                    <AboutFAQSection />
-                    <TeamSection />
-                    <TheAskSection />
-                    <CTASection />
-                </div>
+                <AboutHeroSection />
+                <BornFromRevolutionSection />
+                <MigrationSection />
+                <ProblemSection />
+                <SolutionSection />
+                <MoatSection />
+                <TractionSection />
+                <MarketOpportunitySection />
+                <BusinessModelSection />
+                <AboutFAQSection />
+                <TeamSection />
+                <TheAskSection />
+                <CTASection />
                 <AboutFooter />
             </div>
         </ThemeProvider>
