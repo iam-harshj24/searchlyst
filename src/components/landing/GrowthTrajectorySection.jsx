@@ -57,7 +57,7 @@ export default function GrowthTrajectorySection() {
     return (
         <>
         <section className="relative bg-[var(--bg-primary)] py-24 overflow-hidden">
-            <div className="relative max-w-6xl mx-auto px-6">
+            <div className="relative max-w-6xl mx-auto px-2 md:px-6">
                 {/* Badge */}
                 <motion.div 
                     initial={{ opacity: 0, y: 20 }}
@@ -104,9 +104,9 @@ export default function GrowthTrajectorySection() {
                         </div>
                     </div>
 
-                    <div className="h-64 md:h-80 relative overflow-x-auto">
-                        <ResponsiveContainer width="100%" height="100%" minWidth={300}>
-                            <LineChart data={trajectoryData} margin={{ top: 60, right: 40, left: 10, bottom: 20 }}>
+                    <div className="h-64 md:h-80 relative">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={trajectoryData} margin={{ top: 60, right: 10, left: -20, bottom: 20 }}>
                                 <XAxis 
                                     dataKey="week" 
                                     stroke="#525252" 

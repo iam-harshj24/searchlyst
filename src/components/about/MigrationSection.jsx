@@ -43,7 +43,7 @@ export default function MigrationSection() {
             {/* Gradient line at top */}
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/2 h-px bg-gradient-to-r from-transparent via-[var(--border)] to-transparent" />
             
-            <div className="relative max-w-6xl mx-auto px-6">
+            <div className="relative max-w-6xl mx-auto px-2 md:px-6">
                 {/* Badge */}
                 <motion.div 
                     initial={{ opacity: 0, y: 20 }}
@@ -116,9 +116,9 @@ export default function MigrationSection() {
                         </div>
                     </div>
 
-                    <div className="h-64 md:h-80 overflow-x-auto">
-                        <ResponsiveContainer width="100%" height="100%" minWidth={300}>
-                            <LineChart data={chartData} margin={{ top: 20, right: 50, left: 10, bottom: 10 }}>
+                    <div className="h-64 md:h-80">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={chartData} margin={{ top: 20, right: 10, left: -20, bottom: 10 }}>
                                 <XAxis 
                                     dataKey="name" 
                                     stroke="#525252" 
