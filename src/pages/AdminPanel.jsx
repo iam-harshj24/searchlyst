@@ -433,10 +433,342 @@ export default function AdminPanel() {
                     </Table>
                 </div>
 
-                {/* Footer */}
-                <div className="mt-4 text-center text-gray-500 text-sm">
-                    Showing {filteredEntries.length} of {waitlistEntries.length} entries
-                </div>
+                        {/* Footer */}
+                        <div className="mt-4 text-center text-gray-500 text-sm">
+                            Showing {filteredEntries.length} of {waitlistEntries.length} entries
+                        </div>
+                    </TabsContent>
+
+                    <TabsContent value="blogs">
+                        {/* Blogs Header */}
+                        <div className="flex justify-end gap-3 mb-6">
+                            <Button 
+                                variant="outline" 
+                                onClick={() => refetchBlogs()}
+                                className="border-gray-700 text-gray-300 hover:bg-gray-800"
+                            >
+                                <RefreshCw className="w-4 h-4 mr-2" />
+                                Refresh
+                            </Button>
+                            <Button 
+                                onClick={openNewBlog}
+                                className="bg-red-600 hover:bg-red-700 text-white"
+                            >
+                                <Plus className="w-4 h-4 mr-2" />
+                                New Blog
+                            </Button>
+                        </div>
+
+                        {/* Blogs Stats */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                            <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-3 bg-red-500/20 rounded-lg">
+                                        <FileText className="w-6 h-6 text-red-500" />
+                                    </div>
+                                    <div>
+                                        <p className="text-gray-400 text-sm">Total Blogs</p>
+                                        <p className="text-2xl font-bold text-white">{blogs.length}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-3 bg-green-500/20 rounded-lg">
+                                        <Eye className="w-6 h-6 text-green-500" />
+                                    </div>
+                                    <div>
+                                        <p className="text-gray-400 text-sm">Published</p>
+                                        <p className="text-2xl font-bold text-white">
+                                            {blogs.filter(b => b.status === 'published').length}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-3 bg-yellow-500/20 rounded-lg">
+                                        <EyeOff className="w-6 h-6 text-yellow-500" />
+                                    </div>
+                                    <div>
+                                        <p className="text-gray-400 text-sm">Drafts</p>
+                                        <p className="text-2xl font-bold text-white">
+                                            {blogs.filter(b => b.status === 'draft').length}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Blogs Table */}
+                        <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow className="border-gray-800 hover:bg-gray-800/50">
+                                        <TableHead className="text-gray-400">Title</TableHead>
+                                        <TableHead className="text-gray-400">Category</TableHead>
+                                        <TableHead className="text-gray-400">Status</TableHead>
+                                        <TableHead className="text-gray-400">Date</TableHead>
+                                        <TableHead className="text-gray-400">Actions</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {blogsLoading ? (
+                                        <TableRow>
+                                            <TableCell colSpan={5} className="text-center py-8 text-gray-400">
+                                                Loading...
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : blogs.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell colSpan={5} className="text-center py-8 text-gray-400">
+                                                No blogs found
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : (
+                                        blogs.map((blog) => (
+                                            <TableRow key={blog.id} className="border-gray-800 hover:bg-gray-800/50">
+                                                <TableCell className="text-white font-medium max-w-xs truncate">
+                                                    {blog.title}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-500/20 text-blue-400">
+                                                        {blog.category}
+                                                    </span>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <button
+                                                        onClick={() => toggleBlogStatus(blog)}
+                                                        className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                                            blog.status === 'published' 
+                                                                ? 'bg-green-500/20 text-green-400' 
+                                                                : 'bg-yellow-500/20 text-yellow-400'
+                                                        }`}
+                                                    >
+                                                        {blog.status}
+                                                    </button>
+                                                </TableCell>
+                                                <TableCell className="text-gray-400 text-sm">
+                                                    {blog.created_date ? format(new Date(blog.created_date), 'MMM d, yyyy') : '-'}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="flex gap-2">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => openEditBlog(blog)}
+                                                            className="text-gray-400 hover:text-white"
+                                                        >
+                                                            <Pencil className="w-4 h-4" />
+                                                        </Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => deleteBlog(blog.id)}
+                                                            className="text-gray-400 hover:text-red-500"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </Button>
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </TabsContent>
+                </Tabs>
+
+                {/* Blog Dialog */}
+                <Dialog open={blogDialog} onOpenChange={setBlogDialog}>
+                    <DialogContent className="bg-gray-900 border-gray-800 text-white max-w-4xl max-h-[90vh] overflow-y-auto">
+                        <DialogHeader>
+                            <DialogTitle>{editingBlog ? 'Edit Blog' : 'New Blog'}</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4 mt-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-sm text-gray-400 mb-1 block">Title *</label>
+                                    <Input
+                                        value={blogForm.title}
+                                        onChange={(e) => setBlogForm({ ...blogForm, title: e.target.value })}
+                                        className="bg-gray-800 border-gray-700 text-white"
+                                        placeholder="Blog title"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-sm text-gray-400 mb-1 block">Category *</label>
+                                    <Select value={blogForm.category} onValueChange={(v) => setBlogForm({ ...blogForm, category: v })}>
+                                        <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent className="bg-gray-800 border-gray-700">
+                                            {['Product', 'Tech', 'Team', 'AI', 'Data', 'Company', 'Guides'].map(cat => (
+                                                <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="text-sm text-gray-400 mb-1 block">Summary *</label>
+                                <Textarea
+                                    value={blogForm.summary}
+                                    onChange={(e) => setBlogForm({ ...blogForm, summary: e.target.value })}
+                                    className="bg-gray-800 border-gray-700 text-white"
+                                    placeholder="Short summary"
+                                    rows={2}
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-sm text-gray-400 mb-1 block">Featured Image URL</label>
+                                    <Input
+                                        value={blogForm.featured_image}
+                                        onChange={(e) => setBlogForm({ ...blogForm, featured_image: e.target.value })}
+                                        className="bg-gray-800 border-gray-700 text-white"
+                                        placeholder="https://..."
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-sm text-gray-400 mb-1 block">Read Time (minutes)</label>
+                                    <Input
+                                        type="number"
+                                        value={blogForm.read_time}
+                                        onChange={(e) => setBlogForm({ ...blogForm, read_time: parseInt(e.target.value) || 5 })}
+                                        className="bg-gray-800 border-gray-700 text-white"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="text-sm text-gray-400 mb-1 block">Content * (HTML)</label>
+                                <Textarea
+                                    value={blogForm.content}
+                                    onChange={(e) => setBlogForm({ ...blogForm, content: e.target.value })}
+                                    className="bg-gray-800 border-gray-700 text-white font-mono text-sm"
+                                    placeholder="<h2>Introduction</h2><p>Your content here...</p>"
+                                    rows={8}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="text-sm text-gray-400 mb-1 block">Key Takeaways (5 points)</label>
+                                <div className="space-y-2">
+                                    {blogForm.key_takeaways.map((takeaway, index) => (
+                                        <Input
+                                            key={index}
+                                            value={takeaway}
+                                            onChange={(e) => updateKeyTakeaway(index, e.target.value)}
+                                            className="bg-gray-800 border-gray-700 text-white"
+                                            placeholder={`Takeaway ${index + 1}`}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div>
+                                <div className="flex justify-between items-center mb-2">
+                                    <label className="text-sm text-gray-400">FAQ</label>
+                                    <Button variant="ghost" size="sm" onClick={addFaq} className="text-red-400">
+                                        <Plus className="w-4 h-4 mr-1" /> Add FAQ
+                                    </Button>
+                                </div>
+                                <div className="space-y-3">
+                                    {blogForm.faq.map((faq, index) => (
+                                        <div key={index} className="bg-gray-800 p-3 rounded-lg">
+                                            <div className="flex justify-between mb-2">
+                                                <span className="text-xs text-gray-500">FAQ {index + 1}</span>
+                                                <button onClick={() => removeFaq(index)} className="text-red-400 text-xs">Remove</button>
+                                            </div>
+                                            <Input
+                                                value={faq.question}
+                                                onChange={(e) => updateFaq(index, 'question', e.target.value)}
+                                                className="bg-gray-700 border-gray-600 text-white mb-2"
+                                                placeholder="Question"
+                                            />
+                                            <Textarea
+                                                value={faq.answer}
+                                                onChange={(e) => updateFaq(index, 'answer', e.target.value)}
+                                                className="bg-gray-700 border-gray-600 text-white"
+                                                placeholder="Answer"
+                                                rows={2}
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-sm text-gray-400 mb-1 block">Author Name</label>
+                                    <Input
+                                        value={blogForm.author_name}
+                                        onChange={(e) => setBlogForm({ ...blogForm, author_name: e.target.value })}
+                                        className="bg-gray-800 border-gray-700 text-white"
+                                        placeholder="John Doe"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-sm text-gray-400 mb-1 block">Author Initials</label>
+                                    <Input
+                                        value={blogForm.author_initials}
+                                        onChange={(e) => setBlogForm({ ...blogForm, author_initials: e.target.value })}
+                                        className="bg-gray-800 border-gray-700 text-white"
+                                        placeholder="JD"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-sm text-gray-400 mb-1 block">Author Title</label>
+                                    <Input
+                                        value={blogForm.author_title}
+                                        onChange={(e) => setBlogForm({ ...blogForm, author_title: e.target.value })}
+                                        className="bg-gray-800 border-gray-700 text-white"
+                                        placeholder="CEO & Founder"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-sm text-gray-400 mb-1 block">Status</label>
+                                    <Select value={blogForm.status} onValueChange={(v) => setBlogForm({ ...blogForm, status: v })}>
+                                        <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent className="bg-gray-800 border-gray-700">
+                                            <SelectItem value="draft">Draft</SelectItem>
+                                            <SelectItem value="published">Published</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="text-sm text-gray-400 mb-1 block">Author Bio</label>
+                                <Textarea
+                                    value={blogForm.author_bio}
+                                    onChange={(e) => setBlogForm({ ...blogForm, author_bio: e.target.value })}
+                                    className="bg-gray-800 border-gray-700 text-white"
+                                    placeholder="Short bio about the author..."
+                                    rows={2}
+                                />
+                            </div>
+
+                            <div className="flex justify-end gap-3 pt-4">
+                                <Button variant="outline" onClick={() => setBlogDialog(false)} className="border-gray-700 text-gray-300">
+                                    Cancel
+                                </Button>
+                                <Button onClick={saveBlog} className="bg-red-600 hover:bg-red-700">
+                                    {editingBlog ? 'Update Blog' : 'Create Blog'}
+                                </Button>
+                            </div>
+                        </div>
+                    </DialogContent>
+                </Dialog>
             </div>
         </div>
     );
