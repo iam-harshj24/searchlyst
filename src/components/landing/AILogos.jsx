@@ -1,10 +1,13 @@
+
 import React from 'react';
 
-// Claude logo - black/white, inverts based on theme
+// Claude logo - uses uploaded image, inverts based on theme
 export const ClaudeLogo = ({ className = "w-8 h-8" }) => (
-    <svg className={`${className} text-black dark:text-white`} viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
-    </svg>
+    <img 
+        src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69824440a17c76d392c103dc/4f844e269_image.png" 
+        alt="Claude" 
+        className={`${className} dark:invert brightness-0 dark:brightness-100`}
+    />
 );
 
 // Gemini logo - black/white, inverts based on theme
@@ -14,11 +17,13 @@ export const GeminiLogo = ({ className = "w-8 h-8" }) => (
     </svg>
 );
 
-// Perplexity logo - black/white, inverts based on theme
+// Perplexity logo - uses uploaded image, inverts based on theme
 export const PerplexityLogo = ({ className = "w-8 h-8" }) => (
-    <svg className={`${className} text-black dark:text-white`} viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12 2L2 7v10l10 5 10-5V7L12 2zm0 2.18l6.9 3.45L12 11.08 5.1 7.63 12 4.18zM4 8.82l7 3.5v7.36l-7-3.5V8.82zm9 10.86v-7.36l7-3.5v7.36l-7 3.5z"/>
-    </svg>
+    <img 
+        src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69824440a17c76d392c103dc/870d5ee5d_image.png" 
+        alt="Perplexity" 
+        className={`${className} dark:invert`}
+    />
 );
 
 // ChatGPT logo - black/white, inverts based on theme
