@@ -8,10 +8,8 @@ const footerLinks = {
 };
 
 const socialLinks = [
-    { name: 'Instagram', icon: '📷' },
     { name: 'X', icon: '𝕏' },
     { name: 'LinkedIn', icon: 'in' },
-    { name: 'YouTube', icon: '▶' },
 ];
 
 export default function AboutFooter() {

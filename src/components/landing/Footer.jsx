@@ -6,9 +6,9 @@ import { createPageUrl } from '@/utils';
 
 const footerLinks = {
     Product: [
-        { label: 'Features', href: 'Home', isPage: true },
-        { label: 'Pricing', href: 'Home', isPage: true },
-        { label: 'How It Works', href: '#' },
+        { label: 'Features', href: '#features' },
+        { label: 'Pricing', href: '#pricing' },
+        { label: 'How It Works', href: '#how-it-works' },
         { label: 'Case Studies', href: '#' },
         { label: 'API Documentation', href: '#' }
     ],
@@ -23,10 +23,8 @@ const footerLinks = {
 };
 
 const socialLinks = [
-    { name: 'Instagram', icon: '📷' },
     { name: 'X', icon: '𝕏' },
     { name: 'LinkedIn', icon: 'in' },
-    { name: 'YouTube', icon: '▶' },
 ];
 
 export default function Footer() {
@@ -63,19 +61,20 @@ export default function Footer() {
                                     const isObject = typeof link === 'object';
                                     const label = isObject ? link.label : link;
                                     const isPage = isObject && link.isPage;
+                                    const href = isObject ? link.href : '#';
                                     
                                     return (
                                         <li key={label}>
                                             {isPage ? (
                                                 <Link 
-                                                    to={createPageUrl(link.href)} 
+                                                    to={createPageUrl(href)} 
                                                     className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm transition-colors"
                                                 >
                                                     {label}
                                                 </Link>
                                             ) : (
                                                 <a 
-                                                    href={isObject ? link.href : '#'} 
+                                                    href={href}
                                                     className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm transition-colors"
                                                 >
                                                     {label}

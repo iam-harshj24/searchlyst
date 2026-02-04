@@ -56,7 +56,7 @@ export default function GrowthTrajectorySection() {
     
     return (
         <>
-        <section className="relative bg-[var(--bg-primary)] py-12 md:py-24 overflow-hidden">
+        <section id="how-it-works" className="relative bg-[var(--bg-primary)] py-12 md:py-24 overflow-hidden">
             <div className="relative max-w-6xl mx-auto px-2 md:px-6">
                 {/* Badge */}
                 <motion.div 
@@ -67,7 +67,7 @@ export default function GrowthTrajectorySection() {
                 >
                     <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-red-500/30 bg-red-500/10">
                         <Sparkles className="w-4 h-4 text-red-500" />
-                        <span className="text-red-400 text-sm font-medium">Industry Insight</span>
+                        <span className="text-red-400 text-sm font-medium">How It Works</span>
                     </div>
                 </motion.div>
 
