@@ -100,78 +100,60 @@ export default function MarketGrowthSection() {
                         </div>
                     </div>
 
-                    {/* Custom SVG Chart - Brand Race Style */}
-                    <div className="h-72 relative">
-                        <svg viewBox="0 0 800 280" className="w-full h-full" preserveAspectRatio="xMidYMid meet">
-                            {/* Y-axis labels */}
-                            <text x="25" y="30" fill="#737373" fontSize="12" textAnchor="end">1200M</text>
-                            <text x="25" y="85" fill="#737373" fontSize="12" textAnchor="end">900M</text>
-                            <text x="25" y="140" fill="#737373" fontSize="12" textAnchor="end">600M</text>
-                            <text x="25" y="195" fill="#737373" fontSize="12" textAnchor="end">300M</text>
-                            <text x="25" y="250" fill="#737373" fontSize="12" textAnchor="end">0M</text>
-                            
-                            {/* X-axis labels */}
-                            <text x="60" y="270" fill="#737373" fontSize="11" textAnchor="middle">Q2 2023</text>
-                            <text x="150" y="270" fill="#737373" fontSize="11" textAnchor="middle">Q3 2023</text>
-                            <text x="240" y="270" fill="#737373" fontSize="11" textAnchor="middle">Q4 2023</text>
-                            <text x="330" y="270" fill="#737373" fontSize="11" textAnchor="middle">2024</text>
-                            <text x="420" y="270" fill="#737373" fontSize="11" textAnchor="middle">Q2 2024</text>
-                            <text x="510" y="270" fill="#737373" fontSize="11" textAnchor="middle">Q3 2024</text>
-                            <text x="600" y="270" fill="#737373" fontSize="11" textAnchor="middle">Q4 2024</text>
-                            <text x="690" y="270" fill="#737373" fontSize="11" textAnchor="middle">2025</text>
-                            <text x="745" y="270" fill="#737373" fontSize="11" textAnchor="middle">2026</text>
-                            
-                            {/* ChatGPT line - Top line */}
-                            <path 
-                                d="M 40 245 Q 200 240, 350 200 T 730 25" 
-                                stroke="white" 
-                                strokeWidth="2" 
-                                fill="none"
-                            />
-                            
-                            {/* Gemini line - Second line */}
-                            <path 
-                                d="M 40 248 Q 200 245, 350 210 T 730 65" 
-                                stroke="white" 
-                                strokeWidth="2" 
-                                fill="none"
-                            />
-                            
-                            {/* Perplexity line - Third line */}
-                            <path 
-                                d="M 40 250 Q 200 248, 350 220 T 730 100" 
-                                stroke="white" 
-                                strokeWidth="2" 
-                                fill="none"
-                            />
-                            
-                            {/* Claude line - Bottom line */}
-                            <path 
-                                d="M 40 252 Q 200 250, 350 230 T 730 135" 
-                                stroke="white" 
-                                strokeWidth="2" 
-                                fill="none"
-                            />
-                            
-                            {/* Logo circles at end of lines */}
-                            <circle cx="730" cy="25" r="16" fill="#0a0a0a" stroke="white" strokeWidth="1"/>
-                            <circle cx="730" cy="65" r="16" fill="#0a0a0a" stroke="white" strokeWidth="1"/>
-                            <circle cx="730" cy="100" r="16" fill="#0a0a0a" stroke="white" strokeWidth="1"/>
-                            <circle cx="730" cy="135" r="16" fill="#0a0a0a" stroke="white" strokeWidth="1"/>
-                        </svg>
+                    {/* Recharts Line Chart with Hover Tooltip */}
+                    <div className="h-80 relative">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={chartData} margin={{ top: 20, right: 60, left: 10, bottom: 10 }}>
+                                <XAxis 
+                                    dataKey="name" 
+                                    stroke="#525252" 
+                                    tick={{ fill: '#737373', fontSize: 12 }}
+                                    axisLine={{ stroke: '#404040' }}
+                                />
+                                <YAxis 
+                                    stroke="#525252" 
+                                    tick={{ fill: '#737373', fontSize: 12 }}
+                                    axisLine={{ stroke: '#404040' }}
+                                    tickFormatter={(value) => `${value}M`}
+                                    domain={[0, 1200]}
+                                    ticks={[0, 300, 600, 900, 1200]}
+                                />
+                                <Tooltip 
+                                    contentStyle={{ 
+                                        backgroundColor: '#18181b', 
+                                        border: '1px solid #27272a',
+                                        borderRadius: '8px',
+                                        color: '#fff'
+                                    }}
+                                    formatter={(value, name) => [`${value}M users`, name.charAt(0).toUpperCase() + name.slice(1)]}
+                                />
+                                <Line type="monotone" dataKey="chatgpt" stroke="#ffffff" strokeWidth={2} dot={false} name="ChatGPT" />
+                                <Line type="monotone" dataKey="gemini" stroke="#ffffff" strokeWidth={2} dot={false} name="Gemini" />
+                                <Line type="monotone" dataKey="perplexity" stroke="#ffffff" strokeWidth={2} dot={false} name="Perplexity" />
+                                <Line type="monotone" dataKey="claude" stroke="#ffffff" strokeWidth={2} dot={false} name="Claude" />
+                            </LineChart>
+                        </ResponsiveContainer>
                         
-                        {/* Brand logos attached to end of lines */}
-                        <div className="absolute" style={{ right: '4.5%', top: '5%', transform: 'translate(50%, -50%)' }}>
-                            <ChatGPTLogo className="w-5 h-5" />
+                        {/* Brand logos at end of lines with circles */}
+                        <div className="absolute right-0 flex flex-col" style={{ top: '8%' }}>
+                            <div className="w-8 h-8 rounded-full bg-[var(--bg-secondary)] border border-[var(--border)] flex items-center justify-center">
+                                <ChatGPTLogo className="w-4 h-4" />
+                            </div>
                         </div>
-                        <div className="absolute" style={{ right: '4.5%', top: '20%', transform: 'translate(50%, -50%)' }}>
-                            <GeminiLogo className="w-5 h-5" />
+                        <div className="absolute right-0 flex flex-col" style={{ top: '22%' }}>
+                            <div className="w-8 h-8 rounded-full bg-[var(--bg-secondary)] border border-[var(--border)] flex items-center justify-center">
+                                <GeminiLogo className="w-4 h-4" />
+                            </div>
                         </div>
-                        <div className="absolute" style={{ right: '4.5%', top: '33%', transform: 'translate(50%, -50%)' }}>
-                            <PerplexityLogo className="w-5 h-5" />
+                        <div className="absolute right-0 flex flex-col" style={{ top: '34%' }}>
+                            <div className="w-8 h-8 rounded-full bg-[var(--bg-secondary)] border border-[var(--border)] flex items-center justify-center">
+                                <PerplexityLogo className="w-4 h-4" />
+                            </div>
                         </div>
-                        <div className="absolute" style={{ right: '4.5%', top: '46%', transform: 'translate(50%, -50%)' }}>
-                            <ClaudeLogo className="w-5 h-5" />
+                        <div className="absolute right-0 flex flex-col" style={{ top: '48%' }}>
+                            <div className="w-8 h-8 rounded-full bg-[var(--bg-secondary)] border border-[var(--border)] flex items-center justify-center">
+                                <ClaudeLogo className="w-4 h-4" />
+                            </div>
                         </div>
                     </div>
 
