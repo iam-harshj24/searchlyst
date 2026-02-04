@@ -50,12 +50,14 @@
 import AboutUs from './pages/AboutUs';
 import AdminPanel from './pages/AdminPanel';
 import Home from './pages/Home';
+import BlogPost from './pages/BlogPost';
 
 
 export const PAGES = {
     "AboutUs": AboutUs,
     "AdminPanel": AdminPanel,
     "Home": Home,
+    "BlogPost": BlogPost,
 }
 
 export const pagesConfig = {
