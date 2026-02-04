@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { User, Briefcase, ArrowRight, Mail, Globe, Loader2, CheckCircle } from 'lucide-react';
+import { User, Briefcase, ArrowRight, Mail, Globe, Loader2, CheckCircle, Linkedin, MapPin, Building } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
 
@@ -13,10 +15,20 @@ export default function CTASection() {
         email: '',
         website: ''
     });
+    const [investorData, setInvestorData] = useState({
+        fullName: '',
+        email: '',
+        linkedinUrl: '',
+        firmName: '',
+        location: '',
+        investorType: '',
+        investmentInterest: '',
+        valueAdd: ''
+    });
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
 
-    const handleSubmit = async (e) => {
+    const handleBrandSubmit = async (e) => {
         e.preventDefault();
         if (!formData.fullName || !formData.email || !formData.website) {
             toast.error('Please fill in all fields');
@@ -38,12 +50,38 @@ export default function CTASection() {
         }, 3000);
     };
 
+    const handleInvestorSubmit = async (e) => {
+        e.preventDefault();
+        if (!investorData.fullName || !investorData.email) {
+            toast.error('Please fill in required fields');
+            return;
+        }
+        setLoading(true);
+        await base44.entities.Investor.create({
+            full_name: investorData.fullName,
+            email: investorData.email,
+            linkedin_url: investorData.linkedinUrl,
+            firm_name: investorData.firmName,
+            location: investorData.location,
+            investor_type: investorData.investorType,
+            investment_interest: investorData.investmentInterest,
+            value_add: investorData.valueAdd
+        });
+        setLoading(false);
+        setSuccess(true);
+        toast.success('Request submitted! We\'ll be in touch soon.');
+        setTimeout(() => {
+            setSuccess(false);
+            setInvestorData({ fullName: '', email: '', linkedinUrl: '', firmName: '', location: '', investorType: '', investmentInterest: '', valueAdd: '' });
+        }, 3000);
+    };
+
     return (
         <section className="relative bg-[var(--bg-primary)] py-24 overflow-hidden">
             {/* Gradient line at top */}
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/2 h-px bg-gradient-to-r from-transparent via-[var(--border)] to-transparent" />
             
-            <div className="relative max-w-2xl mx-auto px-6">
+            <div className="relative max-w-xl mx-auto px-6">
                 {/* Tabs */}
                 <motion.div 
                     initial={{ opacity: 0, y: 20 }}
@@ -91,19 +129,16 @@ export default function CTASection() {
                             <h3 className="text-2xl font-bold mb-2 text-[var(--text-primary)]">You're on the list!</h3>
                             <p className="text-[var(--text-secondary)]">We'll be in touch soon.</p>
                         </div>
-                    ) : (
+                    ) : activeTab === 'brand' ? (
                         <>
                             <h3 className="text-2xl font-bold text-[var(--text-primary)] mb-2">
-                                {activeTab === 'brand' ? 'Stop Being Invisible' : 'Join Our Journey'}
+                                Stop Being Invisible
                             </h3>
                             <p className="text-[var(--text-secondary)] mb-6">
-                                {activeTab === 'brand' 
-                                    ? 'Secure early access to the Searchlyst Discovery Engine. Optimize your brand for ChatGPT, Perplexity, and Gemini.'
-                                    : 'Get in touch to learn more about our investment opportunity.'
-                                }
+                                Secure early access to the Searchlyst Discovery Engine. Optimize your brand for ChatGPT, Perplexity, and Gemini.
                             </p>
 
-                            <form onSubmit={handleSubmit} className="space-y-4">
+                            <form onSubmit={handleBrandSubmit} className="space-y-4">
                                 <div>
                                     <label className="text-[var(--text-secondary)] text-sm mb-2 block">Full Name</label>
                                     <div className="relative">
@@ -153,7 +188,125 @@ export default function CTASection() {
                                         <Loader2 className="w-5 h-5 animate-spin" />
                                     ) : (
                                         <>
-                                            {activeTab === 'brand' ? 'Join Waitlist' : 'Get in Touch'}
+                                            Join Waitlist
+                                            <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                                        </>
+                                    )}
+                                </Button>
+                            </form>
+                        </>
+                    ) : (
+                        <>
+                            <h3 className="text-2xl font-bold text-[var(--text-primary)] mb-2 text-center">
+                                Fuel the Future of Search.
+                            </h3>
+                            <p className="text-[var(--text-secondary)] mb-6 text-center">
+                                We are opening a strategic round for value-add partners. Request access to our Data Room and Pitch Deck.
+                            </p>
+
+                            <form onSubmit={handleInvestorSubmit} className="space-y-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-[var(--text-secondary)] text-sm mb-2 block">Full Name</label>
+                                        <Input 
+                                            placeholder="Jane Doe"
+                                            value={investorData.fullName}
+                                            onChange={(e) => setInvestorData({...investorData, fullName: e.target.value})}
+                                            className="bg-[var(--bg-primary)] border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]"
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[var(--text-secondary)] text-sm mb-2 block">Direct Email</label>
+                                        <Input 
+                                            type="email"
+                                            placeholder="jane@vc.com"
+                                            value={investorData.email}
+                                            onChange={(e) => setInvestorData({...investorData, email: e.target.value})}
+                                            className="bg-[var(--bg-primary)] border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]"
+                                            required
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="text-[var(--text-secondary)] text-sm mb-2 block">LinkedIn Profile URL</label>
+                                    <Input 
+                                        placeholder="https://linkedin.com/in/yourprofile"
+                                        value={investorData.linkedinUrl}
+                                        onChange={(e) => setInvestorData({...investorData, linkedinUrl: e.target.value})}
+                                        className="bg-[var(--bg-primary)] border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]"
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-[var(--text-secondary)] text-sm mb-2 block">Firm / Syndicate Name</label>
+                                        <Input 
+                                            placeholder="Acme Ventures"
+                                            value={investorData.firmName}
+                                            onChange={(e) => setInvestorData({...investorData, firmName: e.target.value})}
+                                            className="bg-[var(--bg-primary)] border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[var(--text-secondary)] text-sm mb-2 block">Location</label>
+                                        <Input 
+                                            placeholder="Dubai, UAE"
+                                            value={investorData.location}
+                                            onChange={(e) => setInvestorData({...investorData, location: e.target.value})}
+                                            className="bg-[var(--bg-primary)] border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-[var(--text-secondary)] text-sm mb-2 block">Investor Type</label>
+                                        <Select value={investorData.investorType} onValueChange={(value) => setInvestorData({...investorData, investorType: value})}>
+                                            <SelectTrigger className="bg-[var(--bg-primary)] border-[var(--border)] text-[var(--text-primary)]">
+                                                <SelectValue placeholder="Select type" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="Angel">Angel</SelectItem>
+                                                <SelectItem value="VC Fund">VC Fund</SelectItem>
+                                                <SelectItem value="Family Office">Family Office</SelectItem>
+                                                <SelectItem value="Strategic">Strategic</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div>
+                                        <label className="text-[var(--text-secondary)] text-sm mb-2 block">Investment Interest</label>
+                                        <Select value={investorData.investmentInterest} onValueChange={(value) => setInvestorData({...investorData, investmentInterest: value})}>
+                                            <SelectTrigger className="bg-[var(--bg-primary)] border-[var(--border)] text-[var(--text-primary)]">
+                                                <SelectValue placeholder="Select range" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="$50,000 - $100,000 (Angel)">$50,000 - $100,000 (Angel)</SelectItem>
+                                                <SelectItem value="$100,000 - $250,000 (Super Angel)">$100,000 - $250,000 (Super Angel)</SelectItem>
+                                                <SelectItem value="$250,000 - $500,000 (Strategic)">$250,000 - $500,000 (Strategic)</SelectItem>
+                                                <SelectItem value="$500,000 - $1,000,000 (Lead)">$500,000 - $1,000,000 (Lead)</SelectItem>
+                                                <SelectItem value="$1,000,000+ (Full Round)">$1,000,000+ (Full Round)</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="text-[var(--text-secondary)] text-sm mb-2 block">How can you help beyond capital? (Optional)</label>
+                                    <Textarea 
+                                        placeholder="Network connections, strategic partnerships, industry expertise..."
+                                        value={investorData.valueAdd}
+                                        onChange={(e) => setInvestorData({...investorData, valueAdd: e.target.value})}
+                                        className="bg-[var(--bg-primary)] border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] min-h-[80px]"
+                                    />
+                                </div>
+                                <Button 
+                                    type="submit"
+                                    disabled={loading}
+                                    className="w-full bg-teal-600 hover:bg-teal-700 text-white h-12 rounded-xl font-medium group"
+                                >
+                                    {loading ? (
+                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                    ) : (
+                                        <>
+                                            Request Data Room Access
                                             <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
                                         </>
                                     )}
