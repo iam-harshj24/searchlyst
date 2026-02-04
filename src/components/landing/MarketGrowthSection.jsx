@@ -152,7 +152,7 @@ export default function MarketGrowthSection() {
                                     dataKey="chatgpt" 
                                     stroke="#ffffff" 
                                     strokeWidth={2} 
-                                    dot={false} 
+                                    dot={(props) => <CustomEndDot {...props} data={chartData} />}
                                     name="ChatGPT"
                                 />
                                 <Line 
@@ -160,7 +160,7 @@ export default function MarketGrowthSection() {
                                     dataKey="gemini" 
                                     stroke="#ffffff" 
                                     strokeWidth={2} 
-                                    dot={false} 
+                                    dot={(props) => <CustomEndDot {...props} data={chartData} />}
                                     name="Gemini"
                                     strokeDasharray="8 4"
                                 />
@@ -169,7 +169,7 @@ export default function MarketGrowthSection() {
                                     dataKey="perplexity" 
                                     stroke="#ffffff" 
                                     strokeWidth={2} 
-                                    dot={false} 
+                                    dot={(props) => <CustomEndDot {...props} data={chartData} />}
                                     name="Perplexity"
                                     strokeDasharray="4 4"
                                 />
@@ -178,7 +178,7 @@ export default function MarketGrowthSection() {
                                     dataKey="claude" 
                                     stroke="#ffffff" 
                                     strokeWidth={2} 
-                                    dot={false} 
+                                    dot={(props) => <CustomEndDot {...props} data={chartData} />}
                                     name="Claude"
                                     strokeDasharray="2 2"
                                 />
