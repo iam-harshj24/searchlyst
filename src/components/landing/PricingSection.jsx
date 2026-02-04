@@ -113,6 +113,11 @@ export default function PricingSection() {
                     <span className={`text-sm ${!isAnnual ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>Monthly</span>
                     <Switch checked={isAnnual} onCheckedChange={setIsAnnual} />
                     <span className={`text-sm ${isAnnual ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>Annual</span>
+                    {isAnnual && (
+                        <span className="px-3 py-1 bg-green-500/20 border border-green-500/30 text-green-400 text-xs font-medium rounded-full">
+                            Save 30%
+                        </span>
+                    )}
                 </motion.div>
 
                 {/* Pricing cards */}

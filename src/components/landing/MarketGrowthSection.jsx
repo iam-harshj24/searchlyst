@@ -6,16 +6,16 @@ import { Button } from "@/components/ui/button";
 import { ChatGPTLogo, GeminiLogo, PerplexityLogo, ClaudeLogo } from './AILogos';
 
 const chartData = [
-    { name: '2023', chatgpt: 100, gemini: 50, perplexity: 20, claude: 10 },
-    { name: 'Q2 2023', chatgpt: 200, gemini: 80, perplexity: 40, claude: 25 },
-    { name: 'Q3 2023', chatgpt: 280, gemini: 120, perplexity: 60, claude: 40 },
-    { name: 'Q4 2023', chatgpt: 380, gemini: 180, perplexity: 90, claude: 60 },
-    { name: '2024', chatgpt: 480, gemini: 250, perplexity: 130, claude: 90 },
-    { name: 'Q2 2024', chatgpt: 600, gemini: 340, perplexity: 180, claude: 130 },
-    { name: 'Q3 2024', chatgpt: 750, gemini: 450, perplexity: 250, claude: 180 },
-    { name: 'Q4 2024', chatgpt: 900, gemini: 580, perplexity: 340, claude: 250 },
-    { name: '2025', chatgpt: 1000, gemini: 700, perplexity: 450, claude: 350 },
-    { name: '2026', chatgpt: 1200, gemini: 900, perplexity: 600, claude: 500 },
+    { name: '2023', chatgpt: 100, gemini: 20, perplexity: 10, claude: 5 },
+    { name: 'Q2 2023', chatgpt: 120, gemini: 30, perplexity: 15, claude: 8 },
+    { name: 'Q3 2023', chatgpt: 150, gemini: 50, perplexity: 25, claude: 12 },
+    { name: 'Q4 2023', chatgpt: 200, gemini: 80, perplexity: 40, claude: 20 },
+    { name: '2024', chatgpt: 300, gemini: 150, perplexity: 80, claude: 40 },
+    { name: 'Q2 2024', chatgpt: 450, gemini: 250, perplexity: 150, claude: 80 },
+    { name: 'Q3 2024', chatgpt: 600, gemini: 400, perplexity: 250, claude: 150 },
+    { name: 'Q4 2024', chatgpt: 750, gemini: 550, perplexity: 400, claude: 250 },
+    { name: '2025', chatgpt: 900, gemini: 700, perplexity: 600, claude: 400 },
+    { name: '2026', chatgpt: 1100, gemini: 900, perplexity: 800, claude: 600 },
 ];
 
 const stats = [
@@ -106,7 +106,7 @@ export default function MarketGrowthSection() {
 
                     <div className="h-80">
                         <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={chartData}>
+                            <LineChart data={chartData} margin={{ top: 20, right: 30, left: 10, bottom: 10 }}>
                                 <XAxis 
                                     dataKey="name" 
                                     stroke="#525252" 
@@ -118,6 +118,8 @@ export default function MarketGrowthSection() {
                                     tick={{ fill: '#737373', fontSize: 12 }}
                                     axisLine={{ stroke: '#404040' }}
                                     tickFormatter={(value) => `${value}M`}
+                                    domain={[0, 1200]}
+                                    ticks={[0, 300, 600, 900, 1200]}
                                 />
                                 <Tooltip 
                                     contentStyle={{ 
@@ -126,11 +128,12 @@ export default function MarketGrowthSection() {
                                         borderRadius: '8px',
                                         color: '#fff'
                                     }}
+                                    formatter={(value) => [`${value}M users`, '']}
                                 />
-                                <Line type="monotone" dataKey="chatgpt" stroke="var(--text-primary)" strokeWidth={2} dot={false} />
-                                <Line type="monotone" dataKey="gemini" stroke="var(--text-primary)" strokeWidth={2} dot={false} strokeDasharray="5 5" />
-                                <Line type="monotone" dataKey="perplexity" stroke="var(--text-primary)" strokeWidth={2} dot={false} strokeDasharray="10 5" />
-                                <Line type="monotone" dataKey="claude" stroke="var(--text-primary)" strokeWidth={2} dot={false} strokeDasharray="2 2" />
+                                <Line type="monotone" dataKey="chatgpt" stroke="#ffffff" strokeWidth={2} dot={false} name="ChatGPT" />
+                                <Line type="monotone" dataKey="gemini" stroke="#ffffff" strokeWidth={2} dot={false} strokeDasharray="8 4" name="Gemini" />
+                                <Line type="monotone" dataKey="perplexity" stroke="#ffffff" strokeWidth={2} dot={false} strokeDasharray="4 4" name="Perplexity" />
+                                <Line type="monotone" dataKey="claude" stroke="#ffffff" strokeWidth={2} dot={false} strokeDasharray="2 2" name="Claude" />
                             </LineChart>
                         </ResponsiveContainer>
                     </div>
