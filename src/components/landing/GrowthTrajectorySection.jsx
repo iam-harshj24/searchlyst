@@ -56,7 +56,7 @@ export default function GrowthTrajectorySection() {
     
     return (
         <>
-        <section className="relative bg-[var(--bg-primary)] py-24 overflow-hidden">
+        <section className="relative bg-[var(--bg-primary)] py-12 md:py-24 overflow-hidden">
             <div className="relative max-w-6xl mx-auto px-2 md:px-6">
                 {/* Badge */}
                 <motion.div 

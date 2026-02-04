@@ -47,7 +47,7 @@ const stats = [
 
 export default function MarketGrowthSection() {
     return (
-        <section className="relative bg-[var(--bg-primary)] py-24 overflow-hidden">
+        <section className="relative bg-[var(--bg-primary)] py-12 md:py-24 overflow-hidden">
             {/* Background glow */}
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-red-600/5 rounded-full blur-[100px]" />
             
