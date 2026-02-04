@@ -5,10 +5,15 @@ import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { Badge } from "@/components/ui/badge";
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, ChevronDown, ChevronUp } from 'lucide-react';
+import { ThemeProvider } from '@/components/landing/ThemeToggle';
+import Navbar from '@/components/landing/Navbar';
+import Footer from '@/components/landing/Footer';
 
 export default function Blogs() {
     const [selectedCategory, setSelectedCategory] = useState(null);
+    const [selectedBlog, setSelectedBlog] = useState(null);
+    const [expandedFaq, setExpandedFaq] = useState(null);
     const categories = ["Product", "Tech", "Team", "AI", "Data", "Company", "Guides"];
 
     const { data: blogs = [], isLoading } = useQuery({
@@ -26,38 +31,28 @@ export default function Blogs() {
     const featuredBlog = filteredBlogs[0];
     const remainingBlogs = filteredBlogs.slice(1);
 
-    return (
-        <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">
-            {/* Header */}
-            <header className="border-b border-[var(--border)] bg-[var(--bg-secondary)]">
-                <div className="max-w-7xl mx-auto px-6 py-4">
-                    <div className="flex items-center justify-between">
-                        <Link to={createPageUrl('Home')} className="text-2xl font-bold hover:text-red-500 transition-colors">
-                            Base 44
-                        </Link>
-                        <nav className="hidden md:flex gap-6 text-sm">
-                            <Link to={createPageUrl('Home')} className="hover:text-red-500 transition-colors">Home</Link>
-                            <Link to={createPageUrl('Blogs')} className="text-red-500">Blog</Link>
-                            <a href="#" className="hover:text-red-500 transition-colors">About</a>
-                        </nav>
-                    </div>
-                </div>
-            </header>
+    // If no blog is selected, show the list view
+    if (!selectedBlog) {
 
-            {/* Hero */}
-            <section className="border-b border-[var(--border)] bg-[var(--bg-secondary)]">
-                <div className="max-w-7xl mx-auto px-6 py-12 md:py-20">
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                    >
-                        <h1 className="text-4xl md:text-5xl font-bold mb-4">Journal</h1>
-                        <p className="text-[var(--text-secondary)] text-lg max-w-2xl">
-                            In-depth investigations, data-driven insights, and stories about ethical consumerism. Stay informed about the brands that matter.
-                        </p>
-                    </motion.div>
-                </div>
-            </section>
+        return (
+            <ThemeProvider>
+                <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">
+                    <Navbar />
+
+                    {/* Hero */}
+                    <section className="border-b border-[var(--border)] bg-[var(--bg-secondary)]">
+                        <div className="max-w-7xl mx-auto px-6 py-12 md:py-20">
+                            <motion.div
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                            >
+                                <h1 className="text-4xl md:text-5xl font-bold mb-4">Blog</h1>
+                                <p className="text-[var(--text-secondary)] text-lg max-w-2xl">
+                                    Learn how to dominate AI search engines. Strategies, insights, and tactics to get your brand discovered on ChatGPT, Perplexity, and beyond.
+                                </p>
+                            </motion.div>
+                        </div>
+                    </section>
 
             {/* Category Filter */}
             <section className="border-b border-[var(--border)]">
@@ -94,11 +89,11 @@ export default function Blogs() {
             {featuredBlog && (
                 <section className="border-b border-[var(--border)]">
                     <div className="max-w-7xl mx-auto px-6 py-12">
-                        <motion.a
-                            href={`${createPageUrl('BlogPost')}?id=${featuredBlog.id}`}
+                        <motion.button
+                            onClick={() => setSelectedBlog(featuredBlog)}
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
-                            className="grid md:grid-cols-3 gap-8 hover:opacity-80 transition-opacity group"
+                            className="grid md:grid-cols-3 gap-8 hover:opacity-80 transition-opacity group cursor-pointer text-left w-full"
                         >
                             {featuredBlog.featured_image && (
                                 <div className="md:col-span-2 aspect-video rounded-lg overflow-hidden bg-[var(--bg-secondary)]">
@@ -137,13 +132,13 @@ export default function Blogs() {
                     ) : (
                         <div className="grid md:grid-cols-3 gap-6">
                             {remainingBlogs.map((blog, index) => (
-                                <motion.a
+                                <motion.button
                                     key={blog.id}
-                                    href={`${createPageUrl('BlogPost')}?id=${blog.id}`}
+                                    onClick={() => setSelectedBlog(blog)}
                                     initial={{ opacity: 0, y: 20 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ delay: index * 0.1 }}
-                                    className="border border-[var(--border)] rounded-lg overflow-hidden hover:border-red-500 transition-all group bg-[var(--bg-secondary)]"
+                                    className="border border-[var(--border)] rounded-lg overflow-hidden hover:border-red-500 transition-all group bg-[var(--bg-secondary)] cursor-pointer text-left w-full"
                                 >
                                     {blog.featured_image && (
                                         <div className="aspect-video overflow-hidden bg-[var(--bg-primary)]">
@@ -168,19 +163,163 @@ export default function Blogs() {
                                             {blog.read_time || 5} min read
                                         </div>
                                     </div>
-                                </motion.a>
+                                </motion.button>
                             ))}
                         </div>
                     )}
                 </div>
             </section>
 
-            {/* Footer */}
-            <footer className="border-t border-[var(--border)] bg-[var(--bg-secondary)] py-8">
-                <div className="max-w-7xl mx-auto px-6 text-center text-[var(--text-secondary)] text-sm">
-                    <p>&copy; 2026 Base 44. All rights reserved.</p>
+                    <Footer />
                 </div>
-            </footer>
-        </div>
+            </ThemeProvider>
+        );
+    }
+
+    // Single blog view
+    return (
+        <ThemeProvider>
+            <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">
+                <Navbar />
+
+                {/* Article Header */}
+                <article className="max-w-4xl mx-auto px-6 py-12">
+                    <div className="mb-8">
+                        <button
+                            onClick={() => setSelectedBlog(null)}
+                            className="text-red-500 hover:text-red-400 mb-6 flex items-center gap-2"
+                        >
+                            ← Back to Blog
+                        </button>
+                        <Badge className="mb-4 bg-red-600 text-white">{selectedBlog.category}</Badge>
+                        <h1 className="text-4xl md:text-5xl font-bold mb-4 leading-tight">{selectedBlog.title}</h1>
+                        <p className="text-xl text-[var(--text-secondary)] mb-6">{selectedBlog.summary}</p>
+                        <div className="flex items-center gap-4 text-sm text-[var(--text-secondary)]">
+                            <span>{selectedBlog.read_time || 8} min read</span>
+                            <span>•</span>
+                            <span>{new Date(selectedBlog.created_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
+                        </div>
+                    </div>
+
+                    {/* Featured Image */}
+                    {selectedBlog.featured_image && (
+                        <div className="mb-12 rounded-lg overflow-hidden">
+                            <img
+                                src={selectedBlog.featured_image}
+                                alt={selectedBlog.title}
+                                className="w-full h-auto"
+                            />
+                        </div>
+                    )}
+
+                    {/* Key Takeaways */}
+                    {selectedBlog.key_takeaways && selectedBlog.key_takeaways.length > 0 && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="border-2 border-white rounded-lg p-8 mb-12 bg-[var(--bg-secondary)]"
+                        >
+                            <h2 className="text-2xl font-bold mb-6">Key Takeaways</h2>
+                            <ul className="space-y-4">
+                                {selectedBlog.key_takeaways.map((takeaway, index) => (
+                                    <li key={index} className="flex gap-3">
+                                        <span className="text-red-500 font-bold mt-1">•</span>
+                                        <span className="text-[var(--text-secondary)] leading-relaxed">{takeaway}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        </motion.div>
+                    )}
+
+                    {/* Article Body */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.1 }}
+                        className="prose prose-invert prose-lg max-w-none mb-12"
+                    >
+                        <div
+                            className="text-[var(--text-secondary)] leading-relaxed [&>h2]:text-3xl [&>h2]:font-bold [&>h2]:mt-12 [&>h2]:mb-4 [&>h2]:text-[var(--text-primary)] [&>h3]:text-xl [&>h3]:font-bold [&>h3]:mt-8 [&>h3]:mb-3 [&>h3]:text-[var(--text-primary)] [&>p]:mb-6 [&>p]:leading-relaxed [&>strong]:text-[var(--text-primary)] [&>strong]:font-semibold"
+                            dangerouslySetInnerHTML={{ __html: selectedBlog.content }}
+                        />
+                    </motion.div>
+
+                    {/* FAQ Section */}
+                    {selectedBlog.faq && selectedBlog.faq.length > 0 && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.2 }}
+                            className="mt-16 border-t border-[var(--border)] pt-12"
+                        >
+                            <h2 className="text-3xl font-bold mb-8">Frequently Asked Questions</h2>
+                            <div className="space-y-4">
+                                {selectedBlog.faq.map((faq, index) => (
+                                    <div
+                                        key={index}
+                                        className="border border-[var(--border)] rounded-lg overflow-hidden bg-[var(--bg-secondary)]"
+                                    >
+                                        <button
+                                            onClick={() => setExpandedFaq(expandedFaq === index ? null : index)}
+                                            className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-[var(--bg-primary)] transition-colors"
+                                        >
+                                            <span className="font-semibold text-[var(--text-primary)]">{faq.question}</span>
+                                            {expandedFaq === index ? (
+                                                <ChevronUp className="w-5 h-5 text-red-500 flex-shrink-0" />
+                                            ) : (
+                                                <ChevronDown className="w-5 h-5 text-[var(--text-secondary)] flex-shrink-0" />
+                                            )}
+                                        </button>
+                                        {expandedFaq === index && (
+                                            <div className="px-6 pb-4 text-[var(--text-secondary)] leading-relaxed">
+                                                {faq.answer}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </motion.div>
+                    )}
+
+                    {/* About the Author */}
+                    {(selectedBlog.author_name || selectedBlog.author_bio) && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.3 }}
+                            className="mt-16 border border-[var(--border)] rounded-lg p-8 bg-[var(--bg-secondary)]"
+                        >
+                            <h3 className="text-xl font-bold mb-6">About the Author</h3>
+                            <div className="flex gap-6">
+                                <div className="w-24 h-24 rounded-full bg-red-600 flex items-center justify-center text-white text-3xl font-bold flex-shrink-0">
+                                    {selectedBlog.author_initials || selectedBlog.author_name?.substring(0, 2).toUpperCase() || 'B44'}
+                                </div>
+                                <div>
+                                    <h4 className="text-lg font-bold mb-1">{selectedBlog.author_name || 'Base 44 Team'}</h4>
+                                    {selectedBlog.author_title && (
+                                        <p className="text-sm text-red-500 mb-3">{selectedBlog.author_title}</p>
+                                    )}
+                                    <p className="text-[var(--text-secondary)] leading-relaxed">
+                                        {selectedBlog.author_bio || 'Expert insights on AI search optimization.'}
+                                    </p>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+
+                    {/* Back to Blog Button */}
+                    <div className="mt-12 text-center">
+                        <button
+                            onClick={() => setSelectedBlog(null)}
+                            className="text-red-500 hover:text-red-400 font-semibold"
+                        >
+                            ← Back to All Articles
+                        </button>
+                    </div>
+                </article>
+
+                <Footer />
+            </div>
+        </ThemeProvider>
     );
 }
