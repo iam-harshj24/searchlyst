@@ -100,11 +100,11 @@ export default function MarketOpportunitySection() {
                     className="flex flex-wrap justify-center gap-8"
                 >
                     <div className="flex items-center gap-2 transition-transform duration-300 hover:scale-110 cursor-pointer">
-                        <Zap className="w-5 h-5 text-yellow-500" />
+                        <Zap className="w-5 h-5 text-[var(--text-primary)]" />
                         <span className="text-[var(--text-primary)] font-semibold">3x Higher Intent</span>
                     </div>
                     <div className="flex items-center gap-2 transition-transform duration-300 hover:scale-110 cursor-pointer">
-                        <TrendingUp className="w-5 h-5 text-red-500" />
+                        <TrendingUp className="w-5 h-5 text-[var(--text-primary)]" />
                         <span className="text-[var(--text-primary)] font-semibold">30% Traffic Loss</span>
                     </div>
                 </motion.div>

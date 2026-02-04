@@ -8,21 +8,24 @@ const problems = [
         title: 'Loss of High-Intent Traffic',
         description: 'AI search queries have 3x higher intent than keyword search.',
         stat: '3x',
-        statLabel: 'Higher Intent'
+        statLabel: 'Higher Intent',
+        iconColor: 'text-[var(--text-primary)]'
     },
     {
         icon: Heart,
         title: 'The "Trust Gap"',
         description: 'When AI lists competitors but excludes you, users perceive you as irrelevant.',
         stat: '90%',
-        statLabel: 'Invisible Brands'
+        statLabel: 'Invisible Brands',
+        iconColor: 'text-[var(--text-primary)]'
     },
     {
         icon: DollarSign,
         title: 'Revenue Impact',
         description: 'Brands losing potential traffic as search volume migrates to AI platforms.',
         stat: '30%',
-        statLabel: 'Traffic Loss'
+        statLabel: 'Traffic Loss',
+        iconColor: 'text-[var(--text-primary)]'
     }
 ];
 
@@ -84,7 +87,7 @@ export default function ProblemSection() {
                 >
                     {problems.map((problem, index) => (
                         <div key={index} className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-6 transition-all duration-300 hover:scale-105 hover:border-red-500/30 cursor-pointer">
-                            <problem.icon className="w-8 h-8 text-[var(--text-secondary)] mb-4" />
+                            <problem.icon className={`w-8 h-8 ${problem.iconColor} mb-4`} />
                             <h3 className="text-[var(--text-primary)] font-semibold text-lg mb-2">{problem.title}</h3>
                             <p className="text-[var(--text-secondary)] text-sm mb-6">{problem.description}</p>
                             <div className="flex items-baseline gap-2">
