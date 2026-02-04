@@ -186,7 +186,7 @@ export default function HeroSection() {
                             Setup in 5 minutes
                         </div>
                         <div className="flex items-center gap-2">
-                            <CheckCircle className="w-4 h-4 text-[var(--text-primary)]" />
+                            <CheckCircle className="w-4 h-4 text-red-500" />
                             No technical skills needed
                         </div>
                         <div className="flex items-center gap-2">

@@ -1,5 +1,6 @@
 import React from 'react';
-import AboutHeroSection from '../components/about/AboutHeroSection';
+import { ThemeProvider } from '@/components/landing/ThemeToggle';
+import Navbar from '@/components/landing/Navbar';
 import BornFromRevolutionSection from '../components/about/BornFromRevolutionSection';
 import MigrationSection from '../components/about/MigrationSection';
 import ProblemSection from '../components/about/ProblemSection';
@@ -16,21 +17,25 @@ import AboutFooter from '../components/about/AboutFooter';
 
 export default function AboutUs() {
     return (
-        <div className="min-h-screen bg-[var(--bg-primary)]">
-            <AboutHeroSection />
-            <BornFromRevolutionSection />
-            <MigrationSection />
-            <ProblemSection />
-            <SolutionSection />
-            <MoatSection />
-            <TractionSection />
-            <MarketOpportunitySection />
-            <BusinessModelSection />
-            <AboutFAQSection />
-            <TeamSection />
-            <TheAskSection />
-            <CTASection />
-            <AboutFooter />
-        </div>
+        <ThemeProvider>
+            <div className="min-h-screen bg-[var(--bg-primary)]">
+                <Navbar />
+                <div className="pt-20">
+                    <BornFromRevolutionSection />
+                    <MigrationSection />
+                    <ProblemSection />
+                    <SolutionSection />
+                    <MoatSection />
+                    <TractionSection />
+                    <MarketOpportunitySection />
+                    <BusinessModelSection />
+                    <AboutFAQSection />
+                    <TeamSection />
+                    <TheAskSection />
+                    <CTASection />
+                </div>
+                <AboutFooter />
+            </div>
+        </ThemeProvider>
     );
 }

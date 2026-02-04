@@ -163,13 +163,19 @@ export default function PricingSection() {
                             </ul>
                             
                             <Button 
+                                onClick={() => {
+                                    const heroSection = document.querySelector('section');
+                                    if (heroSection) {
+                                        heroSection.scrollIntoView({ behavior: 'smooth' });
+                                    }
+                                }}
                                 className={`w-full rounded-xl ${
                                     plan.highlighted
                                         ? 'bg-red-600 hover:bg-red-700 text-white'
                                         : 'bg-transparent border border-[var(--border)] text-[var(--text-primary)] hover:bg-[var(--bg-primary)]'
                                 }`}
                             >
-                                Start 7 Days Free Trial
+                                Join Waitlist
                             </Button>
                         </div>
                     ))}
