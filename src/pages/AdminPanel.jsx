@@ -253,8 +253,8 @@ export default function AdminPanel() {
                             </Button>
                         </div>
 
-                {/* Stats Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                        {/* Stats Cards */}
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
                     <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
                         <div className="flex items-center gap-3">
                             <div className="p-3 bg-red-500/20 rounded-lg">
