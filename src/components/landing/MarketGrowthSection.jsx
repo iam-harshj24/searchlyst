@@ -103,7 +103,7 @@ export default function MarketGrowthSection() {
                     {/* Recharts Line Chart with Hover Tooltip */}
                     <div className="h-80 relative">
                         <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={chartData} margin={{ top: 20, right: 60, left: 10, bottom: 10 }}>
+                            <LineChart data={chartData} margin={{ top: 20, right: 50, left: 10, bottom: 10 }}>
                                 <XAxis 
                                     dataKey="name" 
                                     stroke="#525252" 
@@ -127,31 +127,66 @@ export default function MarketGrowthSection() {
                                     }}
                                     formatter={(value, name) => [`${value}M users`, name.charAt(0).toUpperCase() + name.slice(1)]}
                                 />
-                                <Line type="monotone" dataKey="chatgpt" stroke="#ffffff" strokeWidth={2} dot={false} name="ChatGPT" />
-                                <Line type="monotone" dataKey="gemini" stroke="#ffffff" strokeWidth={2} dot={false} name="Gemini" />
-                                <Line type="monotone" dataKey="perplexity" stroke="#ffffff" strokeWidth={2} dot={false} name="Perplexity" />
-                                <Line type="monotone" dataKey="claude" stroke="#ffffff" strokeWidth={2} dot={false} name="Claude" />
+                                <Line 
+                                    type="monotone" 
+                                    dataKey="chatgpt" 
+                                    stroke="#ffffff" 
+                                    strokeWidth={2} 
+                                    dot={false} 
+                                    name="ChatGPT"
+                                />
+                                <Line 
+                                    type="monotone" 
+                                    dataKey="gemini" 
+                                    stroke="#ffffff" 
+                                    strokeWidth={2} 
+                                    dot={false} 
+                                    name="Gemini"
+                                    strokeDasharray="8 4"
+                                />
+                                <Line 
+                                    type="monotone" 
+                                    dataKey="perplexity" 
+                                    stroke="#ffffff" 
+                                    strokeWidth={2} 
+                                    dot={false} 
+                                    name="Perplexity"
+                                    strokeDasharray="4 4"
+                                />
+                                <Line 
+                                    type="monotone" 
+                                    dataKey="claude" 
+                                    stroke="#ffffff" 
+                                    strokeWidth={2} 
+                                    dot={false} 
+                                    name="Claude"
+                                    strokeDasharray="2 2"
+                                />
                             </LineChart>
                         </ResponsiveContainer>
                         
-                        {/* Brand logos at end of lines with circles */}
-                        <div className="absolute right-0 flex flex-col" style={{ top: '8%' }}>
-                            <div className="w-8 h-8 rounded-full bg-[var(--bg-secondary)] border border-[var(--border)] flex items-center justify-center">
+                        {/* Brand logos positioned at end points of each line */}
+                        {/* ChatGPT: 1100M = ~8% from top */}
+                        <div className="absolute" style={{ right: '12px', top: 'calc(8% + 10px)' }}>
+                            <div className="w-7 h-7 rounded-full bg-[var(--bg-secondary)] border border-white/30 flex items-center justify-center">
                                 <ChatGPTLogo className="w-4 h-4" />
                             </div>
                         </div>
-                        <div className="absolute right-0 flex flex-col" style={{ top: '22%' }}>
-                            <div className="w-8 h-8 rounded-full bg-[var(--bg-secondary)] border border-[var(--border)] flex items-center justify-center">
+                        {/* Gemini: 900M = ~25% from top */}
+                        <div className="absolute" style={{ right: '12px', top: 'calc(25% + 10px)' }}>
+                            <div className="w-7 h-7 rounded-full bg-[var(--bg-secondary)] border border-white/30 flex items-center justify-center">
                                 <GeminiLogo className="w-4 h-4" />
                             </div>
                         </div>
-                        <div className="absolute right-0 flex flex-col" style={{ top: '34%' }}>
-                            <div className="w-8 h-8 rounded-full bg-[var(--bg-secondary)] border border-[var(--border)] flex items-center justify-center">
+                        {/* Perplexity: 800M = ~33% from top */}
+                        <div className="absolute" style={{ right: '12px', top: 'calc(33% + 10px)' }}>
+                            <div className="w-7 h-7 rounded-full bg-[var(--bg-secondary)] border border-white/30 flex items-center justify-center">
                                 <PerplexityLogo className="w-4 h-4" />
                             </div>
                         </div>
-                        <div className="absolute right-0 flex flex-col" style={{ top: '48%' }}>
-                            <div className="w-8 h-8 rounded-full bg-[var(--bg-secondary)] border border-[var(--border)] flex items-center justify-center">
+                        {/* Claude: 600M = ~50% from top */}
+                        <div className="absolute" style={{ right: '12px', top: 'calc(50% + 10px)' }}>
+                            <div className="w-7 h-7 rounded-full bg-[var(--bg-secondary)] border border-white/30 flex items-center justify-center">
                                 <ClaudeLogo className="w-4 h-4" />
                             </div>
                         </div>
