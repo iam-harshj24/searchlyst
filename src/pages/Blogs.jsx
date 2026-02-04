@@ -1,9 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
-import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
-import { createPageUrl } from '@/utils';
 import { Badge } from "@/components/ui/badge";
 import { ArrowRight, ChevronDown, ChevronUp } from 'lucide-react';
 import { ThemeProvider } from '@/components/landing/ThemeToggle';
@@ -40,17 +37,12 @@ export default function Blogs() {
                     <Navbar />
 
                     {/* Hero */}
-                    <section className="border-b border-[var(--border)] bg-[var(--bg-secondary)]">
+                    <section className="border-b border-[var(--border)] bg-[var(--bg-secondary)] pt-20">
                         <div className="max-w-7xl mx-auto px-6 py-12 md:py-20">
-                            <motion.div
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                            >
-                                <h1 className="text-4xl md:text-5xl font-bold mb-4">Blog</h1>
-                                <p className="text-[var(--text-secondary)] text-lg max-w-2xl">
-                                    Learn how to dominate AI search engines. Strategies, insights, and tactics to get your brand discovered on ChatGPT, Perplexity, and beyond.
-                                </p>
-                            </motion.div>
+                            <h1 className="text-4xl md:text-5xl font-bold mb-4">Blog</h1>
+                            <p className="text-[var(--text-secondary)] text-lg max-w-2xl">
+                                Learn how to dominate AI search engines. Strategies, insights, and tactics to get your brand discovered on ChatGPT, Perplexity, and beyond.
+                            </p>
                         </div>
                     </section>
 
@@ -89,10 +81,8 @@ export default function Blogs() {
             {featuredBlog && (
                 <section className="border-b border-[var(--border)]">
                     <div className="max-w-7xl mx-auto px-6 py-12">
-                        <motion.button
+                        <button
                             onClick={() => setSelectedBlog(featuredBlog)}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
                             className="grid md:grid-cols-3 gap-8 hover:opacity-80 transition-opacity group cursor-pointer text-left w-full"
                         >
                             {featuredBlog.featured_image && (
@@ -101,6 +91,7 @@ export default function Blogs() {
                                         src={featuredBlog.featured_image}
                                         alt={featuredBlog.title}
                                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                        loading="lazy"
                                     />
                                 </div>
                             )}
@@ -117,7 +108,7 @@ export default function Blogs() {
                                     <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                                 </div>
                             </div>
-                        </motion.button>
+                        </button>
                     </div>
                 </section>
             )}
@@ -131,13 +122,10 @@ export default function Blogs() {
                         <div className="text-center text-[var(--text-secondary)]">No blogs found in this category.</div>
                     ) : (
                         <div className="grid md:grid-cols-3 gap-6">
-                            {remainingBlogs.map((blog, index) => (
-                                <motion.button
+                            {remainingBlogs.map((blog) => (
+                                <button
                                     key={blog.id}
                                     onClick={() => setSelectedBlog(blog)}
-                                    initial={{ opacity: 0, y: 20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ delay: index * 0.1 }}
                                     className="border border-[var(--border)] rounded-lg overflow-hidden hover:border-red-500 transition-all group bg-[var(--bg-secondary)] cursor-pointer text-left w-full"
                                 >
                                     {blog.featured_image && (
@@ -146,6 +134,7 @@ export default function Blogs() {
                                                 src={blog.featured_image}
                                                 alt={blog.title}
                                                 className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                                                loading="lazy"
                                             />
                                         </div>
                                     )}
@@ -163,7 +152,7 @@ export default function Blogs() {
                                             {blog.read_time || 5} min read
                                         </div>
                                     </div>
-                                </motion.button>
+                                </button>
                             ))}
                         </div>
                     )}
@@ -214,11 +203,7 @@ export default function Blogs() {
 
                     {/* Key Takeaways */}
                     {selectedBlog.key_takeaways && selectedBlog.key_takeaways.length > 0 && (
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="border-2 border-white rounded-lg p-8 mb-12 bg-[var(--bg-secondary)]"
-                        >
+                        <div className="border-2 border-white rounded-lg p-8 mb-12 bg-[var(--bg-secondary)]">
                             <h2 className="text-2xl font-bold mb-6">Key Takeaways</h2>
                             <ul className="space-y-4">
                                 {selectedBlog.key_takeaways.map((takeaway, index) => (
@@ -228,30 +213,20 @@ export default function Blogs() {
                                     </li>
                                 ))}
                             </ul>
-                        </motion.div>
+                        </div>
                     )}
 
                     {/* Article Body */}
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.1 }}
-                        className="prose prose-invert prose-lg max-w-none mb-12"
-                    >
+                    <div className="prose prose-invert prose-lg max-w-none mb-12">
                         <div
                             className="text-[var(--text-secondary)] leading-relaxed [&>h2]:text-3xl [&>h2]:font-bold [&>h2]:mt-12 [&>h2]:mb-4 [&>h2]:text-[var(--text-primary)] [&>h3]:text-xl [&>h3]:font-bold [&>h3]:mt-8 [&>h3]:mb-3 [&>h3]:text-[var(--text-primary)] [&>p]:mb-6 [&>p]:leading-relaxed [&>strong]:text-[var(--text-primary)] [&>strong]:font-semibold"
                             dangerouslySetInnerHTML={{ __html: selectedBlog.content }}
                         />
-                    </motion.div>
+                    </div>
 
                     {/* FAQ Section */}
                     {selectedBlog.faq && selectedBlog.faq.length > 0 && (
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.2 }}
-                            className="mt-16 border-t border-[var(--border)] pt-12"
-                        >
+                        <div className="mt-16 border-t border-[var(--border)] pt-12">
                             <h2 className="text-3xl font-bold mb-8">Frequently Asked Questions</h2>
                             <div className="space-y-4">
                                 {selectedBlog.faq.map((faq, index) => (
@@ -278,17 +253,12 @@ export default function Blogs() {
                                     </div>
                                 ))}
                             </div>
-                        </motion.div>
+                        </div>
                     )}
 
                     {/* About the Author */}
                     {(selectedBlog.author_name || selectedBlog.author_bio) && (
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.3 }}
-                            className="mt-16 border border-[var(--border)] rounded-lg p-8 bg-[var(--bg-secondary)]"
-                        >
+                        <div className="mt-16 border border-[var(--border)] rounded-lg p-8 bg-[var(--bg-secondary)]">
                             <h3 className="text-xl font-bold mb-6">About the Author</h3>
                             <div className="flex gap-6">
                                 <div className="w-24 h-24 rounded-full bg-red-600 flex items-center justify-center text-white text-3xl font-bold flex-shrink-0">
@@ -304,7 +274,7 @@ export default function Blogs() {
                                     </p>
                                 </div>
                             </div>
-                        </motion.div>
+                        </div>
                     )}
 
                     {/* Back to Blog Button */}

@@ -49,15 +49,15 @@
  */
 import AboutUs from './pages/AboutUs';
 import AdminPanel from './pages/AdminPanel';
-import Home from './pages/Home';
 import Blogs from './pages/Blogs';
+import Home from './pages/Home';
 
 
 export const PAGES = {
     "AboutUs": AboutUs,
     "AdminPanel": AdminPanel,
-    "Home": Home,
     "Blogs": Blogs,
+    "Home": Home,
 }
 
 export const pagesConfig = {
