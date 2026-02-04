@@ -60,7 +60,7 @@ export default function PricingSection() {
     const [isAnnual, setIsAnnual] = useState(false);
 
     return (
-        <section id="pricing" className="relative bg-[var(--bg-primary)] py-24 overflow-hidden">
+        <section id="pricing" className="relative bg-[var(--bg-primary)] py-12 md:py-24 overflow-hidden">
             <div className="relative max-w-6xl mx-auto px-6">
                 {/* Badge */}
                 <motion.div 
