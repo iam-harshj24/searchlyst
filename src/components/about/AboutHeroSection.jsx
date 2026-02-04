@@ -18,7 +18,7 @@ export default function AboutHeroSection() {
                     <img 
                         src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69824440a17c76d392c103dc/2787700e8_Group123-Picsart-BackgroundRemover.png" 
                         alt="Searchlyst" 
-                        className="h-6"
+                        className="h-10"
                     />
                     <h1 className="text-[var(--text-primary)] text-xl font-medium">About Us</h1>
                     <div className="w-20" />

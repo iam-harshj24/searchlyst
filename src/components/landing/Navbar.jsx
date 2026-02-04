@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
-import { ThemeToggle } from './ThemeToggle';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import WaitlistModal from '../WaitlistModal';
@@ -15,7 +14,7 @@ export default function Navbar() {
                     <img 
                         src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69824440a17c76d392c103dc/2787700e8_Group123-Picsart-BackgroundRemover.png" 
                         alt="Searchlyst" 
-                        className="h-6"
+                        className="h-10"
                     />
                     
                     <div className="hidden md:flex items-center gap-8 absolute left-1/2 -translate-x-1/2">
@@ -26,15 +25,12 @@ export default function Navbar() {
                         <a href="#faq" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm transition-colors">FAQ</a>
                     </div>
                     
-                    <div className="flex items-center gap-2">
-                        <ThemeToggle />
-                        <Button 
-                            onClick={() => setShowWaitlist(true)}
-                            className="bg-red-600 hover:bg-red-700 text-white rounded-full px-5"
-                        >
-                            Join Waitlist
-                        </Button>
-                    </div>
+                    <Button 
+                        onClick={() => setShowWaitlist(true)}
+                        className="bg-red-600 hover:bg-red-700 text-white rounded-full px-5"
+                    >
+                        Join Waitlist
+                    </Button>
                 </div>
             </nav>
             <WaitlistModal open={showWaitlist} onOpenChange={setShowWaitlist} source="home" />
