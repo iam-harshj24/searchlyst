@@ -93,7 +93,7 @@ export default function GrowthTrajectorySection() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: 0.2 }}
-                    className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-6 mb-8 transition-all duration-300 hover:scale-[1.01]"
+                    className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-4 md:p-6 mb-8 transition-all duration-300 hover:scale-[1.01]"
                 >
                     {/* Chart header */}
                     <div className="flex justify-between items-center mb-4">
@@ -104,8 +104,8 @@ export default function GrowthTrajectorySection() {
                         </div>
                     </div>
 
-                    <div className="h-80 relative">
-                        <ResponsiveContainer width="100%" height="100%">
+                    <div className="h-64 md:h-80 relative overflow-x-auto">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={300}>
                             <LineChart data={trajectoryData} margin={{ top: 60, right: 40, left: 10, bottom: 20 }}>
                                 <XAxis 
                                     dataKey="week" 
@@ -145,13 +145,13 @@ export default function GrowthTrajectorySection() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: 0.3 }}
-                    className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12"
+                    className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-12"
                 >
                     {metrics.map((metric, index) => (
-                        <div key={index} className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-xl p-6 text-center transition-all duration-300 hover:scale-105 hover:border-red-500/30 cursor-pointer">
-                            <metric.icon className={`w-8 h-8 ${metric.color} mx-auto mb-3`} />
-                            <div className="text-2xl md:text-3xl font-bold text-[var(--text-primary)] mb-1">{metric.value}</div>
-                            <div className="text-[var(--text-secondary)] text-sm">{metric.label}</div>
+                        <div key={index} className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-xl p-4 md:p-6 text-center transition-all duration-300 hover:scale-105 hover:border-red-500/30 cursor-pointer">
+                            <metric.icon className={`w-6 h-6 md:w-8 md:h-8 ${metric.color} mx-auto mb-2 md:mb-3`} />
+                            <div className="text-xl md:text-2xl lg:text-3xl font-bold text-[var(--text-primary)] mb-1">{metric.value}</div>
+                            <div className="text-[var(--text-secondary)] text-xs md:text-sm">{metric.label}</div>
                         </div>
                     ))}
                 </motion.div>

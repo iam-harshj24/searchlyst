@@ -98,7 +98,7 @@ export default function MarketGrowthSection() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: 0.3 }}
-                    className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-6 mb-8"
+                    className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-4 md:p-6 mb-8"
                 >
                     {/* Legend */}
                     <div className="flex flex-wrap gap-6 mb-6">
@@ -121,8 +121,8 @@ export default function MarketGrowthSection() {
                     </div>
 
                     {/* Recharts Line Chart with Hover Tooltip */}
-                    <div className="h-80 relative">
-                        <ResponsiveContainer width="100%" height="100%">
+                    <div className="h-64 md:h-80 relative overflow-x-auto">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={300}>
                             <LineChart data={chartData} margin={{ top: 20, right: 50, left: 10, bottom: 10 }}>
                                 <XAxis 
                                     dataKey="name" 
@@ -201,13 +201,13 @@ export default function MarketGrowthSection() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: 0.4 }}
-                    className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12"
+                    className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-12"
                 >
                     {stats.map((stat, index) => (
-                        <div key={index} className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-xl p-6 text-center">
-                            <stat.icon className={`w-8 h-8 ${stat.color} mx-auto mb-3`} />
-                            <div className="text-3xl md:text-4xl font-bold text-[var(--text-primary)] mb-1">{stat.value}</div>
-                            <div className="text-[var(--text-secondary)] text-sm">{stat.label}</div>
+                        <div key={index} className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-xl p-4 md:p-6 text-center">
+                            <stat.icon className={`w-6 h-6 md:w-8 md:h-8 ${stat.color} mx-auto mb-2 md:mb-3`} />
+                            <div className="text-2xl md:text-3xl lg:text-4xl font-bold text-[var(--text-primary)] mb-1">{stat.value}</div>
+                            <div className="text-[var(--text-secondary)] text-xs md:text-sm">{stat.label}</div>
                         </div>
                     ))}
                 </motion.div>

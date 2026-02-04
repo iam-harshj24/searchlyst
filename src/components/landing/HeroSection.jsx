@@ -48,12 +48,12 @@ export default function HeroSection() {
     }, []);
 
     return (
-        <section className="relative min-h-screen bg-[var(--bg-primary)] pt-32 pb-20 overflow-hidden">
+        <section className="relative min-h-screen bg-[var(--bg-primary)] pt-24 md:pt-32 pb-12 md:pb-20 overflow-hidden">
             {/* Background gradient */}
             <div className="absolute inset-0 bg-[var(--bg-primary)]" />
             <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-red-600/10 rounded-full blur-[120px]" />
             
-            <div className="relative max-w-4xl mx-auto px-6 text-center">
+            <div className="relative max-w-4xl mx-auto px-4 md:px-6 text-center">
                 {/* Badge */}
                 <motion.div 
                     initial={{ opacity: 0, y: 20 }}
@@ -69,7 +69,7 @@ export default function HeroSection() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.1 }}
-                    className="text-5xl md:text-6xl lg:text-7xl font-bold text-[var(--text-primary)] mb-6 tracking-tight"
+                    className="text-3xl md:text-5xl lg:text-7xl font-bold text-[var(--text-primary)] mb-4 md:mb-6 tracking-tight"
                 >
                     Get your brand<br />recommended by
                 </motion.h1>
@@ -79,7 +79,7 @@ export default function HeroSection() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.2 }}
-                    className="h-16 mb-6 flex items-center justify-center"
+                    className="h-12 md:h-16 mb-4 md:mb-6 flex items-center justify-center"
                 >
                     <AnimatePresence mode="wait">
                         {(() => {
@@ -90,9 +90,9 @@ export default function HeroSection() {
                                     initial={{ opacity: 0, y: 20 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, y: -20 }}
-                                    className="flex items-center gap-3 text-3xl md:text-4xl text-[var(--text-primary)] font-semibold"
+                                    className="flex items-center gap-2 md:gap-3 text-2xl md:text-3xl lg:text-4xl text-[var(--text-primary)] font-semibold"
                                 >
-                                    <CurrentLogo className="w-10 h-10 text-[var(--text-primary)]" />
+                                    <CurrentLogo className="w-8 h-8 md:w-10 md:h-10 text-[var(--text-primary)]" />
                                     {aiPlatforms[currentPlatform].name}
                                 </motion.div>
                             );
@@ -117,10 +117,9 @@ export default function HeroSection() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.3 }}
-                    className="text-[var(--text-secondary)] text-lg mb-10 max-w-2xl mx-auto"
+                    className="text-[var(--text-secondary)] text-base md:text-lg mb-6 md:mb-10 max-w-2xl mx-auto px-4"
                 >
-                    The all-in-one platform to track, optimize, and control your brand's<br />
-                    presence in the age of AI search.
+                    The all-in-one platform to track, optimize, and control your brand's presence in the age of AI search.
                 </motion.p>
 
                 {/* Form */}
@@ -128,7 +127,7 @@ export default function HeroSection() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.4 }}
-                    className="max-w-2xl mx-auto bg-[var(--bg-secondary)] backdrop-blur-sm border border-[var(--border)] rounded-2xl p-6"
+                    className="max-w-2xl mx-auto bg-[var(--bg-secondary)] backdrop-blur-sm border border-[var(--border)] rounded-2xl p-4 md:p-6"
                 >
                     <div className="flex flex-col gap-4 mb-4">
                         <div className="relative">

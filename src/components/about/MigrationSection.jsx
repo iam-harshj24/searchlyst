@@ -87,7 +87,7 @@ export default function MigrationSection() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: 0.3 }}
-                    className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-8"
+                    className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-4 md:p-8"
                 >
                     <h3 className="text-[var(--text-primary)] text-xl font-semibold text-center mb-2">Monthly Active Users by Platform</h3>
                     <p className="text-[var(--text-secondary)] text-sm text-center mb-6">In millions • 2023-2026 projected</p>
@@ -116,8 +116,8 @@ export default function MigrationSection() {
                         </div>
                     </div>
 
-                    <div className="h-80">
-                        <ResponsiveContainer width="100%" height="100%">
+                    <div className="h-64 md:h-80 overflow-x-auto">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={300}>
                             <LineChart data={chartData} margin={{ top: 20, right: 50, left: 10, bottom: 10 }}>
                                 <XAxis 
                                     dataKey="name" 
