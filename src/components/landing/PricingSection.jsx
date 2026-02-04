@@ -8,7 +8,7 @@ const plans = [
     {
         name: 'Starter',
         subtitle: 'Serious Startups & Niche Brands',
-        price: { monthly: 99, annual: 79 },
+        price: { monthly: 99, annual: 69 },
         features: [
             '150 Custom Prompts',
             '3 Brands + 5 Competitors',
@@ -24,7 +24,7 @@ const plans = [
     {
         name: 'Growth',
         subtitle: 'High-Growth Teams & Scale-ups',
-        price: { monthly: 199, annual: 159 },
+        price: { monthly: 199, annual: 139 },
         features: [
             '600 Custom Prompts',
             '10 Brands + 15 Competitors',
@@ -41,7 +41,7 @@ const plans = [
     {
         name: 'Scale',
         subtitle: 'Agencies & Dominant Brands',
-        price: { monthly: 299, annual: 239 },
+        price: { monthly: 299, annual: 209 },
         features: [
             '1,500 Custom Prompts',
             'Unlimited Brands + 50 Competitors',

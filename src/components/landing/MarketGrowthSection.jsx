@@ -104,9 +104,9 @@ export default function MarketGrowthSection() {
                         </div>
                     </div>
 
-                    <div className="h-80">
+                    <div className="h-80 relative">
                         <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={chartData} margin={{ top: 20, right: 30, left: 10, bottom: 10 }}>
+                            <LineChart data={chartData} margin={{ top: 20, right: 80, left: 10, bottom: 10 }}>
                                 <XAxis 
                                     dataKey="name" 
                                     stroke="#525252" 
@@ -136,6 +136,19 @@ export default function MarketGrowthSection() {
                                 <Line type="monotone" dataKey="claude" stroke="#ffffff" strokeWidth={2} dot={false} strokeDasharray="2 2" name="Claude" />
                             </LineChart>
                         </ResponsiveContainer>
+                        {/* Brand logos at end of lines */}
+                        <div className="absolute right-2 top-[15%] flex flex-col gap-1">
+                            <ChatGPTLogo className="w-5 h-5" />
+                        </div>
+                        <div className="absolute right-2 top-[28%] flex flex-col gap-1">
+                            <GeminiLogo className="w-5 h-5" />
+                        </div>
+                        <div className="absolute right-2 top-[38%] flex flex-col gap-1">
+                            <PerplexityLogo className="w-5 h-5" />
+                        </div>
+                        <div className="absolute right-2 top-[48%] flex flex-col gap-1">
+                            <ClaudeLogo className="w-5 h-5" />
+                        </div>
                     </div>
 
                     {/* Total indicator */}
