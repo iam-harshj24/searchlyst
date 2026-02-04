@@ -16,9 +16,9 @@ const socialLinks = [
 
 export default function AboutFooter() {
     return (
-        <footer className="bg-[var(--bg-primary)] border-t border-[var(--border)] py-16">
-            <div className="max-w-6xl mx-auto px-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12 mb-12">
+        <footer className="bg-[var(--bg-primary)] border-t border-[var(--border)] py-12 md:py-16">
+            <div className="max-w-6xl mx-auto px-4 md:px-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8 md:gap-12 mb-8 md:mb-12">
                     {/* Brand column */}
                     <div className="lg:col-span-1">
                         <div className="text-[var(--text-primary)] text-xl font-semibold tracking-tight italic mb-4">
@@ -35,21 +35,45 @@ export default function AboutFooter() {
                         </div>
                     </div>
 
-                    {/* Links columns */}
-                    {Object.entries(footerLinks).map(([category, links]) => (
-                        <div key={category}>
-                            <h4 className="text-[var(--text-primary)] font-semibold mb-4">{category}</h4>
-                            <ul className="space-y-3">
-                                {links.map((link) => (
-                                    <li key={link}>
-                                        <a href="#" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm transition-colors">
-                                            {link}
-                                        </a>
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    ))}
+                    {/* Links columns - 3 equal columns */}
+                    <div>
+                        <h4 className="text-[var(--text-primary)] font-semibold mb-4">Product</h4>
+                        <ul className="space-y-3">
+                            {footerLinks.Product.map((link) => (
+                                <li key={link}>
+                                    <a href="#" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm transition-colors">
+                                        {link}
+                                    </a>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                    
+                    <div>
+                        <h4 className="text-[var(--text-primary)] font-semibold mb-4">Resources</h4>
+                        <ul className="space-y-3">
+                            {footerLinks.Resources.map((link) => (
+                                <li key={link}>
+                                    <a href="#" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm transition-colors">
+                                        {link}
+                                    </a>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                    
+                    <div>
+                        <h4 className="text-[var(--text-primary)] font-semibold mb-4">Company</h4>
+                        <ul className="space-y-3">
+                            {footerLinks.Company.map((link) => (
+                                <li key={link}>
+                                    <a href="#" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm transition-colors">
+                                        {link}
+                                    </a>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
 
                     {/* Connect column */}
                     <div>

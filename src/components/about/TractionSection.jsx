@@ -48,7 +48,7 @@ export default function TractionSection() {
             {/* Gradient line at top */}
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/2 h-px bg-gradient-to-r from-transparent via-[var(--border)] to-transparent" />
             
-            <div className="relative max-w-6xl mx-auto px-6">
+            <div className="relative max-w-6xl mx-auto px-2 md:px-6">
                 {/* Badge */}
                 <motion.div 
                     initial={{ opacity: 0, y: 20 }}
@@ -92,7 +92,7 @@ export default function TractionSection() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: 0.3 }}
-                    className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-6 transition-all duration-300 hover:scale-[1.01]"
+                    className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-4 md:p-6 transition-all duration-300 hover:scale-[1.01]"
                 >
                     {/* Chart header */}
                     <div className="flex justify-between items-center mb-4">
@@ -103,9 +103,9 @@ export default function TractionSection() {
                         </div>
                     </div>
 
-                    <div className="h-80 relative">
+                    <div className="h-64 md:h-80 relative">
                         <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={trajectoryData} margin={{ top: 60, right: 40, left: 10, bottom: 20 }}>
+                            <LineChart data={trajectoryData} margin={{ top: 60, right: 10, left: -20, bottom: 20 }}>
                                 <XAxis 
                                     dataKey="week" 
                                     stroke="#525252" 
