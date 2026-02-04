@@ -88,10 +88,10 @@ export default function CookieConsent() {
                         initial={{ y: 100, opacity: 0 }}
                         animate={{ y: 0, opacity: 1 }}
                         exit={{ y: 100, opacity: 0 }}
-                        className="fixed bottom-4 left-4 right-4 md:bottom-6 md:left-6 md:right-6 z-50"
+                        className="fixed bottom-4 left-4 right-4 lg:bottom-6 lg:left-6 lg:right-6 z-50"
                     >
-                        {/* Mobile: Compact popup */}
-                        <div className="md:hidden bg-[var(--bg-secondary)] border border-[var(--border)] rounded-xl p-4 shadow-2xl">
+                        {/* Mobile & Tablet: Compact popup */}
+                        <div className="lg:hidden bg-[#0a0a0a] bg-opacity-95 backdrop-blur-sm border border-[var(--border)] rounded-xl p-4 shadow-2xl">
                             <div className="flex items-center gap-2 mb-3">
                                 <Cookie className="w-4 h-4 text-red-500 flex-shrink-0" />
                                 <p className="text-[var(--text-primary)] text-sm font-medium">We use cookies</p>
@@ -117,8 +117,8 @@ export default function CookieConsent() {
                         </div>
 
                         {/* Desktop: Bottom strip */}
-                        <div className="hidden md:block max-w-5xl mx-auto">
-                            <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-xl px-4 py-3 shadow-2xl">
+                        <div className="hidden lg:block max-w-5xl mx-auto">
+                            <div className="bg-[#0a0a0a] bg-opacity-95 backdrop-blur-sm border border-[var(--border)] rounded-xl px-4 py-3 shadow-2xl">
                                 <div className="flex items-center justify-between gap-4">
                                     <div className="flex items-center gap-3">
                                         <Cookie className="w-4 h-4 text-red-500 flex-shrink-0" />
