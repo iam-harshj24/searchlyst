@@ -1,22 +1,8 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts';
 import { TrendingUp, Zap, DollarSign, Target, Users } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { ChatGPTLogo, GeminiLogo, PerplexityLogo, ClaudeLogo } from './AILogos';
-
-const chartData = [
-    { name: '2023', chatgpt: 100, gemini: 20, perplexity: 10, claude: 5 },
-    { name: 'Q2 2023', chatgpt: 120, gemini: 30, perplexity: 15, claude: 8 },
-    { name: 'Q3 2023', chatgpt: 150, gemini: 50, perplexity: 25, claude: 12 },
-    { name: 'Q4 2023', chatgpt: 200, gemini: 80, perplexity: 40, claude: 20 },
-    { name: '2024', chatgpt: 300, gemini: 150, perplexity: 80, claude: 40 },
-    { name: 'Q2 2024', chatgpt: 450, gemini: 250, perplexity: 150, claude: 80 },
-    { name: 'Q3 2024', chatgpt: 600, gemini: 400, perplexity: 250, claude: 150 },
-    { name: 'Q4 2024', chatgpt: 750, gemini: 550, perplexity: 400, claude: 250 },
-    { name: '2025', chatgpt: 900, gemini: 700, perplexity: 600, claude: 400 },
-    { name: '2026', chatgpt: 1100, gemini: 900, perplexity: 800, claude: 600 },
-];
 
 const stats = [
     { icon: Zap, value: '40%', label: 'month-over-month growth', color: 'text-[var(--text-primary)]' },
@@ -85,69 +71,87 @@ export default function MarketGrowthSection() {
                         <div className="flex items-center gap-2">
                             <ChatGPTLogo className="w-4 h-4" />
                             <span className="text-[var(--text-secondary)] text-sm">ChatGPT</span>
-                            <div className="w-6 h-0.5 bg-[var(--text-primary)]"></div>
                         </div>
                         <div className="flex items-center gap-2">
                             <GeminiLogo className="w-4 h-4" />
                             <span className="text-[var(--text-secondary)] text-sm">Gemini</span>
-                            <div className="w-6 h-0.5 bg-[var(--text-primary)]" style={{ backgroundImage: 'repeating-linear-gradient(90deg, var(--text-primary) 0, var(--text-primary) 5px, transparent 5px, transparent 10px)' }}></div>
                         </div>
                         <div className="flex items-center gap-2">
                             <PerplexityLogo className="w-4 h-4" />
                             <span className="text-[var(--text-secondary)] text-sm">Perplexity</span>
-                            <div className="w-6 h-0.5" style={{ backgroundImage: 'repeating-linear-gradient(90deg, var(--text-primary) 0, var(--text-primary) 10px, transparent 10px, transparent 15px)' }}></div>
                         </div>
                         <div className="flex items-center gap-2">
                             <ClaudeLogo className="w-4 h-4" />
                             <span className="text-[var(--text-secondary)] text-sm">Claude</span>
-                            <div className="w-6 h-0.5" style={{ backgroundImage: 'repeating-linear-gradient(90deg, var(--text-primary) 0, var(--text-primary) 2px, transparent 2px, transparent 4px)' }}></div>
                         </div>
                     </div>
 
-                    <div className="h-80 relative">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={chartData} margin={{ top: 20, right: 80, left: 10, bottom: 10 }}>
-                                <XAxis 
-                                    dataKey="name" 
-                                    stroke="#525252" 
-                                    tick={{ fill: '#737373', fontSize: 12 }}
-                                    axisLine={{ stroke: '#404040' }}
-                                />
-                                <YAxis 
-                                    stroke="#525252" 
-                                    tick={{ fill: '#737373', fontSize: 12 }}
-                                    axisLine={{ stroke: '#404040' }}
-                                    tickFormatter={(value) => `${value}M`}
-                                    domain={[0, 1200]}
-                                    ticks={[0, 300, 600, 900, 1200]}
-                                />
-                                <Tooltip 
-                                    contentStyle={{ 
-                                        backgroundColor: '#18181b', 
-                                        border: '1px solid #27272a',
-                                        borderRadius: '8px',
-                                        color: '#fff'
-                                    }}
-                                    formatter={(value) => [`${value}M users`, '']}
-                                />
-                                <Line type="monotone" dataKey="chatgpt" stroke="#ffffff" strokeWidth={2} dot={false} name="ChatGPT" />
-                                <Line type="monotone" dataKey="gemini" stroke="#ffffff" strokeWidth={2} dot={false} strokeDasharray="8 4" name="Gemini" />
-                                <Line type="monotone" dataKey="perplexity" stroke="#ffffff" strokeWidth={2} dot={false} strokeDasharray="4 4" name="Perplexity" />
-                                <Line type="monotone" dataKey="claude" stroke="#ffffff" strokeWidth={2} dot={false} strokeDasharray="2 2" name="Claude" />
-                            </LineChart>
-                        </ResponsiveContainer>
+                    {/* Custom SVG Chart - Brand Race Style */}
+                    <div className="h-72 relative">
+                        <svg viewBox="0 0 800 280" className="w-full h-full" preserveAspectRatio="xMidYMid meet">
+                            {/* Y-axis labels */}
+                            <text x="25" y="30" fill="#737373" fontSize="12" textAnchor="end">1200M</text>
+                            <text x="25" y="85" fill="#737373" fontSize="12" textAnchor="end">900M</text>
+                            <text x="25" y="140" fill="#737373" fontSize="12" textAnchor="end">600M</text>
+                            <text x="25" y="195" fill="#737373" fontSize="12" textAnchor="end">300M</text>
+                            <text x="25" y="250" fill="#737373" fontSize="12" textAnchor="end">0M</text>
+                            
+                            {/* X-axis labels */}
+                            <text x="60" y="270" fill="#737373" fontSize="11" textAnchor="middle">Q2 2023</text>
+                            <text x="150" y="270" fill="#737373" fontSize="11" textAnchor="middle">Q3 2023</text>
+                            <text x="240" y="270" fill="#737373" fontSize="11" textAnchor="middle">Q4 2023</text>
+                            <text x="330" y="270" fill="#737373" fontSize="11" textAnchor="middle">2024</text>
+                            <text x="420" y="270" fill="#737373" fontSize="11" textAnchor="middle">Q2 2024</text>
+                            <text x="510" y="270" fill="#737373" fontSize="11" textAnchor="middle">Q3 2024</text>
+                            <text x="600" y="270" fill="#737373" fontSize="11" textAnchor="middle">Q4 2024</text>
+                            <text x="690" y="270" fill="#737373" fontSize="11" textAnchor="middle">2025</text>
+                            <text x="760" y="270" fill="#737373" fontSize="11" textAnchor="middle">2026</text>
+                            
+                            {/* ChatGPT line - Top line */}
+                            <path 
+                                d="M 40 245 Q 200 240, 350 200 T 760 25" 
+                                stroke="white" 
+                                strokeWidth="2" 
+                                fill="none"
+                            />
+                            
+                            {/* Gemini line - Second line */}
+                            <path 
+                                d="M 40 248 Q 200 245, 350 210 T 760 65" 
+                                stroke="white" 
+                                strokeWidth="2" 
+                                fill="none"
+                            />
+                            
+                            {/* Perplexity line - Third line */}
+                            <path 
+                                d="M 40 250 Q 200 248, 350 220 T 760 100" 
+                                stroke="white" 
+                                strokeWidth="2" 
+                                fill="none"
+                            />
+                            
+                            {/* Claude line - Bottom line */}
+                            <path 
+                                d="M 40 252 Q 200 250, 350 230 T 760 135" 
+                                stroke="white" 
+                                strokeWidth="2" 
+                                fill="none"
+                            />
+                        </svg>
+                        
                         {/* Brand logos at end of lines */}
-                        <div className="absolute right-2 top-[15%] flex flex-col gap-1">
-                            <ChatGPTLogo className="w-5 h-5" />
+                        <div className="absolute right-0 top-[5%]">
+                            <ChatGPTLogo className="w-6 h-6" />
                         </div>
-                        <div className="absolute right-2 top-[28%] flex flex-col gap-1">
-                            <GeminiLogo className="w-5 h-5" />
+                        <div className="absolute right-0 top-[20%]">
+                            <GeminiLogo className="w-6 h-6" />
                         </div>
-                        <div className="absolute right-2 top-[38%] flex flex-col gap-1">
-                            <PerplexityLogo className="w-5 h-5" />
+                        <div className="absolute right-0 top-[33%]">
+                            <PerplexityLogo className="w-6 h-6" />
                         </div>
-                        <div className="absolute right-2 top-[48%] flex flex-col gap-1">
-                            <ClaudeLogo className="w-5 h-5" />
+                        <div className="absolute right-0 top-[46%]">
+                            <ClaudeLogo className="w-6 h-6" />
                         </div>
                     </div>
 
