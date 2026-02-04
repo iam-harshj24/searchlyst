@@ -16,7 +16,7 @@ import AboutFooter from '../components/about/AboutFooter';
 
 export default function AboutUs() {
     return (
-        <div className="min-h-screen bg-black">
+        <div className="min-h-screen bg-[var(--bg-primary)]">
             <AboutHeroSection />
             <BornFromRevolutionSection />
             <MigrationSection />
