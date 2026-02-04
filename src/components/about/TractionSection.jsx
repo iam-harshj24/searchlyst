@@ -1,29 +1,46 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, ReferenceDot } from 'recharts';
-import { TrendingUp } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, ResponsiveContainer } from 'recharts';
+import { TrendingUp, CheckCircle } from 'lucide-react';
 
 const trajectoryData = [
-    { week: 'Week 1', score: 8 },
-    { week: 'Week 2', score: 15 },
-    { week: 'Week 3', score: 25 },
-    { week: 'Week 4', score: 33 },
-    { week: 'Week 5', score: 45 },
-    { week: 'Week 6', score: 63 },
-    { week: 'Week 7', score: 80 },
-    { week: 'Week 8', score: 93 },
-    { week: 'Week 9', score: 130 },
-    { week: 'Week 10', score: 160 },
-    { week: 'Week 11', score: 180 },
+    { week: 'Week 1', score: 0 },
+    { week: 'Week 2', score: 8, label: '8%', milestone: 'Discovery & Baseline' },
+    { week: 'Week 3', score: 20 },
+    { week: 'Week 4', score: 33, label: '33%', milestone: 'Technical Foundation' },
+    { week: 'Week 5', score: 50 },
+    { week: 'Week 6', score: 63, label: '63%', milestone: 'Content Optimization' },
+    { week: 'Week 7', score: 90 },
+    { week: 'Week 8', score: 120, label: '93%', milestone: 'Citation Strategy' },
+    { week: 'Week 9', score: 140 },
+    { week: 'Week 10', score: 165 },
+    { week: 'Week 11', score: 180, label: '180%', milestone: 'AI Domination' },
 ];
 
-const milestones = [
-    { week: 1, score: 8, label: '8%', sublabel: 'Discovery & Baseline' },
-    { week: 4, score: 33, label: '33%', sublabel: 'Technical Foundation' },
-    { week: 6, score: 63, label: '63%', sublabel: 'Content Optimization' },
-    { week: 8, score: 93, label: '93%', sublabel: 'Citation Strategy' },
-    { week: 11, score: 180, label: '180%', sublabel: 'AI Domination' },
-];
+const CustomDot = (props) => {
+    const { cx, cy, payload } = props;
+    if (!payload.milestone) return null;
+    
+    const isGreen = payload.score >= 90;
+    const fillColor = isGreen ? "#22c55e" : "#f97316";
+    const textColor = isGreen ? "#4ade80" : "#fb923c";
+    
+    return (
+        <g className="cursor-pointer">
+            {/* Label above the dot */}
+            <text x={cx} y={cy - 25} textAnchor="middle" fill={textColor} fontSize="13" fontWeight="700">
+                {payload.label}
+            </text>
+            <text x={cx} y={cy - 10} textAnchor="middle" fill="#6b7280" fontSize="11">
+                {payload.milestone}
+            </text>
+            {/* Outer glow on hover */}
+            <circle cx={cx} cy={cy} r={12} fill={fillColor} fillOpacity={0.2} className="transition-all duration-300 hover:fill-opacity-40" />
+            {/* Dot */}
+            <circle cx={cx} cy={cy} r={6} fill={fillColor} className="transition-transform duration-300 hover:scale-125" style={{ transformOrigin: `${cx}px ${cy}px` }} />
+        </g>
+    );
+};
 
 export default function TractionSection() {
     return (
@@ -75,18 +92,24 @@ export default function TractionSection() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: 0.3 }}
-                    className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-8 transition-all duration-300 hover:scale-[1.01]"
+                    className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-6 transition-all duration-300 hover:scale-[1.01]"
                 >
-                    <h3 className="text-[var(--text-primary)] text-lg font-semibold mb-1">AI Visibility Growth Trajectory</h3>
-                    <p className="text-[var(--text-secondary)] text-sm mb-8">Your journey to AI search dominance</p>
+                    {/* Chart header */}
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-[var(--text-primary)] font-semibold">Visibility score</h3>
+                        <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+                            <CheckCircle className="w-4 h-4 text-red-500" />
+                            Avg time to first citation: 18 days
+                        </div>
+                    </div>
 
                     <div className="h-80 relative">
                         <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={trajectoryData} margin={{ top: 40, right: 30, left: 0, bottom: 0 }}>
+                            <LineChart data={trajectoryData} margin={{ top: 60, right: 40, left: 10, bottom: 20 }}>
                                 <XAxis 
                                     dataKey="week" 
                                     stroke="#525252" 
-                                    tick={{ fill: '#737373', fontSize: 11 }}
+                                    tick={{ fill: '#737373', fontSize: 12 }}
                                     axisLine={{ stroke: '#404040' }}
                                 />
                                 <YAxis 
@@ -101,18 +124,8 @@ export default function TractionSection() {
                                     dataKey="score" 
                                     stroke="url(#tractionGradient)" 
                                     strokeWidth={3}
-                                    dot={false}
+                                    dot={<CustomDot />}
                                 />
-                                {milestones.map((m, idx) => (
-                                    <ReferenceDot 
-                                        key={idx}
-                                        x={trajectoryData[m.week - 1]?.week} 
-                                        y={m.score} 
-                                        r={6} 
-                                        fill="#22c55e" 
-                                        stroke="#16a34a"
-                                    />
-                                ))}
                                 <defs>
                                     <linearGradient id="tractionGradient" x1="0" y1="0" x2="1" y2="0">
                                         <stop offset="0%" stopColor="#ef4444" />
@@ -122,28 +135,6 @@ export default function TractionSection() {
                                 </defs>
                             </LineChart>
                         </ResponsiveContainer>
-                        
-                        {/* Milestone labels */}
-                        <div className="absolute top-8 left-[8%] text-xs">
-                            <div className="text-orange-400 font-medium">8%</div>
-                            <div className="text-gray-500">Discovery & Baseline</div>
-                        </div>
-                        <div className="absolute top-[40%] left-[28%] text-xs">
-                            <div className="text-orange-400 font-medium">33%</div>
-                            <div className="text-gray-500">Technical Foundation</div>
-                        </div>
-                        <div className="absolute top-[30%] left-[48%] text-xs">
-                            <div className="text-orange-400 font-medium">63%</div>
-                            <div className="text-gray-500">Content Optimization</div>
-                        </div>
-                        <div className="absolute top-[20%] left-[65%] text-xs">
-                            <div className="text-green-400 font-medium">93%</div>
-                            <div className="text-gray-500">Citation Strategy</div>
-                        </div>
-                        <div className="absolute top-2 right-[8%] text-xs">
-                            <div className="text-green-400 font-medium">180%</div>
-                            <div className="text-gray-500">AI Domination</div>
-                        </div>
                     </div>
 
                     <p className="text-center text-[var(--text-secondary)] text-sm mt-6">
