@@ -1,9 +1,29 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, Dot } from 'recharts';
 import { TrendingUp, Zap, DollarSign, Target, Users } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { ChatGPTLogo, GeminiLogo, PerplexityLogo, ClaudeLogo } from './AILogos';
+
+const CustomEndDot = ({ cx, cy, payload, dataKey, index, data }) => {
+    if (index !== data.length - 1) return null;
+    
+    const LogoComponent = dataKey === 'chatgpt' ? ChatGPTLogo : 
+                         dataKey === 'gemini' ? GeminiLogo :
+                         dataKey === 'perplexity' ? PerplexityLogo :
+                         ClaudeLogo;
+    
+    return (
+        <g>
+            <circle cx={cx} cy={cy} r={14} fill="var(--bg-secondary)" stroke="white" strokeWidth="1.5" />
+            <foreignObject x={cx - 10} y={cy - 10} width={20} height={20}>
+                <div className="flex items-center justify-center w-full h-full">
+                    <LogoComponent className="w-4 h-4" />
+                </div>
+            </foreignObject>
+        </g>
+    );
+};
 
 const chartData = [
     { name: '2023', chatgpt: 100, gemini: 20, perplexity: 10, claude: 5 },
