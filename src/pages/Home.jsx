@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { ThemeProvider } from '@/components/landing/ThemeToggle';
 import Navbar from '@/components/landing/Navbar';
 import HeroSection from '@/components/landing/HeroSection';
@@ -10,6 +11,20 @@ import FAQSection from '@/components/landing/FAQSection';
 import Footer from '@/components/landing/Footer';
 
 export default function Home() {
+    const location = useLocation();
+
+    useEffect(() => {
+        const hash = location.hash.replace('#', '');
+        if (hash) {
+            setTimeout(() => {
+                const element = document.getElementById(hash);
+                if (element) {
+                    element.scrollIntoView({ behavior: 'smooth' });
+                }
+            }, 100);
+        }
+    }, [location]);
+
     return (
         <ThemeProvider>
             <div className="min-h-screen bg-[var(--bg-primary)]">
