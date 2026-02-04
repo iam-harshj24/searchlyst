@@ -1,8 +1,22 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
+import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts';
 import { TrendingUp, Zap, DollarSign, Target, Users } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { ChatGPTLogo, GeminiLogo, PerplexityLogo, ClaudeLogo } from './AILogos';
+
+const chartData = [
+    { name: '2023', chatgpt: 100, gemini: 20, perplexity: 10, claude: 5 },
+    { name: 'Q2 2023', chatgpt: 120, gemini: 30, perplexity: 15, claude: 8 },
+    { name: 'Q3 2023', chatgpt: 150, gemini: 50, perplexity: 25, claude: 12 },
+    { name: 'Q4 2023', chatgpt: 200, gemini: 80, perplexity: 40, claude: 20 },
+    { name: '2024', chatgpt: 300, gemini: 150, perplexity: 80, claude: 40 },
+    { name: 'Q2 2024', chatgpt: 450, gemini: 250, perplexity: 150, claude: 80 },
+    { name: 'Q3 2024', chatgpt: 600, gemini: 400, perplexity: 250, claude: 150 },
+    { name: 'Q4 2024', chatgpt: 750, gemini: 550, perplexity: 400, claude: 250 },
+    { name: '2025', chatgpt: 900, gemini: 700, perplexity: 600, claude: 400 },
+    { name: '2026', chatgpt: 1100, gemini: 900, perplexity: 800, claude: 600 },
+];
 
 const stats = [
     { icon: Zap, value: '40%', label: 'month-over-month growth', color: 'text-[var(--text-primary)]' },
