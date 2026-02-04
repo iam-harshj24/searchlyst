@@ -105,11 +105,11 @@ export default function MarketGrowthSection() {
                             <text x="510" y="270" fill="#737373" fontSize="11" textAnchor="middle">Q3 2024</text>
                             <text x="600" y="270" fill="#737373" fontSize="11" textAnchor="middle">Q4 2024</text>
                             <text x="690" y="270" fill="#737373" fontSize="11" textAnchor="middle">2025</text>
-                            <text x="760" y="270" fill="#737373" fontSize="11" textAnchor="middle">2026</text>
+                            <text x="745" y="270" fill="#737373" fontSize="11" textAnchor="middle">2026</text>
                             
                             {/* ChatGPT line - Top line */}
                             <path 
-                                d="M 40 245 Q 200 240, 350 200 T 760 25" 
+                                d="M 40 245 Q 200 240, 350 200 T 730 25" 
                                 stroke="white" 
                                 strokeWidth="2" 
                                 fill="none"
@@ -117,7 +117,7 @@ export default function MarketGrowthSection() {
                             
                             {/* Gemini line - Second line */}
                             <path 
-                                d="M 40 248 Q 200 245, 350 210 T 760 65" 
+                                d="M 40 248 Q 200 245, 350 210 T 730 65" 
                                 stroke="white" 
                                 strokeWidth="2" 
                                 fill="none"
@@ -125,7 +125,7 @@ export default function MarketGrowthSection() {
                             
                             {/* Perplexity line - Third line */}
                             <path 
-                                d="M 40 250 Q 200 248, 350 220 T 760 100" 
+                                d="M 40 250 Q 200 248, 350 220 T 730 100" 
                                 stroke="white" 
                                 strokeWidth="2" 
                                 fill="none"
@@ -133,25 +133,31 @@ export default function MarketGrowthSection() {
                             
                             {/* Claude line - Bottom line */}
                             <path 
-                                d="M 40 252 Q 200 250, 350 230 T 760 135" 
+                                d="M 40 252 Q 200 250, 350 230 T 730 135" 
                                 stroke="white" 
                                 strokeWidth="2" 
                                 fill="none"
                             />
+                            
+                            {/* Logo circles at end of lines */}
+                            <circle cx="730" cy="25" r="16" fill="#0a0a0a" stroke="white" strokeWidth="1"/>
+                            <circle cx="730" cy="65" r="16" fill="#0a0a0a" stroke="white" strokeWidth="1"/>
+                            <circle cx="730" cy="100" r="16" fill="#0a0a0a" stroke="white" strokeWidth="1"/>
+                            <circle cx="730" cy="135" r="16" fill="#0a0a0a" stroke="white" strokeWidth="1"/>
                         </svg>
                         
-                        {/* Brand logos at end of lines */}
-                        <div className="absolute right-0 top-[5%]">
-                            <ChatGPTLogo className="w-6 h-6" />
+                        {/* Brand logos attached to end of lines */}
+                        <div className="absolute" style={{ right: '4.5%', top: '5%', transform: 'translate(50%, -50%)' }}>
+                            <ChatGPTLogo className="w-5 h-5" />
                         </div>
-                        <div className="absolute right-0 top-[20%]">
-                            <GeminiLogo className="w-6 h-6" />
+                        <div className="absolute" style={{ right: '4.5%', top: '20%', transform: 'translate(50%, -50%)' }}>
+                            <GeminiLogo className="w-5 h-5" />
                         </div>
-                        <div className="absolute right-0 top-[33%]">
-                            <PerplexityLogo className="w-6 h-6" />
+                        <div className="absolute" style={{ right: '4.5%', top: '33%', transform: 'translate(50%, -50%)' }}>
+                            <PerplexityLogo className="w-5 h-5" />
                         </div>
-                        <div className="absolute right-0 top-[46%]">
-                            <ClaudeLogo className="w-6 h-6" />
+                        <div className="absolute" style={{ right: '4.5%', top: '46%', transform: 'translate(50%, -50%)' }}>
+                            <ClaudeLogo className="w-5 h-5" />
                         </div>
                     </div>
 
