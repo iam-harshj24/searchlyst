@@ -1,77 +1,50 @@
 import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { base44 } from '@/api/base44Client';
 import { motion } from 'framer-motion';
 import { Bookmark, Share2, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-
-const categories = ['Product', 'Tech', 'Team', 'AI', 'Data', 'Company', 'Guides'];
-
-const keyTakeaways = [
-    'Fast fashion brands exploit labor in developing countries, paying workers as little as $3/day',
-    'The industry produces 92 million tons of textile waste annually, with only 1% being recycled',
-    'Transparency scores show Brand X refuses to disclose supplier information or audit results',
-    'Consumer boycotts have successfully pressured 23 major brands to reform practices since 2020',
-    'Ethical alternatives exist at comparable price points with verified supply chain transparency'
-];
-
-const faqData = [
-    {
-        question: 'How do boycotts actually create change?',
-        answer: 'Boycotts work through economic pressure and reputation damage. When enough consumers stop buying from a brand, it impacts their bottom line and forces them to address the issues. Historical data shows that organized boycotts have led to policy changes in 67% of cases when sustained for over 6 months.'
-    },
-    {
-        question: 'What makes Brand X particularly problematic?',
-        answer: 'Brand X has consistently refused third-party audits, been linked to multiple factory disasters, and actively lobbied against transparency legislation. Their supply chain opacity score is 2/100, making them one of the least transparent major retailers.'
-    },
-    {
-        question: 'Are there affordable ethical alternatives?',
-        answer: 'Yes. Our research shows that ethical brands like Patagonia, Everlane, and Reformation offer comparable pricing for basic items. Additionally, secondhand platforms like ThredUp and Poshmark provide sustainable options at lower costs.'
-    },
-    {
-        question: 'How can I verify if a brand is truly ethical?',
-        answer: 'Check certifications like Fair Trade, GOTS, and B Corp. Use tools like Good On You and our Base 44 Brand Tracker. Look for published supplier lists, third-party audit reports, and living wage commitments.'
-    }
-];
-
-const relatedPosts = [
-    {
-        title: 'Tech Giants and Data Privacy: A Consumer Guide',
-        category: 'Tech',
-        date: 'Jan 28, 2026',
-        readTime: '8 min read'
-    },
-    {
-        title: 'The Nestle Water Crisis: Why Boycotts Matter',
-        category: 'Product',
-        date: 'Jan 15, 2026',
-        readTime: '6 min read'
-    },
-    {
-        title: 'AI-Powered Supply Chain Transparency Tools',
-        category: 'AI',
-        date: 'Jan 10, 2026',
-        readTime: '5 min read'
-    }
-];
+import { Link } from 'react-router-dom';
+import { createPageUrl } from '@/utils';
 
 export default function BlogPost() {
-    const [selectedCategories, setSelectedCategories] = useState(['Product', 'Data']);
     const [saved, setSaved] = useState(false);
     const [expandedFaq, setExpandedFaq] = useState(null);
 
-    const toggleCategory = (category) => {
-        setSelectedCategories(prev =>
-            prev.includes(category)
-                ? prev.filter(c => c !== category)
-                : [...prev, category]
-        );
-    };
+    // Get blog ID from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const blogId = urlParams.get('id');
+
+    // Fetch blog post
+    const { data: blog, isLoading } = useQuery({
+        queryKey: ['blog', blogId],
+        queryFn: async () => {
+            if (!blogId) return null;
+            const blogs = await base44.entities.Blog.list();
+            return blogs.find(b => b.id === blogId);
+        },
+        enabled: !!blogId,
+    });
+
+    // Fetch related posts
+    const { data: relatedPosts = [] } = useQuery({
+        queryKey: ['relatedBlogs', blog?.category],
+        queryFn: async () => {
+            if (!blog) return [];
+            const blogs = await base44.entities.Blog.list('-created_date', 10);
+            return blogs
+                .filter(b => b.id !== blog.id && b.status === 'published')
+                .slice(0, 3);
+        },
+        enabled: !!blog,
+    });
 
     const handleShare = async () => {
         if (navigator.share) {
             await navigator.share({
-                title: 'The Hidden Cost of Fast Fashion',
-                text: 'Why We Boycott Brand X',
+                title: blog?.title || 'Base 44 Article',
+                text: blog?.summary || '',
                 url: window.location.href
             });
         } else {
@@ -79,6 +52,27 @@ export default function BlogPost() {
             alert('Link copied to clipboard!');
         }
     };
+
+    if (isLoading) {
+        return (
+            <div className="min-h-screen bg-[var(--bg-primary)] flex items-center justify-center">
+                <p className="text-[var(--text-secondary)]">Loading...</p>
+            </div>
+        );
+    }
+
+    if (!blog) {
+        return (
+            <div className="min-h-screen bg-[var(--bg-primary)] flex items-center justify-center">
+                <div className="text-center">
+                    <p className="text-[var(--text-secondary)] mb-4">Blog post not found</p>
+                    <Link to={createPageUrl('Blogs')} className="text-red-500 hover:underline">
+                        Back to Blogs
+                    </Link>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">
