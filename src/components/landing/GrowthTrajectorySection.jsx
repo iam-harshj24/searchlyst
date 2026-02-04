@@ -20,10 +20,10 @@ const trajectoryData = [
 ];
 
 const metrics = [
-    { icon: Zap, value: '18 days', label: 'Time To First Citation', color: 'text-yellow-500' },
-    { icon: TrendingUp, value: '180%', label: '90-Day Growth', color: 'text-red-500' },
-    { icon: Target, value: '3x', label: 'Citation Rate', color: 'text-orange-500' },
-    { icon: DollarSign, value: '2.1x', label: 'Traffic Quality', color: 'text-green-500' },
+    { icon: Zap, value: '18 days', label: 'Time To First Citation', color: 'text-[var(--text-primary)]' },
+    { icon: TrendingUp, value: '180%', label: '90-Day Growth', color: 'text-[var(--text-primary)]' },
+    { icon: Target, value: '3x', label: 'Citation Rate', color: 'text-[var(--text-primary)]' },
+    { icon: DollarSign, value: '2.1x', label: 'Traffic Quality', color: 'text-[var(--text-primary)]' },
 ];
 
 const CustomDot = (props) => {
