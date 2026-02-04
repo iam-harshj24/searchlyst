@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { 
     Table, 
     TableBody, 
@@ -18,6 +19,12 @@ import {
     SelectTrigger, 
     SelectValue 
 } from "@/components/ui/select";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import { 
     Download, 
     Search, 
@@ -26,9 +33,16 @@ import {
     Globe, 
     Calendar,
     Filter,
-    RefreshCw
+    RefreshCw,
+    FileText,
+    Plus,
+    Pencil,
+    Trash2,
+    Eye,
+    EyeOff
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function AdminPanel() {
     const [searchTerm, setSearchTerm] = useState('');
