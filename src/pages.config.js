@@ -51,6 +51,7 @@ import AboutUs from './pages/AboutUs';
 import AdminPanel from './pages/AdminPanel';
 import Home from './pages/Home';
 import BlogPost from './pages/BlogPost';
+import Blogs from './pages/Blogs';
 
 
 export const PAGES = {
@@ -58,6 +59,7 @@ export const PAGES = {
     "AdminPanel": AdminPanel,
     "Home": Home,
     "BlogPost": BlogPost,
+    "Blogs": Blogs,
 }
 
 export const pagesConfig = {
