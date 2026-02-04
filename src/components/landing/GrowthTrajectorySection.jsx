@@ -93,7 +93,7 @@ export default function GrowthTrajectorySection() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: 0.2 }}
-                    className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-6 mb-8"
+                    className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-6 mb-8 transition-all duration-300 hover:scale-[1.01]"
                 >
                     {/* Chart header */}
                     <div className="flex justify-between items-center mb-4">
@@ -148,7 +148,7 @@ export default function GrowthTrajectorySection() {
                     className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12"
                 >
                     {metrics.map((metric, index) => (
-                        <div key={index} className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-xl p-6 text-center">
+                        <div key={index} className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-xl p-6 text-center transition-all duration-300 hover:scale-105 hover:border-red-500/30 cursor-pointer">
                             <metric.icon className={`w-8 h-8 ${metric.color} mx-auto mb-3`} />
                             <div className="text-2xl md:text-3xl font-bold text-[var(--text-primary)] mb-1">{metric.value}</div>
                             <div className="text-[var(--text-secondary)] text-sm">{metric.label}</div>
@@ -166,22 +166,22 @@ export default function GrowthTrajectorySection() {
                 >
                     <Button 
                         onClick={() => setShowWaitlist(true)}
-                        className="bg-red-600 hover:bg-red-700 text-white px-8 h-12 rounded-xl font-medium group"
+                        className="bg-red-600 hover:bg-red-700 text-white px-8 h-12 rounded-xl font-medium group transition-transform duration-300 hover:scale-105"
                     >
                         Join Waitlist
                         <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
                     </Button>
                     
                     <div className="flex flex-wrap justify-center gap-6 mt-6 text-sm text-[var(--text-secondary)]">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 transition-transform duration-300 hover:scale-110 cursor-pointer">
                             <Clock className="w-4 h-4 text-red-500" />
                             Setup in 5 minutes
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 transition-transform duration-300 hover:scale-110 cursor-pointer">
                             <CheckCircle className="w-4 h-4 text-[var(--text-primary)]" />
                             No technical skills needed
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 transition-transform duration-300 hover:scale-110 cursor-pointer">
                             <XCircle className="w-4 h-4 text-red-500" />
                             Cancel anytime
                         </div>
