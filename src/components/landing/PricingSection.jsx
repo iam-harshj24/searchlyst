@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { DollarSign, Check, Mail } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import WaitlistModal from '../WaitlistModal';
 
 const plans = [
     {
@@ -58,8 +59,10 @@ const plans = [
 
 export default function PricingSection() {
     const [isAnnual, setIsAnnual] = useState(false);
+    const [showWaitlist, setShowWaitlist] = useState(false);
 
     return (
+        <>
         <section id="pricing" className="relative bg-[var(--bg-primary)] py-12 md:py-24 overflow-hidden">
             <div className="relative max-w-6xl mx-auto px-6">
                 {/* Badge */}
@@ -163,12 +166,7 @@ export default function PricingSection() {
                             </ul>
                             
                             <Button 
-                                onClick={() => {
-                                    const heroSection = document.querySelector('section');
-                                    if (heroSection) {
-                                        heroSection.scrollIntoView({ behavior: 'smooth' });
-                                    }
-                                }}
+                                onClick={() => setShowWaitlist(true)}
                                 className={`w-full rounded-xl ${
                                     plan.highlighted
                                         ? 'bg-red-600 hover:bg-red-700 text-white'
@@ -203,5 +201,7 @@ export default function PricingSection() {
                 </motion.div>
             </div>
         </section>
+        <WaitlistModal open={showWaitlist} onOpenChange={setShowWaitlist} source="pricing" />
+        </>
     );
 }

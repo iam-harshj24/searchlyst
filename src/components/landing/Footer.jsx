@@ -41,15 +41,9 @@ export default function Footer() {
                                 className="h-8 md:h-10 mb-4"
                             />
                         </Link>
-                        <p className="text-[var(--text-secondary)] text-sm mb-6">
+                        <p className="text-[var(--text-secondary)] text-sm">
                             Making brands visible in the age of AI search. Track, optimize, and dominate AI search results.
                         </p>
-                        <div className="flex gap-2">
-                            <Input 
-                                placeholder="Enter your email"
-                                className="bg-[var(--bg-secondary)] border-[var(--border)] text-[var(--text-primary)] text-sm placeholder:text-[var(--text-secondary)]"
-                            />
-                        </div>
                     </div>
 
                     {/* Links columns */}
