@@ -156,23 +156,23 @@ export default function BlogPost() {
                                 <h3 className="text-sm font-semibold mb-3 text-red-500">CONTEXT</h3>
                                 <div className="space-y-4 text-sm text-[var(--text-secondary)]">
                                     <div>
-                                        <p className="font-semibold text-[var(--text-primary)] mb-1">Timeline</p>
-                                        <p>Investigation: 6 months</p>
-                                        <p>Sources: 47</p>
+                                        <p className="font-semibold text-[var(--text-primary)] mb-1">Category</p>
+                                        <Badge className="bg-red-600">{blog.category}</Badge>
                                     </div>
                                     <div>
-                                        <p className="font-semibold text-[var(--text-primary)] mb-1">Impact</p>
-                                        <p>Workers affected: 15,000+</p>
-                                        <p>Factories: 23</p>
+                                        <p className="font-semibold text-[var(--text-primary)] mb-1">Published</p>
+                                        <p>{new Date(blog.created_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
                                     </div>
                                     <div>
-                                        <p className="font-semibold text-[var(--text-primary)] mb-1">Transparency Score</p>
-                                        <p className="text-2xl font-bold text-red-500">2/100</p>
+                                        <p className="font-semibold text-[var(--text-primary)] mb-1">Read Time</p>
+                                        <p>{blog.read_time || 8} minutes</p>
                                     </div>
-                                    <div>
-                                        <p className="font-semibold text-[var(--text-primary)] mb-1">Status</p>
-                                        <Badge className="bg-red-600">Active Boycott</Badge>
-                                    </div>
+                                    {blog.author_name && (
+                                        <div>
+                                            <p className="font-semibold text-[var(--text-primary)] mb-1">Author</p>
+                                            <p>{blog.author_name}</p>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
