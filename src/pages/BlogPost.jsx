@@ -181,22 +181,24 @@ export default function BlogPost() {
                     {/* Main Article Content */}
                     <article className="max-w-3xl">
                         {/* Key Takeaways */}
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.2 }}
-                            className="border-2 border-white rounded-lg p-8 mb-12 bg-[var(--bg-secondary)]"
-                        >
-                            <h2 className="text-2xl font-bold mb-6">Key Takeaways</h2>
-                            <ul className="space-y-4">
-                                {keyTakeaways.map((takeaway, index) => (
-                                    <li key={index} className="flex gap-3">
-                                        <span className="text-red-500 font-bold mt-1">•</span>
-                                        <span className="text-[var(--text-secondary)] leading-relaxed">{takeaway}</span>
-                                    </li>
-                                ))}
-                            </ul>
-                        </motion.div>
+                        {blog.key_takeaways && blog.key_takeaways.length > 0 && (
+                            <motion.div
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.2 }}
+                                className="border-2 border-white rounded-lg p-8 mb-12 bg-[var(--bg-secondary)]"
+                            >
+                                <h2 className="text-2xl font-bold mb-6">Key Takeaways</h2>
+                                <ul className="space-y-4">
+                                    {blog.key_takeaways.map((takeaway, index) => (
+                                        <li key={index} className="flex gap-3">
+                                            <span className="text-red-500 font-bold mt-1">•</span>
+                                            <span className="text-[var(--text-secondary)] leading-relaxed">{takeaway}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </motion.div>
+                        )}
 
                         {/* Article Body */}
                         <motion.div
