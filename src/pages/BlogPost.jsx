@@ -80,11 +80,12 @@ export default function BlogPost() {
             <header className="border-b border-[var(--border)] bg-[var(--bg-secondary)]">
                 <div className="max-w-7xl mx-auto px-6 py-4">
                     <div className="flex items-center justify-between">
-                        <div className="text-2xl font-bold">Base 44</div>
+                        <Link to={createPageUrl('Home')} className="text-2xl font-bold hover:text-red-500 transition-colors">
+                            Base 44
+                        </Link>
                         <nav className="hidden md:flex gap-6 text-sm">
-                            <a href="/" className="hover:text-red-500 transition-colors">Home</a>
-                            <a href="#" className="hover:text-red-500 transition-colors">Boycotts</a>
-                            <a href="#" className="hover:text-red-500 transition-colors">Research</a>
+                            <Link to={createPageUrl('Home')} className="hover:text-red-500 transition-colors">Home</Link>
+                            <Link to={createPageUrl('Blogs')} className="hover:text-red-500 transition-colors">Blog</Link>
                             <a href="#" className="hover:text-red-500 transition-colors">About</a>
                         </nav>
                     </div>
@@ -99,35 +100,29 @@ export default function BlogPost() {
                     className="max-w-4xl"
                 >
                     <p className="text-red-500 uppercase text-sm font-semibold mb-4 tracking-wide">
-                        Investigation Summary
+                        {blog.summary}
                     </p>
                     
                     <h1 className="text-5xl md:text-6xl font-bold mb-6 leading-tight">
-                        The Hidden Cost of Fast Fashion: Why We Boycott Brand X
+                        {blog.title}
                     </h1>
 
                     <div className="flex flex-wrap gap-2 mb-6">
-                        {categories.map(cat => (
-                            <Badge
-                                key={cat}
-                                onClick={() => toggleCategory(cat)}
-                                className={`cursor-pointer transition-all ${
-                                    selectedCategories.includes(cat)
-                                        ? 'bg-red-600 text-white hover:bg-red-700'
-                                        : 'bg-transparent border border-[var(--border)] text-[var(--text-secondary)] hover:border-red-500'
-                                }`}
-                            >
-                                {cat}
-                            </Badge>
-                        ))}
+                        <Badge className="bg-red-600 text-white">
+                            {blog.category}
+                        </Badge>
                     </div>
 
                     <div className="flex items-center gap-4 text-[var(--text-secondary)] text-sm mb-8">
-                        <span>Feb 4, 2026</span>
+                        <span>{new Date(blog.created_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                         <span>•</span>
-                        <span>12 min read</span>
-                        <span>•</span>
-                        <span>Research Team</span>
+                        <span>{blog.read_time || 8} min read</span>
+                        {blog.author_name && (
+                            <>
+                                <span>•</span>
+                                <span>{blog.author_name}</span>
+                            </>
+                        )}
                     </div>
 
                     <div className="flex gap-3">
