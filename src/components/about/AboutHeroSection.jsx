@@ -15,9 +15,11 @@ export default function AboutHeroSection() {
             <div className="relative max-w-6xl mx-auto px-6">
                 {/* Header */}
                 <div className="flex items-center justify-between mb-8">
-                    <div className="text-[var(--text-primary)] text-xl font-semibold tracking-tight italic">
-                        searchlyst
-                    </div>
+                    <img 
+                        src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69824440a17c76d392c103dc/2787700e8_Group123-Picsart-BackgroundRemover.png" 
+                        alt="Searchlyst" 
+                        className="h-6"
+                    />
                     <h1 className="text-[var(--text-primary)] text-xl font-medium">About Us</h1>
                     <div className="w-20" />
                 </div>
