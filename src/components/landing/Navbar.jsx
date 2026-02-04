@@ -13,7 +13,7 @@ export default function Navbar() {
         <>
             <nav className="fixed top-0 left-0 right-0 z-50 bg-[var(--bg-primary)]/95 backdrop-blur-md border-b border-[var(--border)]">
                 <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 md:py-4 flex items-center justify-between">
-                    <Link to={createPageUrl('Home')} className="cursor-pointer">
+                    <a href="https://searchlyst.com" className="cursor-pointer">
                         <img 
                             src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69824440a17c76d392c103dc/2787700e8_Group123-Picsart-BackgroundRemover.png" 
                             alt="Searchlyst" 
@@ -21,7 +21,7 @@ export default function Navbar() {
                             loading="eager"
                             fetchpriority="high"
                         />
-                    </Link>
+                    </a>
                     
                     {/* Desktop Navigation */}
                     <div className="hidden md:flex items-center gap-8 absolute left-1/2 -translate-x-1/2">
