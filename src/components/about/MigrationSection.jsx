@@ -1,20 +1,40 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Legend } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts';
 import { Users } from 'lucide-react';
 import { ChatGPTLogo, GeminiLogo, PerplexityLogo, ClaudeLogo } from '../landing/AILogos';
 
+const CustomEndDot = ({ cx, cy, payload, dataKey, index, data }) => {
+    if (index !== data.length - 1) return null;
+    
+    const LogoComponent = dataKey === 'chatgpt' ? ChatGPTLogo : 
+                         dataKey === 'gemini' ? GeminiLogo :
+                         dataKey === 'perplexity' ? PerplexityLogo :
+                         ClaudeLogo;
+    
+    return (
+        <g>
+            <circle cx={cx} cy={cy} r={14} fill="var(--bg-secondary)" stroke="white" strokeWidth="1.5" />
+            <foreignObject x={cx - 10} y={cy - 10} width={20} height={20}>
+                <div className="flex items-center justify-center w-full h-full">
+                    <LogoComponent className="w-4 h-4" />
+                </div>
+            </foreignObject>
+        </g>
+    );
+};
+
 const chartData = [
-    { quarter: '2023', chatgpt: 100, gemini: 50, perplexity: 20, claude: 30 },
-    { quarter: 'Q2 2023', chatgpt: 200, gemini: 100, perplexity: 40, claude: 60 },
-    { quarter: 'Q3 2023', chatgpt: 350, gemini: 180, perplexity: 80, claude: 100 },
-    { quarter: 'Q4 2023', chatgpt: 500, gemini: 280, perplexity: 150, claude: 180 },
-    { quarter: '2024', chatgpt: 650, gemini: 400, perplexity: 250, claude: 280 },
-    { quarter: 'Q2 2024', chatgpt: 750, gemini: 520, perplexity: 350, claude: 380 },
-    { quarter: 'Q3 2024', chatgpt: 850, gemini: 620, perplexity: 450, claude: 480 },
-    { quarter: 'Q4 2024', chatgpt: 950, gemini: 720, perplexity: 520, claude: 550 },
-    { quarter: '2025', chatgpt: 1050, gemini: 820, perplexity: 600, claude: 600 },
-    { quarter: '2026', chatgpt: 1200, gemini: 900, perplexity: 700, claude: 650 },
+    { name: '2023', chatgpt: 100, gemini: 20, perplexity: 10, claude: 5 },
+    { name: 'Q2 2023', chatgpt: 120, gemini: 30, perplexity: 15, claude: 8 },
+    { name: 'Q3 2023', chatgpt: 150, gemini: 50, perplexity: 25, claude: 12 },
+    { name: 'Q4 2023', chatgpt: 200, gemini: 80, perplexity: 40, claude: 20 },
+    { name: '2024', chatgpt: 300, gemini: 150, perplexity: 80, claude: 40 },
+    { name: 'Q2 2024', chatgpt: 450, gemini: 250, perplexity: 150, claude: 80 },
+    { name: 'Q3 2024', chatgpt: 600, gemini: 400, perplexity: 250, claude: 150 },
+    { name: 'Q4 2024', chatgpt: 750, gemini: 550, perplexity: 400, claude: 250 },
+    { name: '2025', chatgpt: 900, gemini: 700, perplexity: 600, claude: 400 },
+    { name: '2026', chatgpt: 1100, gemini: 900, perplexity: 800, claude: 600 },
 ];
 
 export default function MigrationSection() {
