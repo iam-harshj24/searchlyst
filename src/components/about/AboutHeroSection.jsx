@@ -16,18 +16,6 @@ export default function AboutHeroSection() {
             <div className="absolute bottom-0 right-0 w-96 h-96 bg-red-600/20 rounded-full blur-[150px] transform-gpu" />
             
             <div className="relative max-w-6xl mx-auto px-6">
-                {/* Header */}
-                <div className="flex items-center justify-between mb-8">
-                    <img 
-                        src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69824440a17c76d392c103dc/2787700e8_Group123-Picsart-BackgroundRemover.png" 
-                        alt="Searchlyst" 
-                        className="h-10"
-                        loading="eager"
-                    />
-                    <h1 className="text-[var(--text-primary)] text-xl font-medium">About Us</h1>
-                    <div className="w-20" />
-                </div>
-
                 {/* Back to Home */}
                 <Link to={createPageUrl('Home')} className="inline-flex items-center gap-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm mb-12 transition-colors">
                     <ArrowLeft className="w-4 h-4" />
