@@ -251,26 +251,30 @@ export default function BlogPost() {
                         )}
 
                         {/* About the Author */}
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.5 }}
-                            className="mt-16 border border-[var(--border)] rounded-lg p-8 bg-[var(--bg-secondary)]"
-                        >
-                            <h3 className="text-xl font-bold mb-6">About the Author</h3>
-                            <div className="flex gap-6">
-                                <div className="w-24 h-24 rounded-full bg-red-600 flex items-center justify-center text-white text-3xl font-bold flex-shrink-0">
-                                    RT
+                        {(blog.author_name || blog.author_bio) && (
+                            <motion.div
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.5 }}
+                                className="mt-16 border border-[var(--border)] rounded-lg p-8 bg-[var(--bg-secondary)]"
+                            >
+                                <h3 className="text-xl font-bold mb-6">About the Author</h3>
+                                <div className="flex gap-6">
+                                    <div className="w-24 h-24 rounded-full bg-red-600 flex items-center justify-center text-white text-3xl font-bold flex-shrink-0">
+                                        {blog.author_initials || blog.author_name?.substring(0, 2).toUpperCase() || 'RT'}
+                                    </div>
+                                    <div>
+                                        <h4 className="text-lg font-bold mb-1">{blog.author_name || 'Research Team'}</h4>
+                                        {blog.author_title && (
+                                            <p className="text-sm text-red-500 mb-3">{blog.author_title}</p>
+                                        )}
+                                        <p className="text-[var(--text-secondary)] leading-relaxed">
+                                            {blog.author_bio || 'Base 44\'s Research Team consists of investigative journalists dedicated to ethical consumerism.'}
+                                        </p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h4 className="text-lg font-bold mb-1">Research Team</h4>
-                                    <p className="text-sm text-red-500 mb-3">Lead Investigators</p>
-                                    <p className="text-[var(--text-secondary)] leading-relaxed">
-                                        Base 44's Research Team consists of investigative journalists, supply chain analysts, and human rights advocates dedicated to exposing corporate practices that harm workers and the environment. Our investigations have led to policy changes at 15 major corporations and helped mobilize over 2 million consumers toward ethical purchasing decisions.
-                                    </p>
-                                </div>
-                            </div>
-                        </motion.div>
+                            </motion.div>
+                        )}
 
                         {/* Related Posts */}
                         <motion.div
