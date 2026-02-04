@@ -255,183 +255,183 @@ export default function AdminPanel() {
 
                         {/* Stats Cards */}
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-                    <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-                        <div className="flex items-center gap-3">
-                            <div className="p-3 bg-red-500/20 rounded-lg">
-                                <Users className="w-6 h-6 text-red-500" />
+                            <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-3 bg-red-500/20 rounded-lg">
+                                        <Users className="w-6 h-6 text-red-500" />
+                                    </div>
+                                    <div>
+                                        <p className="text-gray-400 text-sm">Total Signups</p>
+                                        <p className="text-2xl font-bold text-white">{waitlistEntries.length}</p>
+                                    </div>
+                                </div>
                             </div>
-                            <div>
-                                <p className="text-gray-400 text-sm">Total Signups</p>
-                                <p className="text-2xl font-bold text-white">{waitlistEntries.length}</p>
+                            <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-3 bg-yellow-500/20 rounded-lg">
+                                        <Mail className="w-6 h-6 text-yellow-500" />
+                                    </div>
+                                    <div>
+                                        <p className="text-gray-400 text-sm">Pending</p>
+                                        <p className="text-2xl font-bold text-white">
+                                            {waitlistEntries.filter(e => e.status === 'pending').length}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-3 bg-blue-500/20 rounded-lg">
+                                        <Globe className="w-6 h-6 text-blue-500" />
+                                    </div>
+                                    <div>
+                                        <p className="text-gray-400 text-sm">Contacted</p>
+                                        <p className="text-2xl font-bold text-white">
+                                            {waitlistEntries.filter(e => e.status === 'contacted').length}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-3 bg-green-500/20 rounded-lg">
+                                        <Calendar className="w-6 h-6 text-green-500" />
+                                    </div>
+                                    <div>
+                                        <p className="text-gray-400 text-sm">Converted</p>
+                                        <p className="text-2xl font-bold text-white">
+                                            {waitlistEntries.filter(e => e.status === 'converted').length}
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-                        <div className="flex items-center gap-3">
-                            <div className="p-3 bg-yellow-500/20 rounded-lg">
-                                <Mail className="w-6 h-6 text-yellow-500" />
-                            </div>
-                            <div>
-                                <p className="text-gray-400 text-sm">Pending</p>
-                                <p className="text-2xl font-bold text-white">
-                                    {waitlistEntries.filter(e => e.status === 'pending').length}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-                        <div className="flex items-center gap-3">
-                            <div className="p-3 bg-blue-500/20 rounded-lg">
-                                <Globe className="w-6 h-6 text-blue-500" />
-                            </div>
-                            <div>
-                                <p className="text-gray-400 text-sm">Contacted</p>
-                                <p className="text-2xl font-bold text-white">
-                                    {waitlistEntries.filter(e => e.status === 'contacted').length}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-                        <div className="flex items-center gap-3">
-                            <div className="p-3 bg-green-500/20 rounded-lg">
-                                <Calendar className="w-6 h-6 text-green-500" />
-                            </div>
-                            <div>
-                                <p className="text-gray-400 text-sm">Converted</p>
-                                <p className="text-2xl font-bold text-white">
-                                    {waitlistEntries.filter(e => e.status === 'converted').length}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
 
-                {/* Filters */}
-                <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 mb-6">
-                    <div className="flex flex-col md:flex-row gap-4">
-                        <div className="flex-1 relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
-                            <Input 
-                                placeholder="Search by name, email, or website..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="bg-gray-800 border-gray-700 text-white pl-10 placeholder:text-gray-500"
-                            />
+                        {/* Filters */}
+                        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 mb-6">
+                            <div className="flex flex-col md:flex-row gap-4">
+                                <div className="flex-1 relative">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                                    <Input 
+                                        placeholder="Search by name, email, or website..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        className="bg-gray-800 border-gray-700 text-white pl-10 placeholder:text-gray-500"
+                                    />
+                                </div>
+                                <div className="flex gap-4">
+                                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                                        <SelectTrigger className="w-40 bg-gray-800 border-gray-700 text-white">
+                                            <Filter className="w-4 h-4 mr-2" />
+                                            <SelectValue placeholder="Status" />
+                                        </SelectTrigger>
+                                        <SelectContent className="bg-gray-800 border-gray-700">
+                                            <SelectItem value="all">All Status</SelectItem>
+                                            <SelectItem value="pending">Pending</SelectItem>
+                                            <SelectItem value="contacted">Contacted</SelectItem>
+                                            <SelectItem value="converted">Converted</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <Select value={sourceFilter} onValueChange={setSourceFilter}>
+                                        <SelectTrigger className="w-40 bg-gray-800 border-gray-700 text-white">
+                                            <Filter className="w-4 h-4 mr-2" />
+                                            <SelectValue placeholder="Source" />
+                                        </SelectTrigger>
+                                        <SelectContent className="bg-gray-800 border-gray-700">
+                                            <SelectItem value="all">All Sources</SelectItem>
+                                            <SelectItem value="home">Home</SelectItem>
+                                            <SelectItem value="about">About</SelectItem>
+                                            <SelectItem value="pricing">Pricing</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
                         </div>
-                        <div className="flex gap-4">
-                            <Select value={statusFilter} onValueChange={setStatusFilter}>
-                                <SelectTrigger className="w-40 bg-gray-800 border-gray-700 text-white">
-                                    <Filter className="w-4 h-4 mr-2" />
-                                    <SelectValue placeholder="Status" />
-                                </SelectTrigger>
-                                <SelectContent className="bg-gray-800 border-gray-700">
-                                    <SelectItem value="all">All Status</SelectItem>
-                                    <SelectItem value="pending">Pending</SelectItem>
-                                    <SelectItem value="contacted">Contacted</SelectItem>
-                                    <SelectItem value="converted">Converted</SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <Select value={sourceFilter} onValueChange={setSourceFilter}>
-                                <SelectTrigger className="w-40 bg-gray-800 border-gray-700 text-white">
-                                    <Filter className="w-4 h-4 mr-2" />
-                                    <SelectValue placeholder="Source" />
-                                </SelectTrigger>
-                                <SelectContent className="bg-gray-800 border-gray-700">
-                                    <SelectItem value="all">All Sources</SelectItem>
-                                    <SelectItem value="home">Home</SelectItem>
-                                    <SelectItem value="about">About</SelectItem>
-                                    <SelectItem value="pricing">Pricing</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </div>
-                </div>
 
-                {/* Table */}
-                <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-                    <Table>
-                        <TableHeader>
-                            <TableRow className="border-gray-800 hover:bg-gray-800/50">
-                                <TableHead className="text-gray-400">Full Name</TableHead>
-                                <TableHead className="text-gray-400">Email</TableHead>
-                                <TableHead className="text-gray-400">Website URL</TableHead>
-                                <TableHead className="text-gray-400">Source</TableHead>
-                                <TableHead className="text-gray-400">Status</TableHead>
-                                <TableHead className="text-gray-400">Date</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {isLoading ? (
-                                <TableRow>
-                                    <TableCell colSpan={6} className="text-center py-8 text-gray-400">
-                                        Loading...
-                                    </TableCell>
-                                </TableRow>
-                            ) : filteredEntries.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={6} className="text-center py-8 text-gray-400">
-                                        No entries found
-                                    </TableCell>
-                                </TableRow>
-                            ) : (
-                                filteredEntries.map((entry) => (
-                                    <TableRow key={entry.id} className="border-gray-800 hover:bg-gray-800/50">
-                                        <TableCell className="text-white font-medium">
-                                            {entry.full_name}
-                                        </TableCell>
-                                        <TableCell className="text-gray-300">
-                                            <a href={`mailto:${entry.email}`} className="hover:text-red-400">
-                                                {entry.email}
-                                            </a>
-                                        </TableCell>
-                                        <TableCell className="text-gray-300">
-                                            <a 
-                                                href={entry.website_url?.startsWith('http') ? entry.website_url : `https://${entry.website_url}`} 
-                                                target="_blank" 
-                                                rel="noopener noreferrer"
-                                                className="hover:text-red-400"
-                                            >
-                                                {entry.website_url}
-                                            </a>
-                                        </TableCell>
-                                        <TableCell>
-                                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                                entry.source === 'home' ? 'bg-blue-500/20 text-blue-400' :
-                                                entry.source === 'about' ? 'bg-purple-500/20 text-purple-400' :
-                                                'bg-orange-500/20 text-orange-400'
-                                            }`}>
-                                                {entry.source}
-                                            </span>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Select 
-                                                value={entry.status} 
-                                                onValueChange={(value) => updateStatus(entry.id, value)}
-                                            >
-                                                <SelectTrigger className={`w-28 h-8 text-xs border-0 ${
-                                                    entry.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' :
-                                                    entry.status === 'contacted' ? 'bg-blue-500/20 text-blue-400' :
-                                                    'bg-green-500/20 text-green-400'
-                                                }`}>
-                                                    <SelectValue />
-                                                </SelectTrigger>
-                                                <SelectContent className="bg-gray-800 border-gray-700">
-                                                    <SelectItem value="pending">Pending</SelectItem>
-                                                    <SelectItem value="contacted">Contacted</SelectItem>
-                                                    <SelectItem value="converted">Converted</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </TableCell>
-                                        <TableCell className="text-gray-400 text-sm">
-                                            {entry.created_date ? format(new Date(entry.created_date), 'MMM d, yyyy') : '-'}
-                                        </TableCell>
+                        {/* Table */}
+                        <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow className="border-gray-800 hover:bg-gray-800/50">
+                                        <TableHead className="text-gray-400">Full Name</TableHead>
+                                        <TableHead className="text-gray-400">Email</TableHead>
+                                        <TableHead className="text-gray-400">Website URL</TableHead>
+                                        <TableHead className="text-gray-400">Source</TableHead>
+                                        <TableHead className="text-gray-400">Status</TableHead>
+                                        <TableHead className="text-gray-400">Date</TableHead>
                                     </TableRow>
-                                ))
-                            )}
-                        </TableBody>
-                    </Table>
-                </div>
+                                </TableHeader>
+                                <TableBody>
+                                    {isLoading ? (
+                                        <TableRow>
+                                            <TableCell colSpan={6} className="text-center py-8 text-gray-400">
+                                                Loading...
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : filteredEntries.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell colSpan={6} className="text-center py-8 text-gray-400">
+                                                No entries found
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : (
+                                        filteredEntries.map((entry) => (
+                                            <TableRow key={entry.id} className="border-gray-800 hover:bg-gray-800/50">
+                                                <TableCell className="text-white font-medium">
+                                                    {entry.full_name}
+                                                </TableCell>
+                                                <TableCell className="text-gray-300">
+                                                    <a href={`mailto:${entry.email}`} className="hover:text-red-400">
+                                                        {entry.email}
+                                                    </a>
+                                                </TableCell>
+                                                <TableCell className="text-gray-300">
+                                                    <a 
+                                                        href={entry.website_url?.startsWith('http') ? entry.website_url : `https://${entry.website_url}`} 
+                                                        target="_blank" 
+                                                        rel="noopener noreferrer"
+                                                        className="hover:text-red-400"
+                                                    >
+                                                        {entry.website_url}
+                                                    </a>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                                        entry.source === 'home' ? 'bg-blue-500/20 text-blue-400' :
+                                                        entry.source === 'about' ? 'bg-purple-500/20 text-purple-400' :
+                                                        'bg-orange-500/20 text-orange-400'
+                                                    }`}>
+                                                        {entry.source}
+                                                    </span>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Select 
+                                                        value={entry.status} 
+                                                        onValueChange={(value) => updateStatus(entry.id, value)}
+                                                    >
+                                                        <SelectTrigger className={`w-28 h-8 text-xs border-0 ${
+                                                            entry.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' :
+                                                            entry.status === 'contacted' ? 'bg-blue-500/20 text-blue-400' :
+                                                            'bg-green-500/20 text-green-400'
+                                                        }`}>
+                                                            <SelectValue />
+                                                        </SelectTrigger>
+                                                        <SelectContent className="bg-gray-800 border-gray-700">
+                                                            <SelectItem value="pending">Pending</SelectItem>
+                                                            <SelectItem value="contacted">Contacted</SelectItem>
+                                                            <SelectItem value="converted">Converted</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                </TableCell>
+                                                <TableCell className="text-gray-400 text-sm">
+                                                    {entry.created_date ? format(new Date(entry.created_date), 'MMM d, yyyy') : '-'}
+                                                </TableCell>
+                                            </TableRow>
+                                        ))
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
 
                         {/* Footer */}
                         <div className="mt-4 text-center text-gray-500 text-sm">
