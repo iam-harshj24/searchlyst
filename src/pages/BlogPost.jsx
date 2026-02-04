@@ -207,63 +207,10 @@ export default function BlogPost() {
                             transition={{ delay: 0.3 }}
                             className="prose prose-invert prose-lg max-w-none"
                         >
-                            <p className="text-xl leading-relaxed mb-6 text-[var(--text-secondary)]">
-                                In the gleaming storefronts of Brand X, trendy garments are displayed at prices that seem too good to be true. And they are. Behind the $9.99 price tags lies a supply chain built on exploitation, environmental destruction, and deliberate opacity that shields the brand from accountability.
-                            </p>
-
-                            <h2 className="text-3xl font-bold mt-12 mb-4 text-[var(--text-primary)]">The Price of "Affordable" Fashion</h2>
-                            
-                            <p className="leading-relaxed mb-6 text-[var(--text-secondary)]">
-                                Our six-month investigation uncovered that Brand X sources from 23 factories across Bangladesh, Vietnam, and Cambodia where workers earn an average of $3 per day—far below the living wage threshold of $8-12 in these regions. These workers, predominantly women between ages 18-35, work 12-14 hour shifts in conditions that violate basic safety standards.
-                            </p>
-
-                            <p className="leading-relaxed mb-6 text-[var(--text-secondary)]">
-                                When we approached Brand X for comment, they provided a generic statement about their "commitment to ethical sourcing" but refused to share supplier lists, audit reports, or specific wage data. This pattern of deflection is consistent with their transparency score of 2 out of 100—one of the lowest ratings in the industry.
-                            </p>
-
-                            <h2 className="text-3xl font-bold mt-12 mb-4 text-[var(--text-primary)]">Environmental Impact</h2>
-                            
-                            <p className="leading-relaxed mb-6 text-[var(--text-secondary)]">
-                                Fast fashion's environmental toll is staggering. The industry produces 92 million tons of textile waste annually, with less than 1% being recycled. Brand X alone introduces 500+ new styles weekly, perpetuating a consumption cycle where garments are worn an average of 7 times before disposal.
-                            </p>
-
-                            <p className="leading-relaxed mb-6 text-[var(--text-secondary)]">
-                                Textile dyeing from these facilities contaminates local water sources with heavy metals and toxic chemicals. In regions where Brand X operates, we documented three cases of waterways turning unnatural colors corresponding with production cycles. Local communities report increased health issues, but Brand X has never conducted or published environmental impact assessments.
-                            </p>
-
-                            <h2 className="text-3xl font-bold mt-12 mb-4 text-[var(--text-primary)]">Why Transparency Matters</h2>
-                            
-                            <p className="leading-relaxed mb-6 text-[var(--text-secondary)]">
-                                Transparency isn't just about disclosure—it's about accountability. Brands that publish supplier lists, conduct third-party audits, and commit to living wages create systems where exploitation becomes difficult to hide. Brand X's refusal to engage with these basic standards isn't accidental; it's a business model that requires opacity to function.
-                            </p>
-
-                            <p className="leading-relaxed mb-6 text-[var(--text-secondary)]">
-                                Compare this to industry leaders like Patagonia, which publishes detailed supply chain maps, pays living wages, and achieves Fair Trade certification for 85% of its products. The price difference? Minimal when accounting for quality and longevity. A Patagonia t-shirt at $35 will outlast three Brand X shirts at $9.99 each.
-                            </p>
-
-                            <h2 className="text-3xl font-bold mt-12 mb-4 text-[var(--text-primary)]">The Power of Consumer Action</h2>
-                            
-                            <p className="leading-relaxed mb-6 text-[var(--text-secondary)]">
-                                History shows that organized boycotts work. In the past five years, consumer pressure has forced 23 major fashion brands to reform practices, increase wages, and improve transparency. When H&M faced sustained boycotts in 2022, they committed to a living wage roadmap and published their full supplier list within 90 days.
-                            </p>
-
-                            <p className="leading-relaxed mb-6 text-[var(--text-secondary)]">
-                                Brand X has so far resisted these pressures, but momentum is building. Over 500,000 consumers have joined the boycott, and major retailers are reconsidering their partnerships with the brand. Social media campaigns using #BoycottBrandX have reached 50 million impressions, and universities across North America are removing Brand X from campus stores.
-                            </p>
-
-                            <h2 className="text-3xl font-bold mt-12 mb-4 text-[var(--text-primary)]">What You Can Do</h2>
-                            
-                            <p className="leading-relaxed mb-6 text-[var(--text-secondary)]">
-                                Individual choices aggregate into systemic change. Stop purchasing from Brand X and similar companies that refuse transparency. Support brands with verified ethical practices—use tools like Good On You, Fashion Revolution's Transparency Index, and our Base 44 Brand Tracker to make informed decisions.
-                            </p>
-
-                            <p className="leading-relaxed mb-6 text-[var(--text-secondary)]">
-                                Share this investigation. Talk to friends about the real cost of fast fashion. Contact Brand X directly through their social channels and demand change. Every voice matters, and every dollar spent is a vote for the kind of economy we want to build.
-                            </p>
-
-                            <p className="leading-relaxed mb-6 text-[var(--text-secondary)]">
-                                The hidden costs of fast fashion are no longer hidden. We know what's happening, and we have the power to change it. The question isn't whether we can afford to boycott brands like Brand X—it's whether we can afford not to.
-                            </p>
+                            <div 
+                                className="text-[var(--text-secondary)] leading-relaxed"
+                                dangerouslySetInnerHTML={{ __html: blog.content }}
+                            />
                         </motion.div>
 
                         {/* FAQ Section */}
