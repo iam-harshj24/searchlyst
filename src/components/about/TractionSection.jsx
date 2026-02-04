@@ -1,4 +1,5 @@
 import React from 'react';
+import { motion } from 'framer-motion';
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer } from 'recharts';
 import { TrendingUp, CheckCircle } from 'lucide-react';
 
@@ -16,7 +17,6 @@ const trajectoryData = [
     { week: 'Week 11', score: 180, label: '180%', milestone: 'AI Domination' },
 ];
 
-// Simplified CustomDot for Safari - removed CSS transitions on SVG which cause WebKit performance issues
 const CustomDot = (props) => {
     const { cx, cy, payload } = props;
     if (!payload.milestone) return null;
@@ -26,7 +26,7 @@ const CustomDot = (props) => {
     const textColor = isGreen ? "#4ade80" : "#fb923c";
     
     return (
-        <g>
+        <g className="cursor-pointer">
             {/* Label above the dot */}
             <text x={cx} y={cy - 25} textAnchor="middle" fill={textColor} fontSize="13" fontWeight="700">
                 {payload.label}
@@ -34,10 +34,10 @@ const CustomDot = (props) => {
             <text x={cx} y={cy - 10} textAnchor="middle" fill="#6b7280" fontSize="11">
                 {payload.milestone}
             </text>
-            {/* Outer glow */}
-            <circle cx={cx} cy={cy} r={12} fill={fillColor} fillOpacity={0.2} />
+            {/* Outer glow on hover */}
+            <circle cx={cx} cy={cy} r={12} fill={fillColor} fillOpacity={0.2} className="transition-all duration-300 hover:fill-opacity-40" />
             {/* Dot */}
-            <circle cx={cx} cy={cy} r={6} fill={fillColor} />
+            <circle cx={cx} cy={cy} r={6} fill={fillColor} className="transition-transform duration-300 hover:scale-125" style={{ transformOrigin: `${cx}px ${cy}px` }} />
         </g>
     );
 };
@@ -50,27 +50,50 @@ export default function TractionSection() {
             
             <div className="relative max-w-6xl mx-auto px-2 md:px-6">
                 {/* Badge */}
-                <div className="flex justify-center mb-8">
+                <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    className="flex justify-center mb-8"
+                >
                     <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-green-500/30 bg-green-500/10">
                         <TrendingUp className="w-4 h-4 text-green-500" />
                         <span className="text-green-400 text-sm font-medium">Traction & Performance</span>
                     </div>
-                </div>
+                </motion.div>
 
                 {/* Heading */}
-                <div className="text-center mb-4">
+                <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: 0.1 }}
+                    className="text-center mb-4"
+                >
                     <h2 className="text-4xl md:text-5xl font-bold">
                         <span className="text-[var(--text-primary)]">The "Hockey Stick" is </span>
                         <span className="text-red-500">Real.</span>
                     </h2>
-                </div>
+                </motion.div>
 
-                <p className="text-[var(--text-secondary)] text-center mb-12">
+                <motion.p 
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: 0.2 }}
+                    className="text-[var(--text-secondary)] text-center mb-12"
+                >
                     We consistently deliver exponential visibility growth within one quarter.
-                </p>
+                </motion.p>
 
                 {/* Chart */}
-                <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-4 md:p-6">
+                <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: 0.3 }}
+                    className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-4 md:p-6 transition-all duration-300 hover:scale-[1.01]"
+                >
                     {/* Chart header */}
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-[var(--text-primary)] font-semibold">Visibility score</h3>
@@ -117,7 +140,7 @@ export default function TractionSection() {
                     <p className="text-center text-[var(--text-secondary)] text-sm mt-6">
                         Average <span className="text-green-400 font-semibold">180% visibility increase</span> in 90 days
                     </p>
-                </div>
+                </motion.div>
             </div>
         </section>
     );
