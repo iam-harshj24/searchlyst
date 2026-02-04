@@ -277,35 +277,37 @@ export default function BlogPost() {
                         )}
 
                         {/* Related Posts */}
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.6 }}
-                            className="mt-16"
-                        >
-                            <h3 className="text-2xl font-bold mb-8">Related Articles</h3>
-                            <div className="grid md:grid-cols-3 gap-6">
-                                {relatedPosts.map((post, index) => (
-                                    <a
-                                        key={index}
-                                        href="#"
-                                        className="border border-[var(--border)] rounded-lg p-6 hover:border-red-500 transition-all group bg-[var(--bg-secondary)]"
-                                    >
-                                        <Badge className="mb-3 bg-transparent border border-[var(--border)] text-[var(--text-secondary)]">
-                                            {post.category}
-                                        </Badge>
-                                        <h4 className="font-bold text-lg mb-3 group-hover:text-red-500 transition-colors leading-tight">
-                                            {post.title}
-                                        </h4>
-                                        <div className="text-sm text-[var(--text-secondary)] flex gap-2">
-                                            <span>{post.date}</span>
-                                            <span>•</span>
-                                            <span>{post.readTime}</span>
-                                        </div>
-                                    </a>
-                                ))}
-                            </div>
-                        </motion.div>
+                        {relatedPosts.length > 0 && (
+                            <motion.div
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.6 }}
+                                className="mt-16"
+                            >
+                                <h3 className="text-2xl font-bold mb-8">Related Articles</h3>
+                                <div className="grid md:grid-cols-3 gap-6">
+                                    {relatedPosts.map((post, index) => (
+                                        <a
+                                            key={index}
+                                            href={`${createPageUrl('BlogPost')}?id=${post.id}`}
+                                            className="border border-[var(--border)] rounded-lg p-6 hover:border-red-500 transition-all group bg-[var(--bg-secondary)]"
+                                        >
+                                            <Badge className="mb-3 bg-transparent border border-[var(--border)] text-[var(--text-secondary)]">
+                                                {post.category}
+                                            </Badge>
+                                            <h4 className="font-bold text-lg mb-3 group-hover:text-red-500 transition-colors leading-tight">
+                                                {post.title}
+                                            </h4>
+                                            <div className="text-sm text-[var(--text-secondary)] flex gap-2">
+                                                <span>{new Date(post.created_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                                                <span>•</span>
+                                                <span>{post.read_time || 5} min read</span>
+                                            </div>
+                                        </a>
+                                    ))}
+                                </div>
+                            </motion.div>
+                        )}
                     </article>
                 </div>
             </div>
