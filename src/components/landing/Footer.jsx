@@ -5,7 +5,13 @@ import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 
 const footerLinks = {
-    Product: ['Features', 'Pricing', 'How It Works', 'Case Studies', 'API Documentation'],
+    Product: [
+        { label: 'Features', href: 'Home', isPage: true },
+        { label: 'Pricing', href: 'Home', isPage: true },
+        { label: 'How It Works', href: '#' },
+        { label: 'Case Studies', href: '#' },
+        { label: 'API Documentation', href: '#' }
+    ],
     Resources: ['Blog', 'AI Search Guide', 'Help Center', 'Status Page'],
     Company: [
         { label: 'About Us', href: 'AboutUs', isPage: true },
@@ -30,9 +36,13 @@ export default function Footer() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8 md:gap-12 mb-8 md:mb-12">
                     {/* Brand column */}
                     <div className="lg:col-span-1">
-                        <div className="text-[var(--text-primary)] text-xl font-semibold tracking-tight italic mb-4">
-                            searchlyst
-                        </div>
+                        <Link to={createPageUrl('Home')}>
+                            <img 
+                                src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69824440a17c76d392c103dc/2787700e8_Group123-Picsart-BackgroundRemover.png" 
+                                alt="Searchlyst" 
+                                className="h-8 md:h-10 mb-4"
+                            />
+                        </Link>
                         <p className="text-[var(--text-secondary)] text-sm mb-6">
                             Making brands visible in the age of AI search. Track, optimize, and dominate AI search results.
                         </p>
