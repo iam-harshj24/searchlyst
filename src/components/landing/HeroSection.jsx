@@ -37,7 +37,7 @@ export default function HeroSection() {
             return;
         }
         if (!isWorkEmail(email)) {
-            toast.error('Please use your work email address');
+            toast.error('Please enter your work email (personal emails like Gmail, Yahoo, etc. are not accepted)');
             return;
         }
         setLoading(true);

@@ -36,7 +36,7 @@ export default function CTASection() {
             return;
         }
         if (!isWorkEmail(formData.email)) {
-            toast.error('Please use your work email address');
+            toast.error('Please enter your work email (personal emails like Gmail, Yahoo, etc. are not accepted)');
             return;
         }
         setLoading(true);
