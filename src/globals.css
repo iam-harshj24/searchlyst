@@ -106,5 +106,27 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* Safari performance optimizations */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Safari-specific performance optimizations */
+@supports (-webkit-touch-callout: none) {
+  /* Force GPU acceleration for blur effects on Safari */
+  .blur-\[150px\],
+  .blur-\[120px\] {
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    will-change: transform;
+  }
+  
+  /* Optimize transitions on Safari */
+  .transition-all,
+  .transition-transform,
+  .transition-colors {
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
   }
 }
