@@ -21,16 +21,29 @@ const aiPlatforms = [
     { name: 'Claude', Logo: ClaudeLogo },
 ];
 
+// List of free email domains to block
+const freeEmailDomains = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'aol.com', 'icloud.com', 'mail.com', 'protonmail.com', 'zoho.com', 'yandex.com', 'gmx.com', 'live.com', 'msn.com'];
+
+const isWorkEmail = (email) => {
+    const domain = email.split('@')[1]?.toLowerCase();
+    return domain && !freeEmailDomains.includes(domain);
+};
+
 export default function HeroSection() {
     const [currentPlatform, setCurrentPlatform] = useState(0);
     const [fullName, setFullName] = useState('');
     const [websiteUrl, setWebsiteUrl] = useState('');
     const [email, setEmail] = useState('');
     const [loading, setLoading] = useState(false);
+    const [submitted, setSubmitted] = useState(false);
 
     const handleSubmit = async () => {
         if (!fullName || !email || !websiteUrl) {
             toast.error('Please fill in all fields');
+            return;
+        }
+        if (!isWorkEmail(email)) {
+            toast.error('Please use your work email address');
             return;
         }
         setLoading(true);
@@ -41,7 +54,7 @@ export default function HeroSection() {
             source: 'home'
         });
         setLoading(false);
-        toast.success('Successfully joined the waitlist!');
+        setSubmitted(true);
         setFullName('');
         setEmail('');
         setWebsiteUrl('');
@@ -113,71 +126,90 @@ export default function HeroSection() {
 
                 {/* Form */}
                 <div className="max-w-2xl mx-auto bg-[var(--bg-secondary)] backdrop-blur-sm border border-[var(--border)] rounded-2xl p-4 md:p-6">
-                    <div className="flex flex-col gap-4 mb-4">
-                        <div className="relative">
-                            <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-secondary)]" />
-                            <Input 
-                                type="text"
-                                placeholder="Your Full Name"
-                                value={fullName}
-                                onChange={(e) => setFullName(e.target.value)}
-                                className="w-full bg-[var(--bg-primary)] border-[var(--border)] text-[var(--text-primary)] pl-12 h-12 rounded-xl placeholder:text-[var(--text-secondary)]"
-                            />
-                        </div>
-                        <div className="flex flex-col md:flex-row gap-4">
-                            <div className="flex-1 relative">
-                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-secondary)]" />
-                                <Input 
-                                    type="email"
-                                    placeholder="Your Work Email"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    className="w-full bg-[var(--bg-primary)] border-[var(--border)] text-[var(--text-primary)] pl-12 h-12 rounded-xl placeholder:text-[var(--text-secondary)]"
-                                />
+                    {submitted ? (
+                        <div className="text-center py-8">
+                            <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <CheckCircle className="w-8 h-8 text-green-500" />
                             </div>
-                            <div className="flex-1 relative">
-                                <Globe className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-secondary)]" />
-                                <Input 
-                                    type="text"
-                                    placeholder="Company Website URL"
-                                    value={websiteUrl}
-                                    onChange={(e) => setWebsiteUrl(e.target.value)}
-                                    className="w-full bg-[var(--bg-primary)] border-[var(--border)] text-[var(--text-primary)] pl-12 h-12 rounded-xl placeholder:text-[var(--text-secondary)]"
-                                />
-                            </div>
+                            <h3 className="text-2xl font-bold text-[var(--text-primary)] mb-2">You're on the list!</h3>
+                            <p className="text-[var(--text-secondary)] mb-6">We'll be in touch soon with early access details.</p>
+                            <Button 
+                                onClick={() => setSubmitted(false)}
+                                variant="outline"
+                                className="border-[var(--border)] text-[var(--text-primary)]"
+                            >
+                                Submit another
+                            </Button>
                         </div>
-                    </div>
-                    
-                    <Button 
-                        onClick={handleSubmit}
-                        disabled={loading}
-                        className="w-full bg-red-600 hover:bg-red-700 text-white h-12 rounded-xl font-medium text-base group"
-                    >
-                        {loading ? (
-                            <Loader2 className="w-5 h-5 animate-spin" />
-                        ) : (
-                            <>
-                                Join Waitlist
-                                <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                            </>
-                        )}
-                    </Button>
+                    ) : (
+                        <>
+                            <div className="flex flex-col gap-4 mb-4">
+                                <div className="relative">
+                                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-secondary)]" />
+                                    <Input 
+                                        type="text"
+                                        placeholder="Your Full Name"
+                                        value={fullName}
+                                        onChange={(e) => setFullName(e.target.value)}
+                                        className="w-full bg-[var(--bg-primary)] border-[var(--border)] text-[var(--text-primary)] pl-12 h-12 rounded-xl placeholder:text-[var(--text-secondary)]"
+                                    />
+                                </div>
+                                <div className="flex flex-col md:flex-row gap-4">
+                                    <div className="flex-1 relative">
+                                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-secondary)]" />
+                                        <Input 
+                                            type="email"
+                                            placeholder="Your Work Email"
+                                            value={email}
+                                            onChange={(e) => setEmail(e.target.value)}
+                                            className="w-full bg-[var(--bg-primary)] border-[var(--border)] text-[var(--text-primary)] pl-12 h-12 rounded-xl placeholder:text-[var(--text-secondary)]"
+                                        />
+                                    </div>
+                                    <div className="flex-1 relative">
+                                        <Globe className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-secondary)]" />
+                                        <Input 
+                                            type="text"
+                                            placeholder="Company Website URL"
+                                            value={websiteUrl}
+                                            onChange={(e) => setWebsiteUrl(e.target.value)}
+                                            className="w-full bg-[var(--bg-primary)] border-[var(--border)] text-[var(--text-primary)] pl-12 h-12 rounded-xl placeholder:text-[var(--text-secondary)]"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <Button 
+                                onClick={handleSubmit}
+                                disabled={loading}
+                                className="w-full bg-red-600 hover:bg-red-700 text-white h-12 rounded-xl font-medium text-base group"
+                            >
+                                {loading ? (
+                                    <Loader2 className="w-5 h-5 animate-spin" />
+                                ) : (
+                                    <>
+                                        Join Waitlist
+                                        <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                                    </>
+                                )}
+                            </Button>
 
-                    {/* Trust badges */}
-                    <div className="flex flex-wrap justify-center gap-6 mt-6 text-sm text-[var(--text-secondary)]">
-                        <div className="flex items-center gap-2">
-                            <Clock className="w-4 h-4 text-red-500" />
-                            Setup in 5 minutes
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <CheckCircle className="w-4 h-4 text-red-500" />
-                            No technical skills needed
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <XCircle className="w-4 h-4 text-red-500" />
-                            Cancel anytime
-                        </div>
-                    </div>
+                            {/* Trust badges */}
+                            <div className="flex flex-wrap justify-center gap-6 mt-6 text-sm text-[var(--text-secondary)]">
+                                <div className="flex items-center gap-2">
+                                    <Clock className="w-4 h-4 text-red-500" />
+                                    Setup in 5 minutes
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <CheckCircle className="w-4 h-4 text-red-500" />
+                                    No technical skills needed
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <XCircle className="w-4 h-4 text-red-500" />
+                                    Cancel anytime
+                                </div>
+                            </div>
+                        </>
+                    )}
                 </div>
             </div>
         </section>

@@ -12,7 +12,12 @@ const footerLinks = {
         { label: 'Case Studies', href: '#' },
         { label: 'API Documentation', href: '#' }
     ],
-    Resources: ['Blog', 'AI Search Guide', 'Help Center', 'Status Page'],
+    Resources: [
+        { label: 'Blog', href: 'Blogs', isPage: true },
+        'AI Search Guide', 
+        'Help Center', 
+        'Status Page'
+    ],
     Company: [
         { label: 'About Us', href: 'AboutUs', isPage: true },
         { label: 'Careers', href: '#' },
@@ -38,7 +43,7 @@ export default function Footer() {
                             <img 
                                 src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69824440a17c76d392c103dc/2787700e8_Group123-Picsart-BackgroundRemover.png" 
                                 alt="Searchlyst" 
-                                className="h-8 md:h-10 mb-4"
+                                className="h-10 md:h-12 mb-4"
                                 loading="lazy"
                             />
                         </Link>
