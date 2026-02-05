@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { ArrowRight, User, Mail, Globe, Loader2, CheckCircle } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
+import { isWorkEmail } from './utils/emailValidation';
 
 export default function WaitlistModal({ open, onOpenChange, source = 'home' }) {
     const [formData, setFormData] = useState({
@@ -19,6 +20,10 @@ export default function WaitlistModal({ open, onOpenChange, source = 'home' }) {
         e.preventDefault();
         if (!formData.full_name || !formData.email || !formData.website_url) {
             toast.error('Please fill in all fields');
+            return;
+        }
+        if (!isWorkEmail(formData.email)) {
+            toast.error('Please use your work email address');
             return;
         }
         
