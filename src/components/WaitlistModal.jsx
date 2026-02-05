@@ -23,7 +23,7 @@ export default function WaitlistModal({ open, onOpenChange, source = 'home' }) {
             return;
         }
         if (!isWorkEmail(formData.email)) {
-            toast.error('Please enter your work email (personal emails like Gmail, Yahoo, etc. are not accepted)');
+            toast.error('Please enter your work email. Personal emails (Gmail, Yahoo, Outlook, etc.) are not accepted.');
             return;
         }
         
