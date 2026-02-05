@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
-import { isWorkEmail } from '@/components/utils/emailValidation';
+import { isWorkEmail } from '@/components/emailValidation';
 
 export default function CTASection() {
     const [activeTab, setActiveTab] = useState('brand');

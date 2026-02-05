@@ -21,7 +21,7 @@ const aiPlatforms = [
     { name: 'Claude', Logo: ClaudeLogo },
 ];
 
-import { isWorkEmail } from '@/components/utils/emailValidation';
+import { isWorkEmail } from '@/components/emailValidation';
 
 export default function HeroSection() {
     const [currentPlatform, setCurrentPlatform] = useState(0);

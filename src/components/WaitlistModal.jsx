@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { ArrowRight, User, Mail, Globe, Loader2, CheckCircle } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
-import { isWorkEmail } from '@/components/utils/emailValidation';
+import { isWorkEmail } from '@/components/emailValidation';
 
 export default function WaitlistModal({ open, onOpenChange, source = 'home' }) {
     const [formData, setFormData] = useState({
