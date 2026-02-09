@@ -2,12 +2,15 @@ import React from 'react';
 import { TrendingUp, TrendingDown, Eye, MessageSquare, AlertTriangle, ThumbsUp } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 
-const scoreData = [
-    { name: 'Score', value: 72 },
-    { name: 'Remaining', value: 28 },
+const platformData = [
+    { name: 'ChatGPT', citations: 15200, share: 40, color: '#EF4444' },
+    { name: 'Gemini', citations: 9100, share: 24, color: '#F87171' },
+    { name: 'Perplexity', citations: 6080, share: 16, color: '#FCA5A5' },
+    { name: 'Claude', citations: 4560, share: 12, color: '#FECACA' },
+    { name: 'Others', citations: 3040, share: 8, color: '#6B7280' },
 ];
 
-const trendData = [
+const defaultTrendData = [
     { day: 'Mon', score: 68 },
     { day: 'Tue', score: 70 },
     { day: 'Wed', score: 69 },
@@ -17,24 +20,27 @@ const trendData = [
     { day: 'Sun', score: 72 },
 ];
 
-const platformData = [
-    { name: 'ChatGPT', citations: 15200, share: 40, color: '#EF4444' },
-    { name: 'Gemini', citations: 9100, share: 24, color: '#F87171' },
-    { name: 'Perplexity', citations: 6080, share: 16, color: '#FCA5A5' },
-    { name: 'Claude', citations: 4560, share: 12, color: '#FECACA' },
-    { name: 'Others', citations: 3040, share: 8, color: '#6B7280' },
-];
-
-export default function ExecutiveOverview() {
+export default function ExecutiveOverview({ selectedDomain }) {
+    const visibilityScore = selectedDomain?.visibility_score || 72;
+    const totalCitations = selectedDomain?.total_citations || 37900;
+    const sentiment = selectedDomain?.sentiment || 0.72;
+    const issuesCount = selectedDomain?.issues_count || 5;
+    
+    const scoreData = [
+        { name: 'Score', value: visibilityScore },
+        { name: 'Remaining', value: 100 - visibilityScore },
+    ];
+    
+    const trendData = defaultTrendData;
     return (
         <div className="space-y-6">
             {/* Key Metrics */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {[
-                    { label: 'Visibility Score', value: '72', icon: Eye, change: '+3.2%', up: true },
-                    { label: 'Total Citations', value: '37.9K', icon: MessageSquare, change: '+12%', up: true },
-                    { label: 'Sentiment', value: '0.72', icon: ThumbsUp, change: '+0.08', up: true },
-                    { label: 'Issues', value: '5', icon: AlertTriangle, change: '-2', up: false },
+                    { label: 'Visibility Score', value: String(visibilityScore), icon: Eye, change: '+3.2%', up: true },
+                    { label: 'Total Citations', value: totalCitations >= 1000 ? `${(totalCitations / 1000).toFixed(1)}K` : String(totalCitations), icon: MessageSquare, change: '+12%', up: true },
+                    { label: 'Sentiment', value: sentiment.toFixed(2), icon: ThumbsUp, change: '+0.08', up: true },
+                    { label: 'Issues', value: String(issuesCount), icon: AlertTriangle, change: '-2', up: false },
                 ].map((stat, i) => (
                     <div key={i} className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-xl p-4">
                         <div className="flex items-center gap-2 mb-2">
@@ -75,7 +81,7 @@ export default function ExecutiveOverview() {
                             </PieChart>
                         </ResponsiveContainer>
                         <div className="absolute inset-0 flex flex-col items-center justify-center">
-                            <span className="text-3xl font-bold text-[var(--text-primary)]">72</span>
+                            <span className="text-3xl font-bold text-[var(--text-primary)]">{visibilityScore}</span>
                             <span className="text-emerald-400 text-sm">+3.2%</span>
                         </div>
                     </div>

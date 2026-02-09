@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import ExecutiveOverview from '@/components/dashboard/ExecutiveOverview';
 import AIVisibilityPage from '@/components/dashboard/AIVisibilityPage';
@@ -7,6 +7,10 @@ import ContentOptimizationPage from '@/components/dashboard/ContentOptimizationP
 import CompetitiveIntelPage from '@/components/dashboard/CompetitiveIntelPage';
 import GeolocationPage from '@/components/dashboard/GeolocationPage';
 import FAQHubPage from '@/components/dashboard/FAQHubPage.jsx';
+import DomainSelector from '@/components/dashboard/DomainSelector';
+import AddDomainModal from '@/components/dashboard/AddDomainModal';
+import AIChatbot from '@/components/dashboard/AIChatbot';
+import { base44 } from '@/api/base44Client';
 import { 
     LayoutDashboard, 
     Brain, 
@@ -19,6 +23,25 @@ import {
 
 export default function Dashboard() {
     const [activeTab, setActiveTab] = useState('overview');
+    const [domains, setDomains] = useState([]);
+    const [selectedDomain, setSelectedDomain] = useState(null);
+    const [showAddDomain, setShowAddDomain] = useState(false);
+
+    useEffect(() => {
+        loadDomains();
+    }, []);
+
+    const loadDomains = async () => {
+        try {
+            const data = await base44.entities.Domain.list();
+            setDomains(data);
+            if (data.length > 0 && !selectedDomain) {
+                setSelectedDomain(data[0]);
+            }
+        } catch (error) {
+            console.error('Failed to load domains:', error);
+        }
+    };
 
     const tabs = [
         { id: 'overview', label: 'Overview', icon: LayoutDashboard },
@@ -43,7 +66,15 @@ export default function Dashboard() {
                             <h1 className="text-lg font-semibold text-[var(--text-primary)]">AI Visibility Dashboard</h1>
                             <p className="text-xs text-[var(--text-secondary)]">Track your brand across AI platforms</p>
                         </div>
-                        <span className="ml-auto px-2 py-1 bg-red-500/20 text-red-400 text-xs rounded-full">Live</span>
+                        <div className="ml-auto flex items-center gap-3">
+                            <DomainSelector 
+                                domains={domains}
+                                selectedDomain={selectedDomain}
+                                onSelectDomain={setSelectedDomain}
+                                onAddDomain={() => setShowAddDomain(true)}
+                            />
+                            <span className="px-2 py-1 bg-red-500/20 text-red-400 text-xs rounded-full">Live</span>
+                        </div>
                     </div>
                 </div>
             </header>
@@ -64,7 +95,7 @@ export default function Dashboard() {
                         ))}
                     </TabsList>
 
-                    <TabsContent value="overview"><ExecutiveOverview /></TabsContent>
+                    <TabsContent value="overview"><ExecutiveOverview selectedDomain={selectedDomain} /></TabsContent>
                     <TabsContent value="ai-visibility"><AIVisibilityPage /></TabsContent>
                     <TabsContent value="content"><ContentOptimizationPage /></TabsContent>
                     <TabsContent value="faq"><FAQHubPage /></TabsContent>
@@ -73,6 +104,14 @@ export default function Dashboard() {
                     <TabsContent value="technical"><TechnicalHealthPage /></TabsContent>
                 </Tabs>
             </div>
+
+            <AddDomainModal 
+                open={showAddDomain} 
+                onClose={() => setShowAddDomain(false)}
+                onSuccess={loadDomains}
+            />
+            
+            <AIChatbot />
         </div>
     );
 }
