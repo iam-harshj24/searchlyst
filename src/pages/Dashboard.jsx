@@ -6,7 +6,7 @@ import TechnicalHealthPage from '@/components/dashboard/TechnicalHealthPage';
 import ContentOptimizationPage from '@/components/dashboard/ContentOptimizationPage';
 import CompetitiveIntelPage from '@/components/dashboard/CompetitiveIntelPage';
 import GeolocationPage from '@/components/dashboard/GeolocationPage';
-import FAQHubPage from '@/components/dashboard/FAQHubPage';
+import FAQHubPage from '@/components/dashboard/FAQHubPage.jsx';
 import { 
     LayoutDashboard, 
     Brain, 
