@@ -29,28 +29,28 @@ export default function AIVisibilityPage() {
             {/* Platform Performance */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {platforms.map((platform, i) => (
-                    <div key={i} className="bg-white/5 border border-white/10 rounded-xl p-4">
+                    <div key={i} className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-xl p-4">
                         <div className="flex items-center justify-between mb-2">
-                            <span className="text-white font-medium">{platform.name}</span>
+                            <span className="text-[var(--text-primary)] font-medium">{platform.name}</span>
                             <span className={`text-xs px-2 py-0.5 rounded-full ${
                                 platform.status === 'strong' ? 'bg-emerald-500/20 text-emerald-400' :
-                                platform.status === 'good' ? 'bg-blue-500/20 text-blue-400' :
+                                platform.status === 'good' ? 'bg-red-500/20 text-red-400' :
                                 'bg-amber-500/20 text-amber-400'
                             }`}>
                                 {platform.status}
                             </span>
                         </div>
                         <div className="flex items-end justify-between">
-                            <span className="text-2xl font-bold text-white">{platform.score}</span>
+                            <span className="text-2xl font-bold text-[var(--text-primary)]">{platform.score}</span>
                             <span className={`text-sm ${platform.trend.startsWith('+') ? 'text-emerald-400' : 'text-red-400'}`}>
                                 {platform.trend}
                             </span>
                         </div>
-                        <div className="mt-2 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                        <div className="mt-2 h-1.5 bg-[var(--border)] rounded-full overflow-hidden">
                             <div 
                                 className={`h-full rounded-full ${
                                     platform.status === 'strong' ? 'bg-emerald-500' :
-                                    platform.status === 'good' ? 'bg-blue-500' : 'bg-amber-500'
+                                    platform.status === 'good' ? 'bg-red-500' : 'bg-amber-500'
                                 }`}
                                 style={{ width: `${platform.score}%` }}
                             />
@@ -61,31 +61,31 @@ export default function AIVisibilityPage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Citation Comparison */}
-                <div className="bg-white/5 border border-white/10 rounded-xl p-6">
-                    <h3 className="text-white font-medium mb-4">Your Citations vs Competitors</h3>
+                <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-xl p-6">
+                    <h3 className="text-[var(--text-primary)] font-medium mb-4">Your Citations vs Competitors</h3>
                     <div className="h-64">
                         <ResponsiveContainer>
                             <BarChart data={citationData} layout="vertical">
-                                <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" />
-                                <XAxis type="number" tick={{ fill: '#6B7280', fontSize: 11 }} />
-                                <YAxis dataKey="query" type="category" tick={{ fill: '#6B7280', fontSize: 10 }} width={100} />
+                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                                <XAxis type="number" tick={{ fill: '#737373', fontSize: 11 }} />
+                                <YAxis dataKey="query" type="category" tick={{ fill: '#737373', fontSize: 10 }} width={100} />
                                 <Tooltip 
-                                    contentStyle={{ backgroundColor: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
+                                    contentStyle={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: '8px' }}
                                 />
-                                <Bar dataKey="you" fill="#3B82F6" name="You" radius={[0, 4, 4, 0]} />
+                                <Bar dataKey="you" fill="#EF4444" name="You" radius={[0, 4, 4, 0]} />
                                 <Bar dataKey="competitor" fill="#6B7280" name="Competitor" radius={[0, 4, 4, 0]} />
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
                     <div className="flex justify-center gap-6 mt-4 text-xs">
-                        <span className="flex items-center gap-2"><span className="w-3 h-3 bg-blue-500 rounded" /> You</span>
-                        <span className="flex items-center gap-2"><span className="w-3 h-3 bg-gray-500 rounded" /> Top Competitor</span>
+                        <span className="flex items-center gap-2 text-[var(--text-secondary)]"><span className="w-3 h-3 bg-red-500 rounded" /> You</span>
+                        <span className="flex items-center gap-2 text-[var(--text-secondary)]"><span className="w-3 h-3 bg-gray-500 rounded" /> Top Competitor</span>
                     </div>
                 </div>
 
                 {/* Issues to Fix */}
-                <div className="bg-white/5 border border-white/10 rounded-xl p-6">
-                    <h3 className="text-white font-medium mb-4 flex items-center gap-2">
+                <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-xl p-6">
+                    <h3 className="text-[var(--text-primary)] font-medium mb-4 flex items-center gap-2">
                         <AlertTriangle className="w-4 h-4 text-amber-400" />
                         Issues to Fix
                     </h3>
@@ -96,20 +96,20 @@ export default function AIVisibilityPage() {
                                 className={`p-4 rounded-lg border ${
                                     issue.severity === 'high' ? 'bg-red-500/10 border-red-500/30' :
                                     issue.severity === 'medium' ? 'bg-amber-500/10 border-amber-500/30' :
-                                    'bg-blue-500/10 border-blue-500/30'
+                                    'bg-red-500/5 border-red-500/20'
                                 }`}
                             >
                                 <div className="flex items-center justify-between mb-1">
-                                    <span className="text-white text-sm font-medium">{issue.platform}</span>
+                                    <span className="text-[var(--text-primary)] text-sm font-medium">{issue.platform}</span>
                                     <span className={`text-xs px-2 py-0.5 rounded capitalize ${
                                         issue.severity === 'high' ? 'bg-red-500/20 text-red-400' :
                                         issue.severity === 'medium' ? 'bg-amber-500/20 text-amber-400' :
-                                        'bg-blue-500/20 text-blue-400'
+                                        'bg-red-500/10 text-red-300'
                                     }`}>
                                         {issue.severity}
                                     </span>
                                 </div>
-                                <p className="text-gray-400 text-sm">{issue.issue}</p>
+                                <p className="text-[var(--text-secondary)] text-sm">{issue.issue}</p>
                             </div>
                         ))}
                     </div>
@@ -117,8 +117,8 @@ export default function AIVisibilityPage() {
             </div>
 
             {/* Quick Tips */}
-            <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-xl p-6">
-                <h3 className="text-white font-medium mb-3">💡 Quick Tips to Improve</h3>
+            <div className="bg-gradient-to-r from-red-500/10 to-red-600/5 border border-red-500/20 rounded-xl p-6">
+                <h3 className="text-[var(--text-primary)] font-medium mb-3">💡 Quick Tips to Improve</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {[
                         'Update your pricing page with FAQ schema',
@@ -126,8 +126,8 @@ export default function AIVisibilityPage() {
                         'Add more customer testimonials to product pages',
                     ].map((tip, i) => (
                         <div key={i} className="flex items-start gap-2">
-                            <CheckCircle className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
-                            <span className="text-gray-300 text-sm">{tip}</span>
+                            <CheckCircle className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
+                            <span className="text-[var(--text-secondary)] text-sm">{tip}</span>
                         </div>
                     ))}
                 </div>

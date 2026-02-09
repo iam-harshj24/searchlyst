@@ -27,27 +27,27 @@ export default function CompetitiveIntelPage() {
                         key={i} 
                         className={`rounded-xl p-4 border ${
                             comp.isYours 
-                                ? 'bg-blue-500/10 border-blue-500/30' 
-                                : 'bg-white/5 border-white/10'
+                                ? 'bg-red-500/10 border-red-500/30' 
+                                : 'bg-[var(--bg-secondary)] border-[var(--border)]'
                         }`}
                     >
                         <div className="flex items-center gap-2 mb-3">
-                            <span className={`font-medium ${comp.isYours ? 'text-blue-400' : 'text-white'}`}>
+                            <span className={`font-medium ${comp.isYours ? 'text-red-400' : 'text-[var(--text-primary)]'}`}>
                                 {comp.name}
                             </span>
-                            {comp.isYours && <span className="text-xs bg-blue-500 text-white px-1.5 py-0.5 rounded">You</span>}
+                            {comp.isYours && <span className="text-xs bg-red-500 text-white px-1.5 py-0.5 rounded">You</span>}
                         </div>
                         <div className="space-y-2 text-sm">
                             <div className="flex justify-between">
-                                <span className="text-gray-400">Visibility</span>
-                                <span className="text-white font-medium">{comp.visibility}</span>
+                                <span className="text-[var(--text-secondary)]">Visibility</span>
+                                <span className="text-[var(--text-primary)] font-medium">{comp.visibility}</span>
                             </div>
                             <div className="flex justify-between">
-                                <span className="text-gray-400">Citations</span>
-                                <span className="text-white">{(comp.citations / 1000).toFixed(1)}K</span>
+                                <span className="text-[var(--text-secondary)]">Citations</span>
+                                <span className="text-[var(--text-primary)]">{(comp.citations / 1000).toFixed(1)}K</span>
                             </div>
                             <div className="flex justify-between">
-                                <span className="text-gray-400">Sentiment</span>
+                                <span className="text-[var(--text-secondary)]">Sentiment</span>
                                 <span className={comp.sentiment >= 0.7 ? 'text-emerald-400' : 'text-amber-400'}>
                                     {comp.sentiment}
                                 </span>
@@ -58,25 +58,25 @@ export default function CompetitiveIntelPage() {
             </div>
 
             {/* Query Battles */}
-            <div className="bg-white/5 border border-white/10 rounded-xl p-6">
-                <h3 className="text-white font-medium mb-4">Query Battles: You vs Top Competitor</h3>
+            <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-xl p-6">
+                <h3 className="text-[var(--text-primary)] font-medium mb-4">Query Battles: You vs Top Competitor</h3>
                 <div className="h-64">
                     <ResponsiveContainer>
                         <BarChart data={queryBattles} layout="vertical">
-                            <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" />
-                            <XAxis type="number" domain={[0, 100]} tick={{ fill: '#6B7280', fontSize: 11 }} />
-                            <YAxis dataKey="query" type="category" tick={{ fill: '#6B7280', fontSize: 10 }} width={120} />
+                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                            <XAxis type="number" domain={[0, 100]} tick={{ fill: '#737373', fontSize: 11 }} />
+                            <YAxis dataKey="query" type="category" tick={{ fill: '#737373', fontSize: 10 }} width={120} />
                             <Tooltip 
-                                contentStyle={{ backgroundColor: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
+                                contentStyle={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: '8px' }}
                             />
-                            <Bar dataKey="you" fill="#3B82F6" name="You" radius={[0, 4, 4, 0]} />
+                            <Bar dataKey="you" fill="#EF4444" name="You" radius={[0, 4, 4, 0]} />
                             <Bar dataKey="compA" fill="#6B7280" name="Competitor A" radius={[0, 4, 4, 0]} />
                         </BarChart>
                     </ResponsiveContainer>
                 </div>
                 <div className="flex justify-center gap-6 mt-4 text-xs">
-                    <span className="flex items-center gap-2"><span className="w-3 h-3 bg-blue-500 rounded" /> You</span>
-                    <span className="flex items-center gap-2"><span className="w-3 h-3 bg-gray-500 rounded" /> Competitor A</span>
+                    <span className="flex items-center gap-2 text-[var(--text-secondary)]"><span className="w-3 h-3 bg-red-500 rounded" /> You</span>
+                    <span className="flex items-center gap-2 text-[var(--text-secondary)]"><span className="w-3 h-3 bg-gray-500 rounded" /> Competitor A</span>
                 </div>
             </div>
 
@@ -89,8 +89,8 @@ export default function CompetitiveIntelPage() {
                     </h3>
                     <div className="space-y-2">
                         {queryBattles.filter(q => q.winner === 'you').map((q, i) => (
-                            <div key={i} className="flex items-center justify-between p-2 bg-white/5 rounded">
-                                <span className="text-white text-sm">{q.query}</span>
+                            <div key={i} className="flex items-center justify-between p-2 bg-[var(--bg-primary)] rounded border border-[var(--border)]">
+                                <span className="text-[var(--text-primary)] text-sm">{q.query}</span>
                                 <span className="text-emerald-400 text-sm">{q.you}%</span>
                             </div>
                         ))}
@@ -104,8 +104,8 @@ export default function CompetitiveIntelPage() {
                     </h3>
                     <div className="space-y-2">
                         {queryBattles.filter(q => q.winner === 'comp').map((q, i) => (
-                            <div key={i} className="flex items-center justify-between p-2 bg-white/5 rounded">
-                                <span className="text-white text-sm">{q.query}</span>
+                            <div key={i} className="flex items-center justify-between p-2 bg-[var(--bg-primary)] rounded border border-[var(--border)]">
+                                <span className="text-[var(--text-primary)] text-sm">{q.query}</span>
                                 <span className="text-red-400 text-sm">{q.you}% vs {q.compA}%</span>
                             </div>
                         ))}
