@@ -1,167 +1,93 @@
 import React, { useState } from 'react';
-import { Globe, MapPin, TrendingUp, AlertTriangle } from 'lucide-react';
-import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer } from 'recharts';
+import { Globe, TrendingUp, TrendingDown } from 'lucide-react';
 
 const regions = [
-    { name: 'North America', code: 'NA', citations: 12500, sentiment: 0.75, sov: 42, threats: 2, x: '22%', y: '35%' },
-    { name: 'Europe', code: 'EU', citations: 8200, sentiment: 0.62, sov: 35, threats: 3, x: '48%', y: '28%' },
-    { name: 'Asia Pacific', code: 'APAC', citations: 5800, sentiment: 0.68, sov: 28, threats: 1, x: '75%', y: '42%' },
-    { name: 'Latin America', code: 'LATAM', citations: 2100, sentiment: 0.71, sov: 45, threats: 0, x: '28%', y: '62%' },
-    { name: 'Middle East', code: 'MEA', citations: 1200, sentiment: 0.58, sov: 22, threats: 2, x: '55%', y: '45%' },
+    { name: 'North America', code: 'NA', citations: 15200, sentiment: 0.78, trend: '+12%', trendUp: true },
+    { name: 'Europe', code: 'EU', citations: 9800, sentiment: 0.65, trend: '+8%', trendUp: true },
+    { name: 'Asia Pacific', code: 'APAC', citations: 6500, sentiment: 0.72, trend: '+22%', trendUp: true },
+    { name: 'Latin America', code: 'LATAM', citations: 3200, sentiment: 0.70, trend: '+5%', trendUp: true },
+    { name: 'Middle East', code: 'MEA', citations: 1800, sentiment: 0.58, trend: '-3%', trendUp: false },
 ];
 
-const marketRadarData = [
-    { market: 'USA', aiSov: 45, sentiment: 78, backlinks: 85, entityRich: 72, competitive: 65 },
-    { market: 'Germany', aiSov: 35, sentiment: 62, backlinks: 70, entityRich: 55, competitive: 80 },
-    { market: 'Japan', aiSov: 28, sentiment: 70, backlinks: 45, entityRich: 40, competitive: 55 },
-    { market: 'UK', aiSov: 40, sentiment: 75, backlinks: 78, entityRich: 68, competitive: 70 },
-    { market: 'Australia', aiSov: 38, sentiment: 72, backlinks: 65, entityRich: 60, competitive: 50 },
-    { market: 'Brazil', aiSov: 32, sentiment: 68, backlinks: 40, entityRich: 35, competitive: 45 },
+const topCountries = [
+    { country: 'United States', citations: 12500, share: 33 },
+    { country: 'United Kingdom', citations: 4200, share: 11 },
+    { country: 'Germany', citations: 3100, share: 8 },
+    { country: 'Australia', citations: 2800, share: 7 },
+    { country: 'Canada', citations: 2700, share: 7 },
 ];
 
 export default function GeolocationPage() {
     const [selectedRegion, setSelectedRegion] = useState(null);
-    const [activeLayer, setActiveLayer] = useState('citations');
 
     return (
         <div className="space-y-6">
-            {/* Map Visualization */}
-            <div className="bg-white/5 border border-white/10 rounded-xl p-6">
-                <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-white font-semibold flex items-center gap-2">
-                        <Globe className="w-5 h-5 text-blue-400" />
-                        Global Visibility Map
-                    </h3>
-                    <div className="flex gap-2">
-                        {['citations', 'sentiment', 'threats'].map((layer) => (
-                            <button
-                                key={layer}
-                                onClick={() => setActiveLayer(layer)}
-                                className={`px-3 py-1 text-xs rounded-full capitalize transition-colors ${
-                                    activeLayer === layer
-                                        ? 'bg-blue-500 text-white'
-                                        : 'bg-white/10 text-gray-400 hover:bg-white/20'
-                                }`}
-                            >
-                                {layer}
-                            </button>
+            {/* Region Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                {regions.map((region, i) => (
+                    <button
+                        key={i}
+                        onClick={() => setSelectedRegion(region)}
+                        className={`text-left rounded-xl p-4 border transition-all ${
+                            selectedRegion?.code === region.code
+                                ? 'bg-blue-500/10 border-blue-500/50'
+                                : 'bg-white/5 border-white/10 hover:bg-white/10'
+                        }`}
+                    >
+                        <p className="text-white font-medium text-sm">{region.code}</p>
+                        <p className="text-gray-500 text-xs mb-2">{region.name}</p>
+                        <p className="text-lg font-bold text-white">{(region.citations / 1000).toFixed(1)}K</p>
+                        <p className={`text-xs flex items-center gap-1 ${region.trendUp ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {region.trendUp ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                            {region.trend}
+                        </p>
+                    </button>
+                ))}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Top Countries */}
+                <div className="bg-white/5 border border-white/10 rounded-xl p-6">
+                    <h3 className="text-white font-medium mb-4">Top Countries by Citations</h3>
+                    <div className="space-y-3">
+                        {topCountries.map((country, i) => (
+                            <div key={i} className="flex items-center gap-3">
+                                <span className="text-gray-400 text-sm w-4">{i + 1}</span>
+                                <span className="text-white text-sm flex-1">{country.country}</span>
+                                <div className="w-24 h-2 bg-white/10 rounded-full overflow-hidden">
+                                    <div 
+                                        className="h-full bg-blue-500 rounded-full"
+                                        style={{ width: `${country.share * 3}%` }}
+                                    />
+                                </div>
+                                <span className="text-gray-400 text-sm w-16 text-right">
+                                    {country.citations.toLocaleString()}
+                                </span>
+                            </div>
                         ))}
                     </div>
                 </div>
 
-                <div className="relative h-80 bg-[#0d0d15] rounded-xl overflow-hidden">
-                    {/* Simplified World Map */}
-                    <svg viewBox="0 0 100 50" className="absolute inset-0 w-full h-full opacity-20">
-                        <path d="M15,18 Q28,12 38,20 L35,32 Q22,36 15,28 Z" fill="#3B82F6" />
-                        <path d="M42,15 Q55,10 60,22 L55,32 Q45,30 42,22 Z" fill="#3B82F6" />
-                        <path d="M62,18 Q78,12 88,28 L82,40 Q68,42 62,32 Z" fill="#3B82F6" />
-                        <path d="M22,38 Q32,40 30,46 L24,46 Z" fill="#3B82F6" />
-                    </svg>
-
-                    {/* Region Markers */}
-                    {regions.map((region, i) => (
-                        <div
-                            key={i}
-                            className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer group"
-                            style={{ left: region.x, top: region.y }}
-                            onClick={() => setSelectedRegion(region)}
-                        >
-                            <div 
-                                className={`rounded-full transition-all ${
-                                    selectedRegion?.code === region.code ? 'scale-150' : ''
-                                }`}
-                                style={{ 
-                                    width: activeLayer === 'citations' ? Math.max(16, region.citations / 800) + 'px' : '20px',
-                                    height: activeLayer === 'citations' ? Math.max(16, region.citations / 800) + 'px' : '20px',
-                                    backgroundColor: activeLayer === 'sentiment' 
-                                        ? `rgba(${region.sentiment > 0.7 ? '16,185,129' : region.sentiment > 0.6 ? '245,158,11' : '239,68,68'}, 0.8)`
-                                        : activeLayer === 'threats' && region.threats > 0
-                                            ? 'rgba(239,68,68,0.8)'
-                                            : 'rgba(59,130,246,0.8)',
-                                    boxShadow: `0 0 20px ${activeLayer === 'citations' ? 'rgba(59,130,246,0.5)' : activeLayer === 'sentiment' ? 'rgba(16,185,129,0.5)' : 'rgba(239,68,68,0.5)'}`
-                                }}
-                            >
-                                {activeLayer === 'threats' && region.threats > 0 && (
-                                    <span className="absolute inset-0 flex items-center justify-center text-white text-xs font-bold">
-                                        {region.threats}
-                                    </span>
-                                )}
-                            </div>
-
-                            {/* Tooltip */}
-                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                                <div className="bg-[#1a1a2e] border border-white/10 rounded-lg p-3 shadow-xl whitespace-nowrap">
-                                    <p className="text-white font-medium">{region.name}</p>
-                                    <p className="text-blue-400 text-xs">{region.citations.toLocaleString()} citations</p>
-                                    <p className={`text-xs ${region.sentiment >= 0.7 ? 'text-emerald-400' : 'text-amber-400'}`}>
-                                        Sentiment: {(region.sentiment * 100).toFixed(0)}%
-                                    </p>
-                                    <p className="text-gray-400 text-xs">SOV: {region.sov}%</p>
-                                </div>
-                            </div>
+                {/* Regional Insights */}
+                <div className="bg-white/5 border border-white/10 rounded-xl p-6">
+                    <h3 className="text-white font-medium mb-4">Regional Insights</h3>
+                    <div className="space-y-4">
+                        <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
+                            <p className="text-emerald-400 text-sm font-medium">🚀 Fastest Growing</p>
+                            <p className="text-white mt-1">Asia Pacific (+22%)</p>
+                            <p className="text-gray-400 text-xs mt-1">Strong momentum in Japan and Australia</p>
                         </div>
-                    ))}
-                </div>
-
-                {/* Region Stats */}
-                <div className="grid grid-cols-5 gap-4 mt-4">
-                    {regions.map((region, i) => (
-                        <button
-                            key={i}
-                            onClick={() => setSelectedRegion(region)}
-                            className={`p-3 rounded-lg text-center transition-all ${
-                                selectedRegion?.code === region.code
-                                    ? 'bg-blue-500/20 border border-blue-500/50'
-                                    : 'bg-white/5 border border-white/10 hover:bg-white/10'
-                            }`}
-                        >
-                            <p className="text-white font-medium text-sm">{region.code}</p>
-                            <p className="text-gray-400 text-xs">{region.citations.toLocaleString()}</p>
-                        </button>
-                    ))}
-                </div>
-            </div>
-
-            {/* Market Radar Charts */}
-            <div className="bg-white/5 border border-white/10 rounded-xl p-6">
-                <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
-                    <MapPin className="w-5 h-5 text-purple-400" />
-                    Market Performance Radar
-                </h3>
-
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {marketRadarData.map((market, i) => (
-                        <div key={i} className="bg-white/5 rounded-lg p-4">
-                            <p className="text-white font-medium text-sm text-center mb-2">{market.market}</p>
-                            <div className="h-32">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <RadarChart data={[
-                                        { axis: 'AI SOV', value: market.aiSov },
-                                        { axis: 'Sentiment', value: market.sentiment },
-                                        { axis: 'Backlinks', value: market.backlinks },
-                                        { axis: 'Entity', value: market.entityRich },
-                                        { axis: 'Competitive', value: market.competitive },
-                                    ]}>
-                                        <PolarGrid stroke="#ffffff10" />
-                                        <PolarAngleAxis dataKey="axis" tick={{ fill: '#6B7280', fontSize: 8 }} />
-                                        <Radar
-                                            dataKey="value"
-                                            stroke="#3B82F6"
-                                            fill="#3B82F6"
-                                            fillOpacity={0.3}
-                                        />
-                                    </RadarChart>
-                                </ResponsiveContainer>
-                            </div>
-                            <div className="flex justify-center gap-2 mt-2">
-                                <span className={`text-xs px-2 py-0.5 rounded ${
-                                    market.aiSov > 35 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'
-                                }`}>
-                                    SOV: {market.aiSov}%
-                                </span>
-                            </div>
+                        <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+                            <p className="text-amber-400 text-sm font-medium">⚠️ Needs Attention</p>
+                            <p className="text-white mt-1">Middle East (-3%)</p>
+                            <p className="text-gray-400 text-xs mt-1">Sentiment declining, consider localized content</p>
                         </div>
-                    ))}
+                        <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                            <p className="text-blue-400 text-sm font-medium">💡 Opportunity</p>
+                            <p className="text-white mt-1">Latin America</p>
+                            <p className="text-gray-400 text-xs mt-1">Low competition, high growth potential</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

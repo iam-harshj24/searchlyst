@@ -1,202 +1,122 @@
-import React, { useState } from 'react';
-import { Target, FileText, Lightbulb, ArrowRight } from 'lucide-react';
+import React from 'react';
+import { FileText, TrendingUp, AlertTriangle, CheckCircle, ArrowRight } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 
-const opportunityMatrix = {
-    threat: [
-        { topic: 'CRM integration options', aiQuality: 85, ourAuthority: 20, volume: 8500 },
-        { topic: 'API documentation', aiQuality: 78, ourAuthority: 35, volume: 5200 },
-    ],
-    defend: [
-        { topic: 'Product X pricing', aiQuality: 90, ourAuthority: 85, volume: 15000 },
-        { topic: 'Getting started guide', aiQuality: 88, ourAuthority: 92, volume: 12000 },
-    ],
-    attack: [
-        { topic: 'Enterprise deployment', aiQuality: 45, ourAuthority: 78, volume: 3200 },
-        { topic: 'Security compliance', aiQuality: 38, ourAuthority: 82, volume: 4100 },
-    ],
-    ignore: [
-        { topic: 'Legacy migration', aiQuality: 30, ourAuthority: 25, volume: 800 },
-    ],
-};
+const opportunities = [
+    { topic: 'CRM integration guide', volume: 8500, ourScore: 25, potential: 'High', action: 'Create content' },
+    { topic: 'Pricing comparison', volume: 12000, ourScore: 60, potential: 'Medium', action: 'Improve existing' },
+    { topic: 'Getting started tutorial', volume: 15000, ourScore: 85, potential: 'Defend', action: 'Monitor' },
+    { topic: 'API documentation', volume: 5200, ourScore: 40, potential: 'High', action: 'Add examples' },
+    { topic: 'Security features', volume: 4100, ourScore: 70, potential: 'Medium', action: 'Add certifications' },
+];
 
-const contentSuggestions = [
-    { title: 'Add FAQ section to pricing page', impact: 'High', effort: 'Low', type: 'Schema' },
-    { title: 'Create comparison guide vs Competitor A', impact: 'High', effort: 'Medium', type: 'Content' },
-    { title: 'Update API docs with examples', impact: 'Medium', effort: 'Medium', type: 'Technical' },
-    { title: 'Add customer testimonials', impact: 'Medium', effort: 'Low', type: 'Social Proof' },
+const contentTips = [
+    { title: 'Add FAQ sections', impact: 'High', effort: 'Low', description: 'FAQ schema increases AI citation rate by ~25%' },
+    { title: 'Include data tables', impact: 'High', effort: 'Medium', description: 'Structured data helps AI extract accurate info' },
+    { title: 'Write comparison guides', impact: 'High', effort: 'Medium', description: 'Direct comparisons get cited in decision queries' },
+    { title: 'Update pricing info', impact: 'Critical', effort: 'Low', description: 'Outdated pricing causes hallucinations' },
 ];
 
 export default function ContentOptimizationPage() {
-    const [selectedQuadrant, setSelectedQuadrant] = useState('threat');
-
-    const quadrants = [
-        { id: 'threat', label: 'Threat Zone', color: 'red', icon: '⚠️' },
-        { id: 'defend', label: 'Defend Zone', color: 'green', icon: '🛡️' },
-        { id: 'attack', label: 'Attack Zone', color: 'blue', icon: '🎯' },
-        { id: 'ignore', label: 'Low Priority', color: 'gray', icon: '📋' },
-    ];
-
     return (
         <div className="space-y-6">
-            {/* Opportunity Matrix */}
-            <div className="bg-white/5 border border-white/10 rounded-xl p-6">
-                <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-white font-semibold flex items-center gap-2">
-                        <Target className="w-5 h-5 text-blue-400" />
-                        Content Opportunity Matrix
-                    </h3>
+            {/* Content Score Summary */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4">
+                    <p className="text-emerald-400 text-sm mb-1">Strong Content</p>
+                    <p className="text-2xl font-bold text-white">12 pages</p>
+                    <p className="text-gray-400 text-xs mt-1">Highly cited across AI platforms</p>
                 </div>
-
-                {/* Matrix Grid */}
-                <div className="grid grid-cols-2 gap-4 mb-6">
-                    {quadrants.map((q) => (
-                        <button
-                            key={q.id}
-                            onClick={() => setSelectedQuadrant(q.id)}
-                            className={`p-4 rounded-xl border-2 text-left transition-all ${
-                                selectedQuadrant === q.id 
-                                    ? `border-${q.color}-500 bg-${q.color}-500/10` 
-                                    : 'border-white/10 bg-white/5 hover:bg-white/10'
-                            }`}
-                            style={{
-                                borderColor: selectedQuadrant === q.id ? 
-                                    (q.color === 'red' ? '#EF4444' : q.color === 'green' ? '#10B981' : q.color === 'blue' ? '#3B82F6' : '#6B7280') : undefined,
-                                backgroundColor: selectedQuadrant === q.id ?
-                                    (q.color === 'red' ? 'rgba(239,68,68,0.1)' : q.color === 'green' ? 'rgba(16,185,129,0.1)' : q.color === 'blue' ? 'rgba(59,130,246,0.1)' : 'rgba(107,114,128,0.1)') : undefined
-                            }}
-                        >
-                            <div className="flex items-center gap-2 mb-2">
-                                <span>{q.icon}</span>
-                                <span className="text-white font-medium">{q.label}</span>
-                                <span className="text-gray-400 text-sm ml-auto">
-                                    {opportunityMatrix[q.id]?.length || 0} topics
-                                </span>
-                            </div>
-                            <p className="text-gray-400 text-xs">
-                                {q.id === 'threat' && 'High AI quality, low authority - need action'}
-                                {q.id === 'defend' && 'Strong position - monitor competitors'}
-                                {q.id === 'attack' && 'Opportunity to become definitive source'}
-                                {q.id === 'ignore' && 'Low priority - minimal impact'}
-                            </p>
-                        </button>
-                    ))}
+                <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4">
+                    <p className="text-amber-400 text-sm mb-1">Needs Improvement</p>
+                    <p className="text-2xl font-bold text-white">8 pages</p>
+                    <p className="text-gray-400 text-xs mt-1">Low citation rate, high potential</p>
                 </div>
-
-                {/* Selected Topics */}
-                <div className="space-y-2">
-                    <p className="text-sm text-gray-400 mb-3">
-                        Topics in {quadrants.find(q => q.id === selectedQuadrant)?.label}:
-                    </p>
-                    {opportunityMatrix[selectedQuadrant]?.map((topic, i) => (
-                        <div 
-                            key={i}
-                            className="flex items-center justify-between p-3 bg-white/5 rounded-lg hover:bg-white/10 transition-colors"
-                        >
-                            <div>
-                                <span className="text-white">{topic.topic}</span>
-                                <div className="flex gap-4 mt-1 text-xs text-gray-500">
-                                    <span>AI Quality: {topic.aiQuality}%</span>
-                                    <span>Our Authority: {topic.ourAuthority}%</span>
-                                    <span>Volume: {topic.volume.toLocaleString()}/mo</span>
-                                </div>
-                            </div>
-                            <Button size="sm" variant="ghost" className="text-blue-400">
-                                Create Brief <ArrowRight className="w-4 h-4 ml-1" />
-                            </Button>
-                        </div>
-                    ))}
+                <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
+                    <p className="text-red-400 text-sm mb-1">Content Gaps</p>
+                    <p className="text-2xl font-bold text-white">5 topics</p>
+                    <p className="text-gray-400 text-xs mt-1">Missing content for popular queries</p>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Content Suggestions */}
-                <div className="bg-white/5 border border-white/10 rounded-xl p-6">
-                    <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-white font-semibold flex items-center gap-2">
-                            <Lightbulb className="w-5 h-5 text-amber-400" />
-                            AI-Recommended Actions
-                        </h3>
-                    </div>
-
-                    <div className="space-y-3">
-                        {contentSuggestions.map((suggestion, i) => (
-                            <div 
-                                key={i}
-                                className="p-3 bg-white/5 rounded-lg border border-white/10"
-                            >
-                                <div className="flex items-start justify-between">
-                                    <div>
-                                        <p className="text-white text-sm">{suggestion.title}</p>
-                                        <div className="flex gap-2 mt-2">
-                                            <span className={`text-xs px-2 py-0.5 rounded ${
-                                                suggestion.impact === 'High' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'
-                                            }`}>
-                                                {suggestion.impact} Impact
-                                            </span>
-                                            <span className={`text-xs px-2 py-0.5 rounded ${
-                                                suggestion.effort === 'Low' ? 'bg-blue-500/20 text-blue-400' : 'bg-gray-500/20 text-gray-400'
-                                            }`}>
-                                                {suggestion.effort} Effort
-                                            </span>
-                                            <span className="text-xs px-2 py-0.5 rounded bg-white/10 text-gray-400">
-                                                {suggestion.type}
-                                            </span>
+            {/* Opportunities Table */}
+            <div className="bg-white/5 border border-white/10 rounded-xl p-6">
+                <h3 className="text-white font-medium mb-4">Content Opportunities</h3>
+                <div className="overflow-x-auto">
+                    <table className="w-full">
+                        <thead>
+                            <tr className="text-left text-gray-400 text-sm border-b border-white/10">
+                                <th className="pb-3">Topic</th>
+                                <th className="pb-3">Monthly Searches</th>
+                                <th className="pb-3">Your Score</th>
+                                <th className="pb-3">Potential</th>
+                                <th className="pb-3">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5">
+                            {opportunities.map((opp, i) => (
+                                <tr key={i} className="text-sm">
+                                    <td className="py-3 text-white">{opp.topic}</td>
+                                    <td className="py-3 text-gray-400">{opp.volume.toLocaleString()}</td>
+                                    <td className="py-3">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-16 h-2 bg-white/10 rounded-full overflow-hidden">
+                                                <div 
+                                                    className={`h-full rounded-full ${
+                                                        opp.ourScore >= 70 ? 'bg-emerald-500' :
+                                                        opp.ourScore >= 40 ? 'bg-amber-500' : 'bg-red-500'
+                                                    }`}
+                                                    style={{ width: `${opp.ourScore}%` }}
+                                                />
+                                            </div>
+                                            <span className="text-gray-400">{opp.ourScore}%</span>
                                         </div>
-                                    </div>
-                                    <Button size="sm" variant="ghost" className="text-blue-400 text-xs">
-                                        Start
-                                    </Button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                                    </td>
+                                    <td className="py-3">
+                                        <span className={`px-2 py-1 rounded text-xs ${
+                                            opp.potential === 'High' ? 'bg-emerald-500/20 text-emerald-400' :
+                                            opp.potential === 'Medium' ? 'bg-amber-500/20 text-amber-400' :
+                                            'bg-blue-500/20 text-blue-400'
+                                        }`}>
+                                            {opp.potential}
+                                        </span>
+                                    </td>
+                                    <td className="py-3">
+                                        <Button size="sm" variant="ghost" className="text-blue-400 h-7 text-xs">
+                                            {opp.action} <ArrowRight className="w-3 h-3 ml-1" />
+                                        </Button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                 </div>
+            </div>
 
-                {/* Style Analysis */}
-                <div className="bg-white/5 border border-white/10 rounded-xl p-6">
-                    <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-white font-semibold flex items-center gap-2">
-                            <FileText className="w-5 h-5 text-purple-400" />
-                            Content Style Analysis
-                        </h3>
-                    </div>
-
-                    <div className="space-y-4">
-                        {[
-                            { dimension: 'Formality', yours: 72, target: 65, label: 'Casual ↔ Formal' },
-                            { dimension: 'Brevity', yours: 45, target: 70, label: 'Detailed ↔ Concise' },
-                            { dimension: 'Data Density', yours: 38, target: 75, label: 'Anecdotal ↔ Data-Rich' },
-                            { dimension: 'Perspective', yours: 60, target: 80, label: 'Subjective ↔ Objective' },
-                            { dimension: 'Structure', yours: 55, target: 85, label: 'Narrative ↔ Modular' },
-                        ].map((item, i) => (
-                            <div key={i}>
-                                <div className="flex items-center justify-between text-sm mb-1">
-                                    <span className="text-white">{item.dimension}</span>
-                                    <span className="text-gray-500 text-xs">{item.label}</span>
-                                </div>
-                                <div className="relative h-2 bg-white/10 rounded-full">
-                                    <div 
-                                        className="absolute h-full bg-blue-500 rounded-full"
-                                        style={{ width: `${item.yours}%` }}
-                                    />
-                                    <div 
-                                        className="absolute h-4 w-1 bg-emerald-400 rounded -top-1"
-                                        style={{ left: `${item.target}%` }}
-                                        title={`Target: ${item.target}%`}
-                                    />
-                                </div>
-                                <div className="flex justify-between text-xs text-gray-500 mt-1">
-                                    <span>Yours: {item.yours}%</span>
-                                    <span className="text-emerald-400">Target: {item.target}%</span>
+            {/* Quick Wins */}
+            <div className="bg-white/5 border border-white/10 rounded-xl p-6">
+                <h3 className="text-white font-medium mb-4">🎯 Quick Wins</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {contentTips.map((tip, i) => (
+                        <div key={i} className="p-4 bg-white/5 rounded-lg border border-white/10">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-white font-medium">{tip.title}</span>
+                                <div className="flex gap-2">
+                                    <span className={`text-xs px-2 py-0.5 rounded ${
+                                        tip.impact === 'Critical' ? 'bg-red-500/20 text-red-400' :
+                                        tip.impact === 'High' ? 'bg-emerald-500/20 text-emerald-400' :
+                                        'bg-amber-500/20 text-amber-400'
+                                    }`}>
+                                        {tip.impact} Impact
+                                    </span>
+                                    <span className="text-xs px-2 py-0.5 rounded bg-white/10 text-gray-400">
+                                        {tip.effort} Effort
+                                    </span>
                                 </div>
                             </div>
-                        ))}
-                    </div>
-
-                    <p className="text-amber-400 text-sm mt-4 p-3 bg-amber-500/10 rounded-lg">
-                        💡 Increase data density by 40% to match top-cited content style
-                    </p>
+                            <p className="text-gray-400 text-sm">{tip.description}</p>
+                        </div>
+                    ))}
                 </div>
             </div>
         </div>
