@@ -49,7 +49,7 @@ const menuSections = [
     },
 ];
 
-export default function Sidebar({ activeTab, onTabChange, user }) {
+export default function Sidebar({ activeTab, onTabChange, user, userRole }) {
     const [collapsed, setCollapsed] = useState(false);
 
     return (
@@ -93,7 +93,7 @@ export default function Sidebar({ activeTab, onTabChange, user }) {
                                     title={collapsed ? item.label : ''}
                                 >
                                     <Icon className={`w-[18px] h-[18px] flex-shrink-0 ${isActive ? 'text-purple-400' : ''}`} />
-                                    {!collapsed && <span className="font-medium">{item.label}</span>}
+                                    {!collapsed && <span className="font-medium">{item.roleLabels?.[userRole] || item.label}</span>}
                                     {isActive && !collapsed && (
                                         <div className="ml-auto w-1.5 h-1.5 rounded-full bg-purple-400" />
                                     )}

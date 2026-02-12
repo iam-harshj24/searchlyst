@@ -7,6 +7,7 @@ import AIVisibilityPage from '@/components/dashboard/AIVisibilityPage';
 import AuditHealthPage from '@/components/dashboard/AuditHealthPage';
 import AgentPage from '@/components/dashboard/AgentPage';
 import Sidebar from '@/components/dashboard/Sidebar';
+import OnboardingFlow from '@/components/dashboard/OnboardingFlow';
 import AddDomainModal from '@/components/dashboard/AddDomainModal';
 import { base44 } from '@/api/base44Client';
 
@@ -15,15 +16,24 @@ export default function Dashboard() {
     const [domains, setDomains] = useState([]);
     const [showAddDomain, setShowAddDomain] = useState(false);
     const [user, setUser] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [showOnboarding, setShowOnboarding] = useState(false);
+    const [userRole, setUserRole] = useState('founder');
 
     useEffect(() => {
-        loadDomains();
         loadUser();
+        loadDomains();
     }, []);
 
     const loadUser = async () => {
         const userData = await base44.auth.me();
         setUser(userData);
+        if (!userData?.onboarded) {
+            setShowOnboarding(true);
+        } else {
+            setUserRole(userData.role_type || 'founder');
+        }
+        setLoading(false);
     };
 
     const loadDomains = async () => {
@@ -31,10 +41,31 @@ export default function Dashboard() {
         setDomains(data);
     };
 
+    const handleOnboardingComplete = async (role) => {
+        setUserRole(role);
+        setShowOnboarding(false);
+        const userData = await base44.auth.me();
+        setUser(userData);
+    };
+
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-black flex items-center justify-center">
+                <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-fuchsia-500 rounded-xl flex items-center justify-center animate-pulse">
+                    <span className="text-white text-lg">✦</span>
+                </div>
+            </div>
+        );
+    }
+
+    if (showOnboarding) {
+        return <OnboardingFlow onComplete={handleOnboardingComplete} />;
+    }
+
     const renderContent = () => {
         switch (activeTab) {
             case 'overview':
-                return <OverviewPage domains={domains} onAddDomain={() => setShowAddDomain(true)} onTabChange={setActiveTab} />;
+                return <OverviewPage domains={domains} onAddDomain={() => setShowAddDomain(true)} onTabChange={setActiveTab} userRole={userRole} user={user} />;
             case 'brand-hub':
                 return <BrandHubPage />;
             case 'topic-discovery':
@@ -48,7 +79,7 @@ export default function Dashboard() {
             case 'agent':
                 return <AgentPage />;
             default:
-                return <OverviewPage domains={domains} onAddDomain={() => setShowAddDomain(true)} onTabChange={setActiveTab} />;
+                return <OverviewPage domains={domains} onAddDomain={() => setShowAddDomain(true)} onTabChange={setActiveTab} userRole={userRole} user={user} />;
         }
     };
 
@@ -58,6 +89,7 @@ export default function Dashboard() {
                 activeTab={activeTab} 
                 onTabChange={setActiveTab}
                 user={user}
+                userRole={userRole}
             />
             <div className="flex-1 overflow-auto">
                 <div className="p-6">
