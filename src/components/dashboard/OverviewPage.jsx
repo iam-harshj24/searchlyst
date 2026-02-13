@@ -54,7 +54,7 @@ export default function OverviewPage({ domains, onAddDomain, onTabChange, userRo
                                     <span className="text-white/30 text-sm ml-0.5">{kpi.suffix}</span>
                                 </div>
                                 <div className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium ${
-                                    kpi.positive ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
+                                   kpi.positive ? 'bg-white/10 text-white' : 'bg-red-500/10 text-red-400'
                                 }`}>
                                     {kpi.positive ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
                                     {kpi.change}
@@ -73,9 +73,9 @@ export default function OverviewPage({ domains, onAddDomain, onTabChange, userRo
                             <h3 className="text-white font-medium text-sm">AI Visibility Trend</h3>
                             <p className="text-white/30 text-xs mt-0.5">Last 7 days</p>
                         </div>
-                        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
-                            <ArrowUpRight className="w-3 h-3 text-emerald-400" />
-                            <span className="text-emerald-400 text-xs font-medium">+13%</span>
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-red-500/10 border border-red-500/20 rounded-lg">
+                            <ArrowUpRight className="w-3 h-3 text-red-400" />
+                            <span className="text-red-400 text-xs font-medium">+13%</span>
                         </div>
                     </div>
                     <div className="h-48">
@@ -83,16 +83,16 @@ export default function OverviewPage({ domains, onAddDomain, onTabChange, userRo
                             <AreaChart data={visibilityTrend}>
                                 <defs>
                                     <linearGradient id="visGradient" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="0%" stopColor="#a855f7" stopOpacity={0.3} />
-                                        <stop offset="100%" stopColor="#a855f7" stopOpacity={0} />
+                                        <stop offset="0%" stopColor="#ef4444" stopOpacity={0.3} />
+                                        <stop offset="100%" stopColor="#ef4444" stopOpacity={0} />
                                     </linearGradient>
                                 </defs>
                                 <Tooltip
                                     contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}
                                     labelStyle={{ color: '#fff' }}
-                                    itemStyle={{ color: '#a855f7' }}
+                                    itemStyle={{ color: '#ef4444' }}
                                 />
-                                <Area type="monotone" dataKey="score" stroke="#a855f7" strokeWidth={2} fill="url(#visGradient)" />
+                                <Area type="monotone" dataKey="score" stroke="#ef4444" strokeWidth={2} fill="url(#visGradient)" />
                             </AreaChart>
                         </ResponsiveContainer>
                     </div>
@@ -169,7 +169,7 @@ export default function OverviewPage({ domains, onAddDomain, onTabChange, userRo
                                         <span className="text-white/40">Score: {domain.visibility_score || 0}%</span>
                                     </div>
                                     <div className="flex items-center gap-1.5">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                                        <div className="w-1.5 h-1.5 rounded-full bg-white/40" />
                                         <span className="text-white/40">Issues: {domain.issues_count || 0}</span>
                                     </div>
                                 </div>

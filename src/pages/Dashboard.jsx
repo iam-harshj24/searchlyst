@@ -52,7 +52,7 @@ export default function Dashboard() {
     if (loading) {
         return (
             <div className="min-h-screen bg-black flex items-center justify-center">
-                <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-fuchsia-500 rounded-xl flex items-center justify-center animate-pulse">
+                <div className="w-10 h-10 bg-red-600 rounded-xl flex items-center justify-center animate-pulse">
                     <span className="text-white text-lg">✦</span>
                 </div>
             </div>

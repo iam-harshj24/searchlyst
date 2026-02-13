@@ -13,20 +13,14 @@ const roles = [
     { 
         id: 'founder', label: 'Founder', icon: Rocket, 
         desc: 'Build authority, attract investors & customers through AI-optimized thought leadership',
-        color: 'from-purple-500 to-indigo-500', borderActive: 'border-purple-500/50', bgActive: 'bg-purple-500/10',
-        accentColor: 'purple'
     },
     { 
         id: 'creator', label: 'Creator', icon: Palette, 
         desc: 'Scale your content across platforms with your unique style — newsletters, blogs, carousels',
-        color: 'from-pink-500 to-rose-500', borderActive: 'border-pink-500/50', bgActive: 'bg-pink-500/10',
-        accentColor: 'pink'
     },
     { 
         id: 'influencer', label: 'Influencer', icon: Megaphone, 
         desc: 'Grow your reach, get cited by AI engines, and land brand deals with data-backed presence',
-        color: 'from-amber-500 to-orange-500', borderActive: 'border-amber-500/50', bgActive: 'bg-amber-500/10',
-        accentColor: 'amber'
     },
 ];
 
@@ -83,12 +77,9 @@ export default function OnboardingFlow({ onComplete }) {
     const [saving, setSaving] = useState(false);
     const [selectedGoals, setSelectedGoals] = useState([]);
     const [selectedPlatforms, setSelectedPlatforms] = useState([]);
-    // Founder-specific
     const [companyName, setCompanyName] = useState('');
     const [fundingStage, setFundingStage] = useState('');
-    // Creator-specific
     const [contentStyle, setContentStyle] = useState('');
-    // Influencer-specific
     const [followerRange, setFollowerRange] = useState('');
 
     const totalSteps = 4;
@@ -121,31 +112,18 @@ export default function OnboardingFlow({ onComplete }) {
         onComplete(selectedRole);
     };
 
-    const accentGradient = selectedRole === 'creator' ? 'from-pink-500 to-rose-500' :
-                           selectedRole === 'influencer' ? 'from-amber-500 to-orange-500' :
-                           'from-purple-500 to-fuchsia-500';
-
-    const accentBorder = selectedRole === 'creator' ? 'border-pink-500/40' :
-                         selectedRole === 'influencer' ? 'border-amber-500/40' :
-                         'border-purple-500/40';
-
-    const accentBg = selectedRole === 'creator' ? 'bg-pink-500/10' :
-                     selectedRole === 'influencer' ? 'bg-amber-500/10' :
-                     'bg-purple-500/10';
-
-    const accentText = selectedRole === 'creator' ? 'text-pink-400' :
-                       selectedRole === 'influencer' ? 'text-amber-400' :
-                       'text-purple-400';
-
     return (
         <div className="min-h-screen bg-black flex items-center justify-center p-6">
-            <div className="w-full max-w-xl">
+            {/* Background glow */}
+            <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-red-600/10 rounded-full blur-[120px]" />
+            
+            <div className="relative w-full max-w-xl">
                 {/* Progress */}
                 <div className="flex items-center gap-2 mb-8">
                     {Array.from({ length: totalSteps }, (_, i) => i + 1).map(s => (
                         <div key={s} className="flex-1 h-1 rounded-full overflow-hidden bg-white/[0.06]">
                             <div className={`h-full rounded-full transition-all duration-500 ${
-                                s <= step ? `bg-gradient-to-r ${accentGradient} w-full` : 'w-0'
+                                s <= step ? 'bg-red-500 w-full' : 'w-0'
                             }`} />
                         </div>
                     ))}
@@ -155,7 +133,7 @@ export default function OnboardingFlow({ onComplete }) {
                 {step === 1 && (
                     <div className="space-y-6 animate-in fade-in">
                         <div className="text-center mb-8">
-                            <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-fuchsia-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-purple-500/20">
+                            <div className="w-14 h-14 bg-red-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-red-500/20">
                                 <Sparkles className="w-6 h-6 text-white" />
                             </div>
                             <h1 className="text-2xl font-semibold text-white">Welcome to ContentAI</h1>
@@ -171,11 +149,11 @@ export default function OnboardingFlow({ onComplete }) {
                                         key={role.id}
                                         onClick={() => { setSelectedRole(role.id); setSelectedGoals([]); setSelectedPlatforms([]); }}
                                         className={`w-full p-5 rounded-2xl border text-left transition-all duration-300 ${
-                                            isSelected ? `${role.bgActive} ${role.borderActive}` : 'bg-white/[0.02] border-white/[0.06] hover:border-white/10'
+                                            isSelected ? 'bg-red-500/10 border-red-500/40' : 'bg-white/[0.02] border-white/[0.06] hover:border-white/10'
                                         }`}
                                     >
                                         <div className="flex items-center gap-4">
-                                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center bg-gradient-to-br ${role.color} shadow-lg`}>
+                                            <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-red-600 shadow-lg shadow-red-500/20">
                                                 <Icon className="w-5 h-5 text-white" />
                                             </div>
                                             <div className="flex-1">
@@ -183,9 +161,9 @@ export default function OnboardingFlow({ onComplete }) {
                                                 <p className="text-white/40 text-xs mt-0.5 leading-relaxed">{role.desc}</p>
                                             </div>
                                             <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
-                                                isSelected ? `${role.borderActive} bg-white` : 'border-white/10'
+                                                isSelected ? 'border-red-500/50 bg-white' : 'border-white/10'
                                             }`}>
-                                                {isSelected && <div className="w-2 h-2 rounded-full bg-purple-500" />}
+                                                {isSelected && <div className="w-2 h-2 rounded-full bg-red-500" />}
                                             </div>
                                         </div>
                                     </button>
@@ -196,7 +174,7 @@ export default function OnboardingFlow({ onComplete }) {
                         <Button
                             onClick={() => setStep(2)}
                             disabled={!selectedRole}
-                            className={`w-full h-12 bg-gradient-to-r ${accentGradient} text-white rounded-xl hover:opacity-90 text-sm font-medium mt-4`}
+                            className="w-full h-12 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-medium mt-4"
                         >
                             Continue <ArrowRight className="w-4 h-4 ml-2" />
                         </Button>
@@ -207,7 +185,7 @@ export default function OnboardingFlow({ onComplete }) {
                 {step === 2 && (
                     <div className="space-y-6 animate-in fade-in">
                         <div className="text-center mb-6">
-                            <div className={`w-10 h-10 bg-gradient-to-br ${accentGradient} rounded-xl flex items-center justify-center mx-auto mb-3`}>
+                            <div className="w-10 h-10 bg-red-600 rounded-xl flex items-center justify-center mx-auto mb-3">
                                 {roleData && <roleData.icon className="w-5 h-5 text-white" />}
                             </div>
                             <h2 className="text-xl font-semibold text-white">
@@ -223,7 +201,6 @@ export default function OnboardingFlow({ onComplete }) {
                         </div>
 
                         <div className="space-y-4">
-                            {/* Founder: Company name */}
                             {selectedRole === 'founder' && (
                                 <div>
                                     <label className="text-white/50 text-xs font-medium mb-1.5 block flex items-center gap-2">
@@ -258,7 +235,6 @@ export default function OnboardingFlow({ onComplete }) {
                                     className="bg-white/[0.03] border-white/[0.06] text-white placeholder:text-white/20 rounded-xl h-11" />
                             </div>
 
-                            {/* Founder: Funding stage */}
                             {selectedRole === 'founder' && (
                                 <div>
                                     <label className="text-white/50 text-xs font-medium mb-2 block flex items-center gap-2">
@@ -269,7 +245,7 @@ export default function OnboardingFlow({ onComplete }) {
                                             <button key={stage} onClick={() => setFundingStage(stage)}
                                                 className={`px-3 py-2 rounded-xl text-xs font-medium border transition-all ${
                                                     fundingStage === stage
-                                                        ? `${accentBg} ${accentBorder} text-white`
+                                                        ? 'bg-red-500/10 border-red-500/40 text-white'
                                                         : 'bg-white/[0.02] border-white/[0.06] text-white/40 hover:text-white/60'
                                                 }`}>
                                                 {stage}
@@ -279,7 +255,6 @@ export default function OnboardingFlow({ onComplete }) {
                                 </div>
                             )}
 
-                            {/* Creator: Content style */}
                             {selectedRole === 'creator' && (
                                 <div>
                                     <label className="text-white/50 text-xs font-medium mb-2 block flex items-center gap-2">
@@ -290,7 +265,7 @@ export default function OnboardingFlow({ onComplete }) {
                                             <button key={style} onClick={() => setContentStyle(style)}
                                                 className={`px-3 py-2 rounded-xl text-xs font-medium border transition-all ${
                                                     contentStyle === style
-                                                        ? `${accentBg} ${accentBorder} text-white`
+                                                        ? 'bg-red-500/10 border-red-500/40 text-white'
                                                         : 'bg-white/[0.02] border-white/[0.06] text-white/40 hover:text-white/60'
                                                 }`}>
                                                 {style}
@@ -300,7 +275,6 @@ export default function OnboardingFlow({ onComplete }) {
                                 </div>
                             )}
 
-                            {/* Influencer: Follower range */}
                             {selectedRole === 'influencer' && (
                                 <div>
                                     <label className="text-white/50 text-xs font-medium mb-2 block flex items-center gap-2">
@@ -311,7 +285,7 @@ export default function OnboardingFlow({ onComplete }) {
                                             <button key={range} onClick={() => setFollowerRange(range)}
                                                 className={`px-3 py-2.5 rounded-xl text-xs font-medium border transition-all ${
                                                     followerRange === range
-                                                        ? `${accentBg} ${accentBorder} text-white`
+                                                        ? 'bg-red-500/10 border-red-500/40 text-white'
                                                         : 'bg-white/[0.02] border-white/[0.06] text-white/40 hover:text-white/60'
                                                 }`}>
                                                 {range}
@@ -334,7 +308,7 @@ export default function OnboardingFlow({ onComplete }) {
                         <div className="flex gap-3 mt-4">
                             <Button onClick={() => setStep(1)} variant="outline" className="flex-1 h-11 border-white/[0.06] text-white/40 hover:text-white rounded-xl">Back</Button>
                             <Button onClick={() => setStep(3)} disabled={!industry.trim() || !audience.trim()}
-                                className={`flex-1 h-11 bg-gradient-to-r ${accentGradient} text-white rounded-xl hover:opacity-90`}>
+                                className="flex-1 h-11 bg-red-600 hover:bg-red-700 text-white rounded-xl">
                                 Continue <ArrowRight className="w-4 h-4 ml-2" />
                             </Button>
                         </div>
@@ -353,7 +327,6 @@ export default function OnboardingFlow({ onComplete }) {
                             <p className="text-white/40 text-sm mt-1">Select all that apply — we'll customize your dashboard</p>
                         </div>
 
-                        {/* Goals */}
                         <div>
                             <p className="text-white/30 text-[10px] uppercase tracking-wider mb-3 font-semibold">Your Goals</p>
                             <div className="grid grid-cols-2 gap-2">
@@ -363,11 +336,11 @@ export default function OnboardingFlow({ onComplete }) {
                                     return (
                                         <button key={goal.id} onClick={() => toggleGoal(goal.id)}
                                             className={`p-4 rounded-2xl border text-left transition-all ${
-                                                isActive ? `${accentBg} ${accentBorder}` : 'bg-white/[0.02] border-white/[0.06] hover:border-white/10'
+                                                isActive ? 'bg-red-500/10 border-red-500/40' : 'bg-white/[0.02] border-white/[0.06] hover:border-white/10'
                                             }`}>
                                             <div className="flex items-center gap-2 mb-1.5">
-                                                <Icon className={`w-4 h-4 ${isActive ? accentText : 'text-white/30'}`} />
-                                                {isActive && <CheckCircle2 className={`w-3 h-3 ml-auto ${accentText}`} />}
+                                                <Icon className={`w-4 h-4 ${isActive ? 'text-red-400' : 'text-white/30'}`} />
+                                                {isActive && <CheckCircle2 className="w-3 h-3 ml-auto text-red-400" />}
                                             </div>
                                             <p className="text-white text-sm font-medium">{goal.label}</p>
                                             <p className="text-white/30 text-[11px] mt-0.5">{goal.desc}</p>
@@ -377,7 +350,6 @@ export default function OnboardingFlow({ onComplete }) {
                             </div>
                         </div>
 
-                        {/* Platforms */}
                         <div>
                             <p className="text-white/30 text-[10px] uppercase tracking-wider mb-3 font-semibold">Platforms You Focus On</p>
                             <div className="flex flex-wrap gap-2">
@@ -387,7 +359,7 @@ export default function OnboardingFlow({ onComplete }) {
                                     return (
                                         <button key={platform.id} onClick={() => togglePlatform(platform.id)}
                                             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-xs font-medium transition-all ${
-                                                isActive ? `${accentBg} ${accentBorder} text-white` : 'bg-white/[0.02] border-white/[0.06] text-white/40 hover:text-white/60'
+                                                isActive ? 'bg-red-500/10 border-red-500/40 text-white' : 'bg-white/[0.02] border-white/[0.06] text-white/40 hover:text-white/60'
                                             }`}>
                                             <Icon className="w-3.5 h-3.5" />
                                             {platform.label}
@@ -400,7 +372,7 @@ export default function OnboardingFlow({ onComplete }) {
                         <div className="flex gap-3 mt-4">
                             <Button onClick={() => setStep(2)} variant="outline" className="flex-1 h-11 border-white/[0.06] text-white/40 hover:text-white rounded-xl">Back</Button>
                             <Button onClick={() => setStep(4)} disabled={selectedGoals.length === 0}
-                                className={`flex-1 h-11 bg-gradient-to-r ${accentGradient} text-white rounded-xl hover:opacity-90`}>
+                                className="flex-1 h-11 bg-red-600 hover:bg-red-700 text-white rounded-xl">
                                 Continue <ArrowRight className="w-4 h-4 ml-2" />
                             </Button>
                         </div>
@@ -432,8 +404,7 @@ export default function OnboardingFlow({ onComplete }) {
                                 className="bg-white/[0.03] border-white/[0.06] text-white placeholder:text-white/20 rounded-xl h-11" />
                         </div>
 
-                        {/* Summary */}
-                        <div className={`border rounded-2xl p-5 ${accentBg} ${accentBorder}`}>
+                        <div className="border rounded-2xl p-5 bg-red-500/5 border-red-500/20">
                             <p className="text-white/30 text-[10px] uppercase tracking-wider mb-3 font-semibold">Your Profile Summary</p>
                             <div className="space-y-2.5 text-sm">
                                 <SummaryRow label="Role" value={roleData?.label} />
@@ -452,7 +423,7 @@ export default function OnboardingFlow({ onComplete }) {
                         <div className="flex gap-3 mt-4">
                             <Button onClick={() => setStep(3)} variant="outline" className="flex-1 h-11 border-white/[0.06] text-white/40 hover:text-white rounded-xl">Back</Button>
                             <Button onClick={handleFinish} disabled={saving}
-                                className={`flex-1 h-11 bg-gradient-to-r ${accentGradient} text-white rounded-xl hover:opacity-90`}>
+                                className="flex-1 h-11 bg-red-600 hover:bg-red-700 text-white rounded-xl">
                                 {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Sparkles className="w-4 h-4 mr-2" />}
                                 Launch My Dashboard
                             </Button>
