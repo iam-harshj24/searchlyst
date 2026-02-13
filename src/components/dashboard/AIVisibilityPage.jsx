@@ -21,6 +21,12 @@ const platforms = [
     { name: 'Copilot', score: 55, trend: '+3%', positive: true },
 ];
 
+const sentimentDataVis = [
+    { name: 'Positive', value: 65, color: '#ffffff' },
+    { name: 'Neutral', value: 25, color: '#737373' },
+    { name: 'Negative', value: 10, color: '#ef4444' },
+];
+
 const weeklyTrend = [
     { week: 'W1', citations: 120 }, { week: 'W2', citations: 145 },
     { week: 'W3', citations: 138 }, { week: 'W4', citations: 165 },
@@ -28,9 +34,9 @@ const weeklyTrend = [
     { week: 'W7', citations: 210 }, { week: 'W8', citations: 235 },
 ];
 
-const sentimentData = [
-    { name: 'Positive', value: 65, color: '#22c55e' },
-    { name: 'Neutral', value: 25, color: '#6366f1' },
+const sentimentDataOld = [
+    { name: 'Positive', value: 65, color: '#ffffff' },
+    { name: 'Neutral', value: 25, color: '#737373' },
     { name: 'Negative', value: 10, color: '#ef4444' },
 ];
 
@@ -46,7 +52,7 @@ export default function AIVisibilityPage() {
             {/* Header */}
             <div>
                 <h1 className="text-xl font-semibold text-white flex items-center gap-2">
-                    <Eye className="w-5 h-5 text-purple-400" />
+                    <Eye className="w-5 h-5 text-red-400" />
                     AI Visibility Analytics
                 </h1>
                 <p className="text-white/40 text-sm mt-1">Track how AI search engines see and cite your brand.</p>
@@ -60,7 +66,7 @@ export default function AIVisibilityPage() {
                         <div className="flex items-end justify-between">
                             <span className="text-2xl font-bold text-white">{platform.score}</span>
                             <span className={`flex items-center gap-0.5 text-xs ${
-                                platform.positive ? 'text-emerald-400' : 'text-red-400'
+                                platform.positive ? 'text-white' : 'text-red-400'
                             }`}>
                                 {platform.positive ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
                                 {platform.trend}
@@ -68,8 +74,8 @@ export default function AIVisibilityPage() {
                         </div>
                         <div className="mt-2 h-1 bg-white/[0.06] rounded-full overflow-hidden">
                             <div className={`h-full rounded-full ${
-                                platform.score >= 70 ? 'bg-emerald-500' :
-                                platform.score >= 50 ? 'bg-purple-500' : 'bg-amber-500'
+                                platform.score >= 70 ? 'bg-white' :
+                                platform.score >= 50 ? 'bg-white/60' : 'bg-red-500'
                             }`} style={{ width: `${platform.score}%` }} />
                         </div>
                     </div>
@@ -81,7 +87,7 @@ export default function AIVisibilityPage() {
                 <div className="lg:col-span-2 bg-[#0a0a0a] border border-white/[0.06] rounded-2xl p-5">
                     <div className="flex items-center justify-between mb-4">
                         <h3 className="text-white font-medium text-sm">Citation Trend</h3>
-                        <span className="text-emerald-400 text-xs flex items-center gap-1">
+                        <span className="text-red-400 text-xs flex items-center gap-1">
                             <ArrowUpRight className="w-3 h-3" /> +96% over 8 weeks
                         </span>
                     </div>
@@ -90,15 +96,15 @@ export default function AIVisibilityPage() {
                             <AreaChart data={weeklyTrend}>
                                 <defs>
                                     <linearGradient id="citGradient" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="0%" stopColor="#a855f7" stopOpacity={0.3} />
-                                        <stop offset="100%" stopColor="#a855f7" stopOpacity={0} />
+                                        <stop offset="0%" stopColor="#ef4444" stopOpacity={0.3} />
+                                        <stop offset="100%" stopColor="#ef4444" stopOpacity={0} />
                                     </linearGradient>
                                 </defs>
                                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" />
                                 <XAxis dataKey="week" tick={{ fill: '#ffffff30', fontSize: 11 }} />
                                 <YAxis tick={{ fill: '#ffffff30', fontSize: 11 }} />
                                 <Tooltip contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }} />
-                                <Area type="monotone" dataKey="citations" stroke="#a855f7" strokeWidth={2} fill="url(#citGradient)" />
+                                <Area type="monotone" dataKey="citations" stroke="#ef4444" strokeWidth={2} fill="url(#citGradient)" />
                             </AreaChart>
                         </ResponsiveContainer>
                     </div>
@@ -110,8 +116,8 @@ export default function AIVisibilityPage() {
                     <div className="h-40 flex items-center justify-center">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
-                                <Pie data={sentimentData} cx="50%" cy="50%" innerRadius={45} outerRadius={65} dataKey="value" strokeWidth={0}>
-                                    {sentimentData.map((entry, i) => (
+                                <Pie data={sentimentDataOld} cx="50%" cy="50%" innerRadius={45} outerRadius={65} dataKey="value" strokeWidth={0}>
+                                    {sentimentDataOld.map((entry, i) => (
                                         <Cell key={i} fill={entry.color} />
                                     ))}
                                 </Pie>
@@ -119,7 +125,7 @@ export default function AIVisibilityPage() {
                         </ResponsiveContainer>
                     </div>
                     <div className="flex justify-center gap-4 mt-2">
-                        {sentimentData.map((item, i) => (
+                        {sentimentDataOld.map((item, i) => (
                             <div key={i} className="flex items-center gap-1.5">
                                 <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
                                 <span className="text-white/30 text-[10px]">{item.name} {item.value}%</span>
@@ -139,13 +145,13 @@ export default function AIVisibilityPage() {
                             <XAxis type="number" tick={{ fill: '#ffffff30', fontSize: 11 }} />
                             <YAxis dataKey="query" type="category" tick={{ fill: '#ffffff30', fontSize: 10 }} width={110} />
                             <Tooltip contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }} />
-                            <Bar dataKey="you" fill="#a855f7" name="You" radius={[0, 4, 4, 0]} />
+                            <Bar dataKey="you" fill="#ef4444" name="You" radius={[0, 4, 4, 0]} />
                             <Bar dataKey="competitor" fill="#374151" name="Competitor" radius={[0, 4, 4, 0]} />
                         </BarChart>
                     </ResponsiveContainer>
                 </div>
                 <div className="flex justify-center gap-6 mt-3 text-xs">
-                    <span className="flex items-center gap-2 text-white/30"><span className="w-3 h-3 bg-purple-500 rounded" /> You</span>
+                    <span className="flex items-center gap-2 text-white/30"><span className="w-3 h-3 bg-red-500 rounded" /> You</span>
                     <span className="flex items-center gap-2 text-white/30"><span className="w-3 h-3 bg-gray-700 rounded" /> Top Competitor</span>
                 </div>
             </div>
@@ -153,7 +159,7 @@ export default function AIVisibilityPage() {
             {/* Issues */}
             <div className="bg-[#0a0a0a] border border-white/[0.06] rounded-2xl p-5">
                 <h3 className="text-white font-medium text-sm mb-4 flex items-center gap-2">
-                    <AlertTriangle className="w-4 h-4 text-amber-400" />
+                    <AlertTriangle className="w-4 h-4 text-red-400" />
                     Issues to Fix
                 </h3>
                 <div className="space-y-3">
