@@ -219,7 +219,7 @@ export default function HeroSection() {
                             </div>
                         </>
                     )}
-                </div>
+                </motion.div>
             </div>
         </section>
     );
