@@ -59,7 +59,7 @@ export default function MarketGrowthSection() {
                     viewport={{ once: true }}
                     className="flex justify-center mb-8"
                 >
-                    <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-red-500/30 bg-red-500/10">
+                    <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-red-500/20 bg-red-500/5 backdrop-blur-sm">
                         <TrendingUp className="w-4 h-4 text-red-500" />
                         <span className="text-red-400 text-sm font-medium">Market Growth</span>
                     </div>
