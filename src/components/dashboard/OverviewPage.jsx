@@ -31,7 +31,7 @@ export default function OverviewPage({ domains, onAddDomain, onTabChange, userRo
                 </div>
                 <button 
                     onClick={onAddDomain}
-                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-fuchsia-500 text-white text-sm font-medium rounded-xl hover:opacity-90 transition-opacity shadow-lg shadow-purple-500/20"
+                    className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-xl transition-all shadow-lg shadow-red-500/20"
                 >
                     <Sparkles className="w-4 h-4" />
                     Add Project
@@ -130,10 +130,10 @@ export default function OverviewPage({ domains, onAddDomain, onTabChange, userRo
                             <button
                                 key={i}
                                 onClick={() => onTabChange?.(action.tab)}
-                                className="group p-4 bg-[#0a0a0a] border border-white/[0.06] rounded-2xl text-left hover:border-purple-500/30 transition-all duration-300"
+                                className="group p-4 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl text-left hover:border-red-500/30 hover:shadow-lg hover:shadow-red-500/10 transition-all duration-300"
                             >
-                                <div className="w-10 h-10 bg-white/[0.03] rounded-xl flex items-center justify-center mb-3 group-hover:bg-purple-500/10 transition-colors">
-                                    <ActionIcon className="w-5 h-5 text-white/40 group-hover:text-purple-400 transition-colors" />
+                                <div className="w-10 h-10 bg-white/[0.03] rounded-xl flex items-center justify-center mb-3 group-hover:bg-red-500/10 transition-colors">
+                                    <ActionIcon className="w-5 h-5 text-white/40 group-hover:text-red-400 transition-colors" />
                                 </div>
                                 <p className="text-white text-sm font-medium">{action.label}</p>
                                 <p className="text-white/30 text-xs mt-0.5">{action.desc}</p>
@@ -152,7 +152,7 @@ export default function OverviewPage({ domains, onAddDomain, onTabChange, userRo
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {domains.map((domain) => (
-                            <div key={domain.id} className="bg-[#0a0a0a] border border-white/[0.06] rounded-2xl p-4 hover:border-purple-500/20 transition-all cursor-pointer group">
+                            <div key={domain.id} className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-4 hover:border-red-500/20 hover:shadow-lg hover:shadow-red-500/10 transition-all cursor-pointer group">
                                 <div className="flex items-center gap-3 mb-3">
                                     <div className="w-10 h-10 bg-white/[0.03] rounded-xl flex items-center justify-center">
                                         <Globe className="w-5 h-5 text-white/30" />
@@ -165,7 +165,7 @@ export default function OverviewPage({ domains, onAddDomain, onTabChange, userRo
                                 </div>
                                 <div className="flex items-center gap-4 text-xs">
                                     <div className="flex items-center gap-1.5">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+                                        <div className="w-1.5 h-1.5 rounded-full bg-red-400" />
                                         <span className="text-white/40">Score: {domain.visibility_score || 0}%</span>
                                     </div>
                                     <div className="flex items-center gap-1.5">

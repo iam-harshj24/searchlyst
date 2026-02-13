@@ -58,13 +58,13 @@ export default function Sidebar({ activeTab, onTabChange, user, userRole }) {
             {/* Logo */}
             <div className="p-4 border-b border-white/[0.06]">
                 <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 bg-gradient-to-br from-violet-500 via-purple-500 to-fuchsia-500 rounded-xl flex items-center justify-center shadow-lg shadow-purple-500/20">
+                    <div className="w-9 h-9 bg-gradient-to-br from-red-500 via-red-600 to-red-700 rounded-xl flex items-center justify-center shadow-lg shadow-red-500/20">
                         <Sparkles className="w-4 h-4 text-white" />
                     </div>
                     {!collapsed && (
                         <div>
                             <span className="text-white font-semibold text-sm tracking-tight">ContentAI</span>
-                            <span className="text-purple-400 text-[10px] block -mt-0.5 font-medium">PRO</span>
+                            <span className="text-red-400 text-[10px] block -mt-0.5 font-medium">PRO</span>
                         </div>
                     )}
                 </div>
@@ -88,15 +88,15 @@ export default function Sidebar({ activeTab, onTabChange, user, userRole }) {
                                     onClick={() => onTabChange(item.id)}
                                     className={`w-full flex items-center gap-3 px-3 py-2.5 text-[13px] rounded-xl mb-0.5 transition-all duration-200 ${
                                         isActive 
-                                            ? 'bg-gradient-to-r from-purple-500/15 to-fuchsia-500/10 text-white shadow-sm' 
+                                            ? 'bg-gradient-to-r from-red-500/15 to-red-600/10 text-white shadow-sm' 
                                             : 'text-white/40 hover:text-white/70 hover:bg-white/[0.03]'
                                     }`}
                                     title={collapsed ? item.label : ''}
                                 >
-                                    <Icon className={`w-[18px] h-[18px] flex-shrink-0 ${isActive ? 'text-purple-400' : ''}`} />
+                                    <Icon className={`w-[18px] h-[18px] flex-shrink-0 ${isActive ? 'text-red-400' : ''}`} />
                                     {!collapsed && <span className="font-medium">{item.roleLabels?.[userRole] || item.label}</span>}
                                     {isActive && !collapsed && (
-                                        <div className="ml-auto w-1.5 h-1.5 rounded-full bg-purple-400" />
+                                        <div className="ml-auto w-1.5 h-1.5 rounded-full bg-red-400" />
                                     )}
                                 </button>
                             );
@@ -107,9 +107,9 @@ export default function Sidebar({ activeTab, onTabChange, user, userRole }) {
 
             {/* Upgrade Banner */}
             {!collapsed && (
-                <div className="mx-3 mb-3 p-3 bg-gradient-to-br from-purple-500/10 to-fuchsia-500/10 border border-purple-500/20 rounded-xl">
+                <div className="mx-3 mb-3 p-3 bg-gradient-to-br from-red-500/10 to-red-600/10 border border-red-500/20 rounded-xl">
                     <div className="flex items-center gap-2 mb-1.5">
-                        <Zap className="w-3.5 h-3.5 text-purple-400" />
+                        <Zap className="w-3.5 h-3.5 text-red-400" />
                         <span className="text-white text-xs font-medium">Pro Plan</span>
                     </div>
                     <p className="text-white/40 text-[10px] leading-relaxed">Unlimited content generation & advanced analytics</p>
@@ -119,7 +119,7 @@ export default function Sidebar({ activeTab, onTabChange, user, userRole }) {
             {/* User */}
             <div className="p-3 border-t border-white/[0.06]">
                 <div className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-white/[0.03] transition-colors cursor-pointer">
-                    <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-fuchsia-500 rounded-lg flex items-center justify-center">
+                    <div className="w-8 h-8 bg-gradient-to-br from-red-500 to-red-600 rounded-lg flex items-center justify-center">
                         <User className="w-4 h-4 text-white" />
                     </div>
                     {!collapsed && (
