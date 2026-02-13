@@ -10,11 +10,13 @@ import AgentPage from '@/components/dashboard/AgentPage';
 import Sidebar from '@/components/dashboard/Sidebar';
 import OnboardingFlow from '@/components/dashboard/OnboardingFlow';
 import AddDomainModal from '@/components/dashboard/AddDomainModal';
+import EmptyProjectState from '@/components/dashboard/EmptyProjectState';
 import { base44 } from '@/api/base44Client';
 
 export default function Dashboard() {
     const [activeTab, setActiveTab] = useState('overview');
-    const [domains, setDomains] = useState([]);
+    const [projects, setProjects] = useState([]);
+    const [activeProject, setActiveProject] = useState(null);
     const [showAddDomain, setShowAddDomain] = useState(false);
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -23,7 +25,7 @@ export default function Dashboard() {
 
     useEffect(() => {
         loadUser();
-        loadDomains();
+        loadProjects();
     }, []);
 
     const loadUser = async () => {
@@ -37,9 +39,27 @@ export default function Dashboard() {
         setLoading(false);
     };
 
-    const loadDomains = async () => {
+    const loadProjects = async () => {
         const data = await base44.entities.Domain.list();
-        setDomains(data);
+        setProjects(data);
+        // Auto-select first project or restore last selected
+        if (data.length > 0 && !activeProject) {
+            setActiveProject(data[0]);
+        }
+    };
+
+    const handleProjectSwitch = (project) => {
+        setActiveProject(project);
+        setActiveTab('overview');
+    };
+
+    const handleProjectAdded = async () => {
+        const data = await base44.entities.Domain.list();
+        setProjects(data);
+        // Select the newest project
+        if (data.length > 0) {
+            setActiveProject(data[data.length - 1]);
+        }
     };
 
     const handleOnboardingComplete = async (role) => {
@@ -64,11 +84,18 @@ export default function Dashboard() {
     }
 
     const renderContent = () => {
+        // Global tabs that don't need a project
+        if (activeTab === 'brand-hub') return <BrandHubPage />;
+        if (activeTab === 'agent') return <AgentPage />;
+
+        // Tabs that need an active project
+        if (!activeProject) {
+            return <EmptyProjectState onAddProject={() => setShowAddDomain(true)} />;
+        }
+
         switch (activeTab) {
             case 'overview':
-                return <OverviewPage domains={domains} onAddDomain={() => setShowAddDomain(true)} onTabChange={setActiveTab} userRole={userRole} user={user} />;
-            case 'brand-hub':
-                return <BrandHubPage />;
+                return <OverviewPage domains={projects} activeProject={activeProject} onAddDomain={() => setShowAddDomain(true)} onTabChange={setActiveTab} userRole={userRole} user={user} />;
             case 'topic-discovery':
                 return <TopicDiscoveryPage onTabChange={setActiveTab} />;
             case 'content-studio':
@@ -79,10 +106,8 @@ export default function Dashboard() {
                 return <SentimentGeoPage />;
             case 'audit-health':
                 return <AuditHealthPage />;
-            case 'agent':
-                return <AgentPage />;
             default:
-                return <OverviewPage domains={domains} onAddDomain={() => setShowAddDomain(true)} onTabChange={setActiveTab} userRole={userRole} user={user} />;
+                return <OverviewPage domains={projects} activeProject={activeProject} onAddDomain={() => setShowAddDomain(true)} onTabChange={setActiveTab} userRole={userRole} user={user} />;
         }
     };
 
@@ -93,8 +118,23 @@ export default function Dashboard() {
                 onTabChange={setActiveTab}
                 user={user}
                 userRole={userRole}
+                projects={projects}
+                activeProject={activeProject}
+                onProjectSwitch={handleProjectSwitch}
+                onAddProject={() => setShowAddDomain(true)}
             />
             <div className="flex-1 overflow-auto">
+                {/* Project context bar */}
+                {activeProject && activeTab !== 'brand-hub' && activeTab !== 'agent' && (
+                    <div className="border-b border-white/[0.06] px-6 py-3 flex items-center gap-3">
+                        <div className="w-6 h-6 bg-red-600/20 rounded-md flex items-center justify-center">
+                            <span className="text-red-400 text-[10px] font-bold">{activeProject.name?.charAt(0)?.toUpperCase()}</span>
+                        </div>
+                        <span className="text-white text-sm font-medium">{activeProject.name}</span>
+                        <span className="text-white/20 text-xs">·</span>
+                        <span className="text-white/30 text-xs">{activeProject.url}</span>
+                    </div>
+                )}
                 <div className="p-6">
                     {renderContent()}
                 </div>
@@ -102,7 +142,7 @@ export default function Dashboard() {
             <AddDomainModal 
                 open={showAddDomain} 
                 onClose={() => setShowAddDomain(false)}
-                onSuccess={loadDomains}
+                onSuccess={handleProjectAdded}
             />
         </div>
     );

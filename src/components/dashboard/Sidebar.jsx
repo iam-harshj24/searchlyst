@@ -1,24 +1,11 @@
 import React, { useState } from 'react';
 import { 
-    LayoutDashboard, 
-    Bot, 
-    Eye, 
-    BarChart3,
-    Compass,
-    PenTool,
-    Activity,
-    UserCircle,
-    TrendingUp,
-    ChevronDown,
-    ChevronRight,
-    User,
-    LogOut,
-    Sparkles,
-    FileSearch,
-    Globe,
-    Zap
+    LayoutDashboard, Bot, Eye, BarChart3, Compass, PenTool,
+    Activity, UserCircle, TrendingUp, User, LogOut, Sparkles,
+    FileSearch, Globe, Zap
 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
+import ProjectSwitcher from './ProjectSwitcher';
 
 const menuSections = [
     {
@@ -50,7 +37,7 @@ const menuSections = [
     },
 ];
 
-export default function Sidebar({ activeTab, onTabChange, user, userRole }) {
+export default function Sidebar({ activeTab, onTabChange, user, userRole, projects, activeProject, onProjectSwitch, onAddProject }) {
     const [collapsed, setCollapsed] = useState(false);
 
     return (
@@ -58,7 +45,7 @@ export default function Sidebar({ activeTab, onTabChange, user, userRole }) {
             {/* Logo */}
             <div className="p-4 border-b border-white/[0.06]">
                 <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 bg-gradient-to-br from-red-500 via-red-600 to-red-700 rounded-xl flex items-center justify-center shadow-lg shadow-red-500/20">
+                    <div className="w-9 h-9 bg-red-600 rounded-xl flex items-center justify-center shadow-lg shadow-red-500/20">
                         <Sparkles className="w-4 h-4 text-white" />
                     </div>
                     {!collapsed && (
@@ -69,6 +56,18 @@ export default function Sidebar({ activeTab, onTabChange, user, userRole }) {
                     )}
                 </div>
             </div>
+
+            {/* Project Switcher */}
+            {!collapsed && (
+                <div className="px-3 pt-3">
+                    <ProjectSwitcher
+                        projects={projects || []}
+                        activeProject={activeProject}
+                        onSwitch={onProjectSwitch}
+                        onAddNew={onAddProject}
+                    />
+                </div>
+            )}
 
             {/* Navigation */}
             <nav className="flex-1 overflow-y-auto py-3 px-2">
@@ -107,7 +106,7 @@ export default function Sidebar({ activeTab, onTabChange, user, userRole }) {
 
             {/* Upgrade Banner */}
             {!collapsed && (
-                <div className="mx-3 mb-3 p-3 bg-gradient-to-br from-red-500/10 to-red-600/10 border border-red-500/20 rounded-xl">
+                <div className="mx-3 mb-3 p-3 bg-red-500/5 border border-red-500/10 rounded-xl">
                     <div className="flex items-center gap-2 mb-1.5">
                         <Zap className="w-3.5 h-3.5 text-red-400" />
                         <span className="text-white text-xs font-medium">Pro Plan</span>
@@ -119,7 +118,7 @@ export default function Sidebar({ activeTab, onTabChange, user, userRole }) {
             {/* User */}
             <div className="p-3 border-t border-white/[0.06]">
                 <div className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-white/[0.03] transition-colors cursor-pointer">
-                    <div className="w-8 h-8 bg-gradient-to-br from-red-500 to-red-600 rounded-lg flex items-center justify-center">
+                    <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center">
                         <User className="w-4 h-4 text-white" />
                     </div>
                     {!collapsed && (

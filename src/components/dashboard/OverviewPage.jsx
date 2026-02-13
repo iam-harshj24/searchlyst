@@ -11,7 +11,7 @@ const visibilityTrend = [
     { day: 'Sun', score: 75 },
 ];
 
-export default function OverviewPage({ domains, onAddDomain, onTabChange, userRole, user }) {
+export default function OverviewPage({ domains, activeProject, onAddDomain, onTabChange, userRole, user }) {
     const config = roleConfig[userRole] || roleConfig.founder;
 
     const getGreeting = () => {
@@ -143,38 +143,30 @@ export default function OverviewPage({ domains, onAddDomain, onTabChange, userRo
                 </div>
             </div>
 
-            {/* Projects */}
-            {domains.length > 0 && (
-                <div>
-                    <div className="flex items-center justify-between mb-3">
-                        <h3 className="text-white font-medium text-sm">Your Projects</h3>
-                        <span className="text-white/30 text-xs">{domains.length} active</span>
+            {/* Active Project Summary */}
+            {activeProject && (
+                <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-5">
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-white font-medium text-sm">Project Health</h3>
+                        <span className="text-white/30 text-xs">{activeProject.name}</span>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {domains.map((domain) => (
-                            <div key={domain.id} className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-4 hover:border-red-500/20 hover:shadow-lg hover:shadow-red-500/10 transition-all cursor-pointer group">
-                                <div className="flex items-center gap-3 mb-3">
-                                    <div className="w-10 h-10 bg-white/[0.03] rounded-xl flex items-center justify-center">
-                                        <Globe className="w-5 h-5 text-white/30" />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-white font-medium text-sm truncate">{domain.name}</p>
-                                        <p className="text-white/30 text-[11px] truncate">{domain.url}</p>
-                                    </div>
-                                    <ChevronRight className="w-4 h-4 text-white/10 group-hover:text-white/30 transition-colors" />
-                                </div>
-                                <div className="flex items-center gap-4 text-xs">
-                                    <div className="flex items-center gap-1.5">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-red-400" />
-                                        <span className="text-white/40">Score: {domain.visibility_score || 0}%</span>
-                                    </div>
-                                    <div className="flex items-center gap-1.5">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-white/40" />
-                                        <span className="text-white/40">Issues: {domain.issues_count || 0}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div>
+                            <p className="text-white/30 text-[10px] uppercase tracking-wider">Visibility</p>
+                            <p className="text-white text-lg font-bold mt-1">{activeProject.visibility_score || 0}%</p>
+                        </div>
+                        <div>
+                            <p className="text-white/30 text-[10px] uppercase tracking-wider">Citations</p>
+                            <p className="text-white text-lg font-bold mt-1">{activeProject.total_citations || 0}</p>
+                        </div>
+                        <div>
+                            <p className="text-white/30 text-[10px] uppercase tracking-wider">Sentiment</p>
+                            <p className="text-white text-lg font-bold mt-1">{activeProject.sentiment || 0}%</p>
+                        </div>
+                        <div>
+                            <p className="text-white/30 text-[10px] uppercase tracking-wider">Issues</p>
+                            <p className="text-white text-lg font-bold mt-1">{activeProject.issues_count || 0}</p>
+                        </div>
                     </div>
                 </div>
             )}
