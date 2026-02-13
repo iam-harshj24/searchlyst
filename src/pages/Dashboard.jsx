@@ -5,6 +5,7 @@ import TopicDiscoveryPage from '@/components/dashboard/TopicDiscoveryPage';
 import ContentStudioPage from '@/components/dashboard/ContentStudioPage';
 import AIVisibilityPage from '@/components/dashboard/AIVisibilityPage';
 import AuditHealthPage from '@/components/dashboard/AuditHealthPage';
+import SentimentGeoPage from '@/components/dashboard/SentimentGeoPage';
 import AgentPage from '@/components/dashboard/AgentPage';
 import Sidebar from '@/components/dashboard/Sidebar';
 import OnboardingFlow from '@/components/dashboard/OnboardingFlow';
@@ -74,6 +75,8 @@ export default function Dashboard() {
                 return <ContentStudioPage />;
             case 'ai-visibility':
                 return <AIVisibilityPage />;
+            case 'sentiment-geo':
+                return <SentimentGeoPage />;
             case 'audit-health':
                 return <AuditHealthPage />;
             case 'agent':

@@ -38,6 +38,7 @@ const menuSections = [
         label: 'Analyze',
         items: [
             { id: 'ai-visibility', label: 'AI Visibility', icon: Eye },
+            { id: 'sentiment-geo', label: 'Sentiment & Geo', icon: Globe },
             { id: 'audit-health', label: 'Audits & Health', icon: FileSearch },
         ]
     },
