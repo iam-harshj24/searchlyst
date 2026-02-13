@@ -37,7 +37,7 @@ export default function GeolocationPage() {
                         <p className="text-[var(--text-primary)] font-medium text-sm">{region.code}</p>
                         <p className="text-[var(--text-secondary)] text-xs mb-2">{region.name}</p>
                         <p className="text-lg font-bold text-[var(--text-primary)]">{(region.citations / 1000).toFixed(1)}K</p>
-                        <p className={`text-xs flex items-center gap-1 ${region.trendUp ? 'text-emerald-400' : 'text-red-400'}`}>
+                        <p className={`text-xs flex items-center gap-1 ${region.trendUp ? 'text-white' : 'text-red-400'}`}>
                             {region.trendUp ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                             {region.trend}
                         </p>
@@ -72,13 +72,13 @@ export default function GeolocationPage() {
                 <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-xl p-6">
                     <h3 className="text-[var(--text-primary)] font-medium mb-4">Regional Insights</h3>
                     <div className="space-y-4">
-                        <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
-                            <p className="text-emerald-400 text-sm font-medium">🚀 Fastest Growing</p>
+                        <div className="p-4 bg-white/[0.04] border border-white/10 rounded-lg">
+                            <p className="text-white text-sm font-medium">🚀 Fastest Growing</p>
                             <p className="text-[var(--text-primary)] mt-1">Asia Pacific (+22%)</p>
                             <p className="text-[var(--text-secondary)] text-xs mt-1">Strong momentum in Japan and Australia</p>
                         </div>
-                        <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg">
-                            <p className="text-amber-400 text-sm font-medium">⚠️ Needs Attention</p>
+                        <div className="p-4 bg-red-500/5 border border-red-500/20 rounded-lg">
+                            <p className="text-red-400 text-sm font-medium">⚠️ Needs Attention</p>
                             <p className="text-[var(--text-primary)] mt-1">Middle East (-3%)</p>
                             <p className="text-[var(--text-secondary)] text-xs mt-1">Sentiment declining, consider localized content</p>
                         </div>

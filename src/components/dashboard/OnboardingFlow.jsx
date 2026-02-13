@@ -136,7 +136,7 @@ export default function OnboardingFlow({ onComplete }) {
                             <div className="w-14 h-14 bg-red-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-red-500/20">
                                 <Sparkles className="w-6 h-6 text-white" />
                             </div>
-                            <h1 className="text-2xl font-semibold text-white">Welcome to ContentAI</h1>
+                            <h1 className="text-2xl font-semibold text-white">Welcome to Searchlyst</h1>
                             <p className="text-white/40 text-sm mt-2">Tell us who you are so we can personalize everything for you</p>
                         </div>
 

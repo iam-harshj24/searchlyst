@@ -9,9 +9,9 @@ import { Button } from "@/components/ui/button";
 import { base44 } from '@/api/base44Client';
 
 const socialPlatforms = [
-    { id: 'linkedin', name: 'LinkedIn', icon: Linkedin, placeholder: 'linkedin.com/in/yourprofile', color: 'text-blue-400' },
-    { id: 'instagram', name: 'Instagram', icon: Instagram, placeholder: '@yourhandle', color: 'text-pink-400' },
-    { id: 'substack', name: 'Substack', icon: BookOpen, placeholder: 'yourname.substack.com', color: 'text-orange-400' },
+    { id: 'linkedin', name: 'LinkedIn', icon: Linkedin, placeholder: 'linkedin.com/in/yourprofile', color: 'text-white/60' },
+    { id: 'instagram', name: 'Instagram', icon: Instagram, placeholder: '@yourhandle', color: 'text-white/60' },
+    { id: 'substack', name: 'Substack', icon: BookOpen, placeholder: 'yourname.substack.com', color: 'text-white/60' },
     { id: 'reddit', name: 'Reddit', icon: MessageCircle, placeholder: 'u/yourprofile', color: 'text-red-400' },
 ];
 
@@ -81,7 +81,7 @@ export default function BrandHubPage() {
             {/* Profile Card */}
             <div className="bg-[#0a0a0a] border border-white/[0.06] rounded-2xl p-6">
                 <div className="flex items-center gap-4 mb-6">
-                    <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-fuchsia-500 rounded-2xl flex items-center justify-center">
+                    <div className="w-16 h-16 bg-red-600 rounded-2xl flex items-center justify-center">
                         <UserCircle className="w-8 h-8 text-white" />
                     </div>
                     <div>
@@ -100,7 +100,7 @@ export default function BrandHubPage() {
                                 onClick={() => setProfileData(prev => ({ ...prev, role_type: role }))}
                                 className={`px-4 py-2 rounded-xl text-sm capitalize transition-all ${
                                     profileData.role_type === role
-                                        ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                                        ? 'bg-red-500/20 text-red-300 border border-red-500/30'
                                         : 'bg-white/[0.03] text-white/40 border border-white/[0.06] hover:border-white/10'
                                 }`}
                             >
@@ -153,7 +153,7 @@ export default function BrandHubPage() {
                 <Button 
                     onClick={handleSave} 
                     disabled={saving}
-                    className="mt-5 bg-gradient-to-r from-purple-500 to-fuchsia-500 text-white rounded-xl hover:opacity-90"
+                    className="mt-5 bg-red-600 hover:bg-red-700 text-white rounded-xl"
                 >
                     {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
                     Save Profile
@@ -184,7 +184,7 @@ export default function BrandHubPage() {
                                 />
                             </div>
                             {profileData[`social_${platform.id}`] ? (
-                                <CheckCircle className="w-4 h-4 text-emerald-400" />
+                                <CheckCircle className="w-4 h-4 text-white" />
                             ) : (
                                 <Plus className="w-4 h-4 text-white/20" />
                             )}
@@ -198,12 +198,12 @@ export default function BrandHubPage() {
                 <div className="flex items-center justify-between mb-5">
                     <div>
                         <h3 className="text-white font-medium text-sm flex items-center gap-2">
-                            <Sparkles className="w-4 h-4 text-purple-400" />
+                            <Sparkles className="w-4 h-4 text-red-400" />
                             Your Writing Style Signature
                         </h3>
                         <p className="text-white/30 text-xs mt-0.5">AI-analyzed from your connected accounts and content</p>
                     </div>
-                    <Button variant="outline" size="sm" className="border-purple-500/30 text-purple-400 hover:bg-purple-500/10 rounded-xl text-xs">
+                    <Button variant="outline" size="sm" className="border-red-500/30 text-red-400 hover:bg-red-500/10 rounded-xl text-xs">
                         Re-analyze
                     </Button>
                 </div>
@@ -217,7 +217,7 @@ export default function BrandHubPage() {
                                     <p className="text-white text-sm mt-0.5">{trait.value}</p>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-purple-400 text-xs font-medium">{trait.confidence}%</p>
+                                    <p className="text-red-400 text-xs font-medium">{trait.confidence}%</p>
                                     <p className="text-white/20 text-[10px]">confidence</p>
                                 </div>
                             </div>

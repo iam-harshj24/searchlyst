@@ -50,7 +50,7 @@ export default function Sidebar({ activeTab, onTabChange, user, userRole, projec
                     </div>
                     {!collapsed && (
                         <div>
-                            <span className="text-white font-semibold text-sm tracking-tight">ContentAI</span>
+                            <span className="text-white font-semibold text-sm tracking-tight">Searchlyst</span>
                             <span className="text-red-400 text-[10px] block -mt-0.5 font-medium">PRO</span>
                         </div>
                     )}

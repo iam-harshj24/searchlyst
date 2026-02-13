@@ -13,9 +13,9 @@ const auditCategories = [
         id: 'seo', 
         name: 'SEO Audit', 
         icon: Search, 
-        color: 'text-blue-400', 
-        bgColor: 'from-blue-500/10 to-cyan-500/10',
-        borderColor: 'border-blue-500/20',
+        color: 'text-white', 
+        bgColor: 'from-white/[0.04] to-white/[0.02]',
+        borderColor: 'border-white/10',
         score: 82,
         issues: 7,
         description: 'Search engine optimization'
@@ -24,9 +24,9 @@ const auditCategories = [
         id: 'aeo', 
         name: 'AEO Audit', 
         icon: Bot, 
-        color: 'text-purple-400', 
-        bgColor: 'from-purple-500/10 to-fuchsia-500/10',
-        borderColor: 'border-purple-500/20',
+        color: 'text-red-400', 
+        bgColor: 'from-red-500/10 to-red-600/10',
+        borderColor: 'border-red-500/20',
         score: 68,
         issues: 12,
         description: 'AI engine optimization'
@@ -35,9 +35,9 @@ const auditCategories = [
         id: 'geo', 
         name: 'GEO Audit', 
         icon: MapPin, 
-        color: 'text-emerald-400', 
-        bgColor: 'from-emerald-500/10 to-teal-500/10',
-        borderColor: 'border-emerald-500/20',
+        color: 'text-white/60', 
+        bgColor: 'from-white/[0.04] to-white/[0.02]',
+        borderColor: 'border-white/10',
         score: 74,
         issues: 5,
         description: 'Geolocation optimization'
@@ -67,9 +67,9 @@ export default function AuditHealthPage() {
     const getSeverityStyle = (severity) => {
         switch (severity) {
             case 'critical': return 'bg-red-500/10 border-red-500/30 text-red-400';
-            case 'high': return 'bg-orange-500/10 border-orange-500/30 text-orange-400';
-            case 'medium': return 'bg-amber-500/10 border-amber-500/30 text-amber-400';
-            case 'low': return 'bg-blue-500/10 border-blue-500/30 text-blue-400';
+            case 'high': return 'bg-red-500/5 border-red-500/20 text-red-300';
+            case 'medium': return 'bg-white/[0.06] border-white/10 text-white/60';
+            case 'low': return 'bg-white/[0.03] border-white/[0.06] text-white/40';
             default: return 'bg-white/[0.03] border-white/[0.06] text-white/40';
         }
     };
@@ -87,14 +87,14 @@ export default function AuditHealthPage() {
             {/* Header */}
             <div>
                 <h1 className="text-xl font-semibold text-white flex items-center gap-2">
-                    <FileSearch className="w-5 h-5 text-purple-400" />
+                    <FileSearch className="w-5 h-5 text-red-400" />
                     Audits & Health
                 </h1>
                 <p className="text-white/40 text-sm mt-1">SEO, AEO, and GEO health checks for your website.</p>
             </div>
 
             {/* Run New Audit */}
-            <div className="bg-gradient-to-br from-purple-500/5 to-fuchsia-500/5 border border-purple-500/10 rounded-2xl p-5">
+            <div className="bg-red-500/5 border border-red-500/10 rounded-2xl p-5">
                 <h3 className="text-white font-medium text-sm mb-3">Run a New Audit</h3>
                 <div className="flex gap-3">
                     <Input
@@ -106,7 +106,7 @@ export default function AuditHealthPage() {
                     <Button 
                         onClick={handleRunAudit}
                         disabled={running || !auditUrl.trim()}
-                        className="bg-gradient-to-r from-purple-500 to-fuchsia-500 text-white rounded-xl hover:opacity-90 px-6"
+                        className="bg-red-600 hover:bg-red-700 text-white rounded-xl px-6"
                     >
                         {running ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Zap className="w-4 h-4 mr-2" />}
                         {running ? 'Scanning...' : 'Run Audit'}
@@ -121,7 +121,7 @@ export default function AuditHealthPage() {
                         key={cat.id}
                         onClick={() => setSelectedCategory(selectedCategory === cat.id ? 'all' : cat.id)}
                         className={`bg-gradient-to-br ${cat.bgColor} border ${cat.borderColor} rounded-2xl p-5 text-left transition-all ${
-                            selectedCategory === cat.id ? 'ring-1 ring-purple-500/30' : ''
+                            selectedCategory === cat.id ? 'ring-1 ring-red-500/30' : ''
                         }`}
                     >
                         <div className="flex items-center justify-between mb-3">
@@ -136,18 +136,18 @@ export default function AuditHealthPage() {
                             <div className="text-right">
                                 <span className={`px-2 py-1 rounded-lg text-[11px] font-medium ${
                                     cat.issues > 8 ? 'bg-red-500/10 text-red-400' :
-                                    cat.issues > 4 ? 'bg-amber-500/10 text-amber-400' :
-                                    'bg-emerald-500/10 text-emerald-400'
+                                    cat.issues > 4 ? 'bg-white/10 text-white/60' :
+                                    'bg-white/10 text-white'
                                 }`}>
                                     {cat.issues} issues
                                 </span>
                             </div>
                         </div>
                         <div className="mt-3 h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
-                            <div className={`h-full rounded-full ${
-                                cat.score >= 80 ? 'bg-emerald-500' :
-                                cat.score >= 60 ? 'bg-amber-500' : 'bg-red-500'
-                            }`} style={{ width: `${cat.score}%` }} />
+                        <div className={`h-full rounded-full ${
+                            cat.score >= 80 ? 'bg-white' :
+                            cat.score >= 60 ? 'bg-white/60' : 'bg-red-500'
+                        }`} style={{ width: `${cat.score}%` }} />
                         </div>
                     </button>
                 ))}
@@ -167,9 +167,9 @@ export default function AuditHealthPage() {
                             <div className="flex items-start justify-between mb-2">
                                 <div className="flex items-start gap-3">
                                     {issue.severity === 'critical' ? <XCircle className="w-4 h-4 text-red-400 mt-0.5" /> :
-                                     issue.severity === 'high' ? <AlertTriangle className="w-4 h-4 text-orange-400 mt-0.5" /> :
-                                     issue.severity === 'medium' ? <AlertTriangle className="w-4 h-4 text-amber-400 mt-0.5" /> :
-                                     <Activity className="w-4 h-4 text-blue-400 mt-0.5" />}
+                                     issue.severity === 'high' ? <AlertTriangle className="w-4 h-4 text-red-300 mt-0.5" /> :
+                                     issue.severity === 'medium' ? <AlertTriangle className="w-4 h-4 text-white/60 mt-0.5" /> :
+                                     <Activity className="w-4 h-4 text-white/40 mt-0.5" />}
                                     <div>
                                         <p className="text-white text-sm font-medium">{issue.title}</p>
                                         <p className="text-white/30 text-xs mt-0.5">{issue.impact}</p>
@@ -180,7 +180,7 @@ export default function AuditHealthPage() {
                                 </span>
                             </div>
                             <div className="ml-7 mt-2 flex items-center gap-2">
-                                <span className="text-purple-400 text-xs">Fix:</span>
+                                <span className="text-red-400 text-xs">Fix:</span>
                                 <span className="text-white/40 text-xs">{issue.fix}</span>
                             </div>
                         </div>

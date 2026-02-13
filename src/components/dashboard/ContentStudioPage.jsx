@@ -9,11 +9,11 @@ import { Input } from "@/components/ui/input";
 import { base44 } from '@/api/base44Client';
 
 const platformOptions = [
-    { id: 'linkedin', name: 'LinkedIn Post', icon: Linkedin, color: 'text-blue-400' },
-    { id: 'instagram', name: 'Instagram Carousel', icon: Instagram, color: 'text-pink-400' },
-    { id: 'blog', name: 'Blog Article', icon: FileText, color: 'text-emerald-400' },
-    { id: 'newsletter', name: 'Newsletter', icon: Mail, color: 'text-amber-400' },
-    { id: 'reddit', name: 'Reddit / Quora', icon: MessageCircle, color: 'text-orange-400' },
+    { id: 'linkedin', name: 'LinkedIn Post', icon: Linkedin, color: 'text-white' },
+    { id: 'instagram', name: 'Instagram Carousel', icon: Instagram, color: 'text-white' },
+    { id: 'blog', name: 'Blog Article', icon: FileText, color: 'text-white' },
+    { id: 'newsletter', name: 'Newsletter', icon: Mail, color: 'text-white' },
+    { id: 'reddit', name: 'Reddit / Quora', icon: MessageCircle, color: 'text-red-400' },
 ];
 
 const contentLibrary = [
@@ -106,7 +106,7 @@ Create content for each selected platform.`,
             <div className="flex items-start justify-between">
                 <div>
                     <h1 className="text-xl font-semibold text-white flex items-center gap-2">
-                        <PenTool className="w-5 h-5 text-purple-400" />
+                        <PenTool className="w-5 h-5 text-red-400" />
                         Content Studio
                     </h1>
                     <p className="text-white/40 text-sm mt-1">Create AI-optimized content in your writing style.</p>
@@ -116,7 +116,7 @@ Create content for each selected platform.`,
                         onClick={() => setActiveView('create')}
                         className={`px-4 py-2 text-xs font-medium rounded-xl transition-all ${
                             activeView === 'create' 
-                                ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                                ? 'bg-red-500/20 text-red-300 border border-red-500/30'
                                 : 'bg-white/[0.03] text-white/40 border border-white/[0.06]'
                         }`}
                     >
@@ -126,7 +126,7 @@ Create content for each selected platform.`,
                         onClick={() => setActiveView('library')}
                         className={`px-4 py-2 text-xs font-medium rounded-xl transition-all ${
                             activeView === 'library' 
-                                ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                                ? 'bg-red-500/20 text-red-300 border border-red-500/30'
                                 : 'bg-white/[0.03] text-white/40 border border-white/[0.06]'
                         }`}
                     >
@@ -139,7 +139,7 @@ Create content for each selected platform.`,
                 /* Content Library */
                 <div className="space-y-3">
                     {contentLibrary.map((item, i) => (
-                        <div key={i} className="bg-[#0a0a0a] border border-white/[0.06] rounded-2xl p-4 flex items-center justify-between hover:border-purple-500/20 transition-all cursor-pointer">
+                        <div key={i} className="bg-[#0a0a0a] border border-white/[0.06] rounded-2xl p-4 flex items-center justify-between hover:border-red-500/20 transition-all cursor-pointer">
                             <div className="flex items-center gap-4">
                                 <div className="w-10 h-10 bg-white/[0.03] rounded-xl flex items-center justify-center">
                                     <FileText className="w-5 h-5 text-white/20" />
@@ -155,15 +155,15 @@ Create content for each selected platform.`,
                             </div>
                             <div className="flex items-center gap-3">
                                 {item.score > 0 && (
-                                    <div className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500/10 rounded-lg">
-                                        <Eye className="w-3 h-3 text-emerald-400" />
-                                        <span className="text-emerald-400 text-xs">{item.score}</span>
+                                    <div className="flex items-center gap-1.5 px-2.5 py-1 bg-white/10 rounded-lg">
+                                        <Eye className="w-3 h-3 text-white" />
+                                        <span className="text-white text-xs">{item.score}</span>
                                     </div>
                                 )}
                                 <span className={`px-2.5 py-1 text-[11px] rounded-lg ${
                                     item.status === 'published' 
-                                        ? 'bg-emerald-500/10 text-emerald-400' 
-                                        : 'bg-amber-500/10 text-amber-400'
+                                        ? 'bg-white/10 text-white' 
+                                        : 'bg-red-500/10 text-red-400'
                                 }`}>
                                     {item.status}
                                 </span>
@@ -197,7 +197,7 @@ Create content for each selected platform.`,
                                     onClick={() => togglePlatform(platform.id)}
                                     className={`p-4 rounded-xl border text-center transition-all ${
                                         selectedPlatforms.includes(platform.id)
-                                            ? 'bg-purple-500/10 border-purple-500/30 text-white'
+                                            ? 'bg-red-500/10 border-red-500/30 text-white'
                                             : 'bg-white/[0.02] border-white/[0.06] text-white/40 hover:border-white/10'
                                     }`}
                                 >
@@ -214,7 +214,7 @@ Create content for each selected platform.`,
                     <Button
                         onClick={handleGenerate}
                         disabled={!topic.trim() || selectedPlatforms.length === 0}
-                        className="w-full h-12 bg-gradient-to-r from-purple-500 to-fuchsia-500 text-white rounded-xl hover:opacity-90 text-sm font-medium shadow-lg shadow-purple-500/20"
+                        className="w-full h-12 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-medium shadow-lg shadow-red-500/20"
                     >
                         <Sparkles className="w-4 h-4 mr-2" />
                         Generate Content in My Style
@@ -223,12 +223,12 @@ Create content for each selected platform.`,
             ) : step === 'generate' ? (
                 /* Generating State */
                 <div className="flex flex-col items-center justify-center py-20">
-                    <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-fuchsia-500 rounded-2xl flex items-center justify-center mb-6 animate-pulse">
+                    <div className="w-16 h-16 bg-red-600 rounded-2xl flex items-center justify-center mb-6 animate-pulse">
                         <Sparkles className="w-8 h-8 text-white" />
                     </div>
                     <h2 className="text-white font-medium text-lg mb-2">Generating your content...</h2>
                     <p className="text-white/40 text-sm">Crafting platform-specific content in your writing style</p>
-                    <Loader2 className="w-6 h-6 text-purple-400 animate-spin mt-6" />
+                    <Loader2 className="w-6 h-6 text-red-400 animate-spin mt-6" />
                 </div>
             ) : (
                 /* Step 3: Review Generated Content */
@@ -243,7 +243,7 @@ Create content for each selected platform.`,
                         <div key={i} className="bg-[#0a0a0a] border border-white/[0.06] rounded-2xl p-6">
                             <div className="flex items-center justify-between mb-4">
                                 <div>
-                                    <span className="px-2.5 py-1 bg-purple-500/10 text-purple-300 text-[11px] rounded-lg">{item.platform}</span>
+                                    <span className="px-2.5 py-1 bg-red-500/10 text-red-300 text-[11px] rounded-lg">{item.platform}</span>
                                     <h3 className="text-white font-medium mt-2">{item.title}</h3>
                                 </div>
                                 <Button 
@@ -264,7 +264,7 @@ Create content for each selected platform.`,
                                     <p className="text-white/30 text-[10px] uppercase tracking-wider mb-2">AI Optimization Tips</p>
                                     <div className="flex flex-wrap gap-2">
                                         {item.ai_optimization_tips.map((tip, ti) => (
-                                            <span key={ti} className="px-2.5 py-1 bg-emerald-500/10 text-emerald-400 text-[10px] rounded-lg">
+                                            <span key={ti} className="px-2.5 py-1 bg-white/10 text-white text-[10px] rounded-lg">
                                                 {tip}
                                             </span>
                                         ))}

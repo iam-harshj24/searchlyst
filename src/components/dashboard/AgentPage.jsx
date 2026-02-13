@@ -103,7 +103,7 @@ export default function AgentPage() {
             <div className="flex-1 overflow-y-auto px-4">
                 {messages.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center max-w-2xl mx-auto">
-                        <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-fuchsia-500 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-purple-500/20">
+                        <div className="w-16 h-16 bg-red-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-red-500/20">
                             <Bot className="w-8 h-8 text-white" />
                         </div>
                         <h1 className="text-2xl font-semibold text-white mb-2">
@@ -127,7 +127,7 @@ export default function AgentPage() {
                                     onClick={handleSend}
                                     disabled={isLoading || !input.trim()}
                                     size="icon"
-                                    className="absolute right-2 top-1/2 -translate-y-1/2 bg-gradient-to-r from-purple-500 to-fuchsia-500 hover:opacity-90 h-8 w-8 rounded-lg"
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 bg-red-600 hover:bg-red-700 h-8 w-8 rounded-lg"
                                 >
                                     <Send className="w-4 h-4" />
                                 </Button>
@@ -139,7 +139,7 @@ export default function AgentPage() {
                                     onClick={() => setWebSearch(!webSearch)}
                                     className="flex items-center gap-2 text-sm"
                                 >
-                                    <div className={`w-8 h-5 rounded-full flex items-center px-0.5 transition-colors ${webSearch ? 'bg-purple-500' : 'bg-white/[0.06]'}`}>
+                                    <div className={`w-8 h-5 rounded-full flex items-center px-0.5 transition-colors ${webSearch ? 'bg-red-500' : 'bg-white/[0.06]'}`}>
                                         <div className={`w-4 h-4 rounded-full bg-white transition-transform ${webSearch ? 'translate-x-3' : 'translate-x-0'}`} />
                                     </div>
                                     <span className="text-white/40">Web search</span>
@@ -148,7 +148,7 @@ export default function AgentPage() {
                                     onClick={() => setAgentKnowledge(!agentKnowledge)}
                                     className="flex items-center gap-2 text-sm"
                                 >
-                                    <div className={`w-8 h-5 rounded-full flex items-center px-0.5 transition-colors ${agentKnowledge ? 'bg-purple-500' : 'bg-white/[0.06]'}`}>
+                                    <div className={`w-8 h-5 rounded-full flex items-center px-0.5 transition-colors ${agentKnowledge ? 'bg-red-500' : 'bg-white/[0.06]'}`}>
                                         <div className={`w-4 h-4 rounded-full bg-white transition-transform ${agentKnowledge ? 'translate-x-3' : 'translate-x-0'}`} />
                                     </div>
                                     <span className="text-white/40">Agent knowledge</span>
@@ -164,9 +164,9 @@ export default function AgentPage() {
                                     <button
                                         key={i}
                                         onClick={() => setInput(action.prompt)}
-                                        className="p-4 bg-white/[0.02] border border-white/[0.06] rounded-xl text-left hover:border-purple-500/20 transition-all group"
+                                        className="p-4 bg-white/[0.02] border border-white/[0.06] rounded-xl text-left hover:border-red-500/20 transition-all group"
                                     >
-                                        <action.icon className="w-5 h-5 text-white/20 group-hover:text-purple-400 mb-2" />
+                                        <action.icon className="w-5 h-5 text-white/20 group-hover:text-red-400 mb-2" />
                                         <p className="text-sm text-white/70">{action.label}</p>
                                     </button>
                                 ))}
@@ -178,13 +178,13 @@ export default function AgentPage() {
                         {messages.map((msg, i) => (
                             <div key={i} className={`flex gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
                                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                                    msg.role === 'user' ? 'bg-gradient-to-br from-purple-500 to-fuchsia-500' : 'bg-white/[0.03] border border-white/[0.06]'
+                                    msg.role === 'user' ? 'bg-red-600' : 'bg-white/[0.03] border border-white/[0.06]'
                                 }`}>
-                                    {msg.role === 'user' ? <User className="w-5 h-5 text-white" /> : <Bot className="w-5 h-5 text-purple-400" />}
+                                    {msg.role === 'user' ? <User className="w-5 h-5 text-white" /> : <Bot className="w-5 h-5 text-red-400" />}
                                 </div>
                                 <div className={`max-w-[80%] p-4 rounded-xl ${
                                     msg.role === 'user' 
-                                        ? 'bg-gradient-to-r from-purple-500/20 to-fuchsia-500/20 border border-purple-500/20 text-white' 
+                                        ? 'bg-red-500/10 border border-red-500/20 text-white' 
                                         : 'bg-white/[0.03] border border-white/[0.06] text-white/80'
                                 }`}>
                                     {msg.role === 'assistant' ? (
@@ -200,10 +200,10 @@ export default function AgentPage() {
                         {isLoading && (
                             <div className="flex gap-4">
                                 <div className="w-10 h-10 rounded-xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center">
-                                    <Bot className="w-5 h-5 text-purple-400" />
+                                    <Bot className="w-5 h-5 text-red-400" />
                                 </div>
                                 <div className="bg-white/[0.03] border border-white/[0.06] p-4 rounded-xl">
-                                    <Loader2 className="w-5 h-5 animate-spin text-purple-400" />
+                                    <Loader2 className="w-5 h-5 animate-spin text-red-400" />
                                 </div>
                             </div>
                         )}
@@ -229,7 +229,7 @@ export default function AgentPage() {
                                     onClick={handleSend}
                                     disabled={isLoading || !input.trim()}
                                     size="icon"
-                                    className="absolute right-2 top-1/2 -translate-y-1/2 bg-gradient-to-r from-purple-500 to-fuchsia-500 hover:opacity-90 h-8 w-8 rounded-lg"
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 bg-red-600 hover:bg-red-700 h-8 w-8 rounded-lg"
                                 >
                                     <Send className="w-4 h-4" />
                                 </Button>

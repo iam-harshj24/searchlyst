@@ -92,8 +92,8 @@ export default function TopicDiscoveryPage({ onTabChange }) {
 
     const getTrendColor = (score) => {
         if (score >= 90) return 'text-red-400 bg-red-500/10 border-red-500/20';
-        if (score >= 75) return 'text-purple-400 bg-purple-500/10 border-purple-500/20';
-        if (score >= 60) return 'text-blue-400 bg-blue-500/10 border-blue-500/20';
+        if (score >= 75) return 'text-white bg-white/10 border-white/20';
+        if (score >= 60) return 'text-white/60 bg-white/[0.06] border-white/10';
         return 'text-white/40 bg-white/[0.03] border-white/[0.06]';
     };
 
@@ -103,7 +103,7 @@ export default function TopicDiscoveryPage({ onTabChange }) {
             <div className="flex items-start justify-between">
                 <div>
                     <h1 className="text-xl font-semibold text-white flex items-center gap-2">
-                        <Compass className="w-5 h-5 text-purple-400" />
+                        <Compass className="w-5 h-5 text-red-400" />
                         Topic Discovery
                     </h1>
                     <p className="text-white/40 text-sm mt-1">Trending topics tailored to your industry, audience, and location.</p>
@@ -118,17 +118,17 @@ export default function TopicDiscoveryPage({ onTabChange }) {
                     <p className="text-white/30 text-xs">Hot Topics Today</p>
                 </div>
                 <div className="bg-[#0a0a0a] border border-white/[0.06] rounded-2xl p-4">
-                    <Target className="w-4 h-4 text-purple-400 mb-2" />
+                    <Target className="w-4 h-4 text-red-400 mb-2" />
                     <p className="text-white font-semibold text-lg">8</p>
                     <p className="text-white/30 text-xs">Matched to You</p>
                 </div>
                 <div className="bg-[#0a0a0a] border border-white/[0.06] rounded-2xl p-4">
-                    <Eye className="w-4 h-4 text-blue-400 mb-2" />
+                    <Eye className="w-4 h-4 text-white/60 mb-2" />
                     <p className="text-white font-semibold text-lg">5</p>
                     <p className="text-white/30 text-xs">High AI Potential</p>
                 </div>
                 <div className="bg-[#0a0a0a] border border-white/[0.06] rounded-2xl p-4">
-                    <Globe className="w-4 h-4 text-emerald-400 mb-2" />
+                    <Globe className="w-4 h-4 text-white/60 mb-2" />
                     <p className="text-white font-semibold text-lg">3</p>
                     <p className="text-white/30 text-xs">Regions Covered</p>
                 </div>
@@ -142,7 +142,7 @@ export default function TopicDiscoveryPage({ onTabChange }) {
                         onClick={() => setActiveFilter(f)}
                         className={`px-4 py-2 text-xs font-medium rounded-xl transition-all ${
                             activeFilter === f
-                                ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                                ? 'bg-red-500/20 text-red-300 border border-red-500/30'
                                 : 'bg-white/[0.03] text-white/40 border border-white/[0.06] hover:text-white/60 hover:border-white/10'
                         }`}
                     >
@@ -154,7 +154,7 @@ export default function TopicDiscoveryPage({ onTabChange }) {
             {/* Topic Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {filteredTopics.map((topic, i) => (
-                    <div key={i} className="bg-[#0a0a0a] border border-white/[0.06] rounded-2xl p-5 hover:border-purple-500/20 transition-all group">
+                    <div key={i} className="bg-[#0a0a0a] border border-white/[0.06] rounded-2xl p-5 hover:border-red-500/20 transition-all group">
                         <div className="flex items-start justify-between mb-3">
                             <h3 className="text-white font-medium text-sm leading-snug pr-4">{topic.title}</h3>
                             <span className={`px-2 py-1 text-[10px] font-medium rounded-lg border whitespace-nowrap ${getTrendColor(topic.trendScore)}`}>
@@ -172,7 +172,7 @@ export default function TopicDiscoveryPage({ onTabChange }) {
                                 <p className="text-white/20 text-[10px] uppercase tracking-wider">Trend Score</p>
                                 <div className="flex items-center gap-1.5">
                                     <div className="w-12 h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
-                                        <div className="h-full bg-purple-500 rounded-full" style={{ width: `${topic.trendScore}%` }} />
+                                        <div className="h-full bg-red-500 rounded-full" style={{ width: `${topic.trendScore}%` }} />
                                     </div>
                                     <span className="text-white text-xs">{topic.trendScore}</span>
                                 </div>
@@ -180,8 +180,8 @@ export default function TopicDiscoveryPage({ onTabChange }) {
                             <div>
                                 <p className="text-white/20 text-[10px] uppercase tracking-wider">AI Potential</p>
                                 <p className={`text-xs font-medium ${
-                                    topic.aiPotential === 'Very High' ? 'text-emerald-400' :
-                                    topic.aiPotential === 'High' ? 'text-blue-400' : 'text-amber-400'
+                                    topic.aiPotential === 'Very High' ? 'text-red-400' :
+                                    topic.aiPotential === 'High' ? 'text-white' : 'text-white/50'
                                 }`}>{topic.aiPotential}</p>
                             </div>
                         </div>
@@ -200,13 +200,13 @@ export default function TopicDiscoveryPage({ onTabChange }) {
                         <div className="flex items-center justify-between">
                             <div className="flex gap-1.5">
                                 {topic.platforms.map((p, pi) => (
-                                    <span key={pi} className="px-2 py-0.5 bg-purple-500/10 text-purple-300 text-[10px] rounded-md">{p}</span>
+                                    <span key={pi} className="px-2 py-0.5 bg-red-500/10 text-red-300 text-[10px] rounded-md">{p}</span>
                                 ))}
                             </div>
                             <Button 
                                 size="sm" 
                                 onClick={() => onTabChange?.('content-studio')}
-                                className="h-7 text-[11px] bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 rounded-lg border-0"
+                                className="h-7 text-[11px] bg-red-500/20 text-red-300 hover:bg-red-500/30 rounded-lg border-0"
                             >
                                 <Sparkles className="w-3 h-3 mr-1" /> Create
                             </Button>
