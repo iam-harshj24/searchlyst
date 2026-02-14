@@ -1,5 +1,5 @@
 import { waitlistRepository } from '../repositories/waitlistRepository.js';
-import { sendWaitlistNotification } from './emailService.js';
+import { sendWaitlistNotification, sendWelcomeEmail } from './emailService.js';
 
 export const waitlistService = {
   async createEntry(data) {
@@ -10,13 +10,24 @@ export const waitlistService = {
 
     const newEntry = await waitlistRepository.create(data);
 
+    // Send welcome email to the user (non-blocking, skip if disabled)
+    if (process.env.SEND_WELCOME_EMAIL !== 'false') {
+      sendWelcomeEmail({
+        full_name: data.full_name,
+        email: data.email,
+      }).catch((err) => {
+        console.error('Welcome email failed:', err);
+      });
+    }
+
+    // Send internal notification to admin (non-blocking)
     sendWaitlistNotification({
       full_name: data.full_name,
       email: data.email,
       website_url: data.website_url,
       source: data.source,
     }).catch((err) => {
-      console.error('Email notification failed:', err);
+      console.error('Admin notification failed:', err);
     });
 
     return { success: true, data: newEntry };

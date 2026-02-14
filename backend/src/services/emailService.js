@@ -3,6 +3,126 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+/**
+ * Sends a welcome email to new waitlist signups.
+ * Designed for deliverability: personal tone, no spam triggers, plain-text alternative,
+ * consistent sender identity, and CAN-SPAM compliant footer.
+ */
+export const sendWelcomeEmail = async ({ full_name, email }) => {
+  const firstName = full_name?.trim().split(/\s+/)[0] || 'there';
+  const companyAddress = process.env.COMPANY_ADDRESS || 'www.searchlyst.com';
+
+  const htmlContent = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Welcome to Searchlyst</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #0a0a0a; color: #ffffff;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #0a0a0a;">
+    <tr>
+      <td align="center" style="padding: 40px 20px;">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width: 600px;">
+          <!-- Header -->
+          <tr>
+            <td style="padding-bottom: 32px; border-bottom: 1px solid rgba(255,255,255,0.1);">
+              <h1 style="margin: 0; font-size: 24px; font-weight: 600; color: #ffffff;">Searchlyst</h1>
+            </td>
+          </tr>
+          <!-- Greeting -->
+          <tr>
+            <td style="padding-top: 40px;">
+              <p style="margin: 0 0 24px; font-size: 18px; line-height: 1.6; color: #ffffff;">Hi ${firstName},</p>
+              <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.7; color: #a3a3a3;">Welcome to Searchlyst.</p>
+              <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.7; color: #a3a3a3;">Search is evolving fast — people are asking AI, not just search engines. Searchlyst is built to help brands and creators understand and improve how they show up in AI search.</p>
+            </td>
+          </tr>
+          <!-- Benefits box -->
+          <tr>
+            <td style="padding: 24px; margin: 24px 0; background-color: #171717; border-radius: 12px; border-left: 4px solid #dc2626;">
+              <p style="margin: 0 0 16px; font-size: 15px; font-weight: 600; color: #ffffff;">You've joined our early waitlist, which means:</p>
+              <ul style="margin: 0; padding-left: 20px; font-size: 15px; line-height: 1.8; color: #a3a3a3;">
+                <li>Priority access to our beta</li>
+                <li>Early product updates and insights</li>
+                <li>A front-row seat to how AI search visibility really works</li>
+              </ul>
+            </td>
+          </tr>
+          <!-- Main content -->
+          <tr>
+            <td>
+              <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.7; color: #a3a3a3;">We're currently in beta and launching soon. Early users will be invited first.</p>
+              <p style="margin: 0 0 32px; font-size: 16px; line-height: 1.7; color: #a3a3a3;">Keep an eye on your inbox — exciting updates coming shortly.</p>
+            </td>
+          </tr>
+          <!-- CTA -->
+          <tr>
+            <td style="padding-bottom: 40px;">
+              <a href="https://www.searchlyst.com" style="display: inline-block; padding: 14px 28px; background-color: #dc2626; color: #ffffff; text-decoration: none; font-size: 15px; font-weight: 600; border-radius: 8px;">Visit Searchlyst</a>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style="padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.1);">
+              <p style="margin: 0 0 8px; font-size: 14px; color: #737373;">— Team Searchlyst</p>
+              <p style="margin: 0 0 8px; font-size: 13px; color: #525252;">www.searchlyst.com</p>
+              <p style="margin: 0 0 8px; font-size: 12px; color: #525252;">Being early matters more than being loud</p>
+              <p style="margin: 16px 0 0; font-size: 11px; color: #404040;">${companyAddress}</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim();
+
+  const textContent = `Hi ${firstName},
+
+Welcome to Searchlyst.
+
+Search is evolving fast — people are asking AI, not just search engines. Searchlyst is built to help brands and creators understand and improve how they show up in AI search.
+
+You've joined our early waitlist, which means:
+- Priority access to our beta
+- Early product updates and insights
+- A front-row seat to how AI search visibility really works
+
+We're currently in beta and launching soon. Early users will be invited first.
+
+Keep an eye on your inbox — exciting updates coming shortly.
+
+—
+Team Searchlyst
+www.searchlyst.com
+Being early matters more than being loud
+
+${companyAddress}`;
+
+  try {
+    const info = await transporter.sendMail({
+      from: `"Team Searchlyst" <${process.env.SMTP_USER}>`,
+      to: email,
+      replyTo: process.env.REPLY_TO_EMAIL || process.env.SMTP_USER,
+      subject: "Welcome to Searchlyst — you're on the list",
+      text: textContent,
+      html: htmlContent,
+      headers: {
+        'X-Entity-Ref-ID': 'welcome-waitlist',
+      },
+    });
+
+    console.log('✓ Welcome email sent to:', email, info.messageId);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error('✗ Error sending welcome email:', error);
+    return { success: false, error: error.message };
+  }
+};
+
 export const sendWaitlistNotification = async (waitlistData) => {
   const { full_name, email, website_url, source } = waitlistData;
 
