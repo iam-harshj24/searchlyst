@@ -2,6 +2,10 @@
 .env
 .env.*
 
+# Deployment (contains secrets)
+deploy.config
+*.sh
+*.md
 # Logs
 logs
 *.log
