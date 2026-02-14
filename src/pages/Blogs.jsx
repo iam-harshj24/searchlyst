@@ -1,6 +1,4 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import { Badge } from "@/components/ui/badge";
 import { ArrowRight, ChevronDown, ChevronUp } from 'lucide-react';
 import { ThemeProvider } from '@/components/landing/ThemeToggle';
@@ -13,13 +11,9 @@ export default function Blogs() {
     const [expandedFaq, setExpandedFaq] = useState(null);
     const categories = ["Product", "Tech", "Team", "AI", "Data", "Company", "Guides"];
 
-    const { data: blogs = [], isLoading } = useQuery({
-        queryKey: ['blogs'],
-        queryFn: async () => {
-            const allBlogs = await base44.entities.Blog.list('-created_date', 100);
-            return allBlogs.filter(blog => blog.status === 'published');
-        },
-    });
+    // Mock blogs data - can be replaced with API call later
+    const blogs = [];
+    const isLoading = false;
 
     const filteredBlogs = selectedCategory
         ? blogs.filter(blog => blog.category === selectedCategory)

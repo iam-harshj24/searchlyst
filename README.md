@@ -1,39 +1,69 @@
-**Welcome to your Base44 project** 
+# Searchlyst
 
-**About**
+A modern web application for AI-powered search and list management.
 
-View and Edit  your app on [Base44.com](http://Base44.com) 
+## Getting Started
 
-This project contains everything you need to run your app locally.
+### Prerequisites
 
-**Edit the code in your local development environment**
+- Node.js (v18 or higher)
+- npm or yarn
 
-Any change pushed to the repo will also be reflected in the Base44 Builder.
+### Installation
 
-**Prerequisites:** 
-
-1. Clone the repository using the project's Git URL 
+1. Clone the repository
 2. Navigate to the project directory
-3. Install dependencies: `npm install`
-4. Create an `.env.local` file and set the right environment variables
+3. Install dependencies:
 
-```
-VITE_BASE44_APP_ID=your_app_id
-VITE_BASE44_APP_BASE_URL=your_backend_url
-
-e.g.
-VITE_BASE44_APP_ID=cbef744a8545c389ef439ea6
-VITE_BASE44_APP_BASE_URL=https://my-to-do-list-81bfaad7.base44.app
+```bash
+npm install
 ```
 
-Run the app: `npm run dev`
+### Development
 
-**Publish your changes**
+Run the development server:
 
-Open [Base44.com](http://Base44.com) and click on Publish.
+```bash
+npm run dev
+```
 
-**Docs & Support**
+The application will be available at `http://localhost:5173`
 
-Documentation: [https://docs.base44.com/Integrations/Using-GitHub](https://docs.base44.com/Integrations/Using-GitHub)
+### Build
 
-Support: [https://app.base44.com/support](https://app.base44.com/support)
+Build for production:
+
+```bash
+npm run build
+```
+
+### Preview Production Build
+
+```bash
+npm run preview
+```
+
+## Tech Stack
+
+- React 18
+- Vite
+- TailwindCSS
+- Radix UI
+- React Router
+- React Query
+- Framer Motion
+
+## Project Structure
+
+```
+searchlyst/
+├── src/
+│   ├── components/     # Reusable UI components
+│   ├── pages/          # Page components
+│   ├── lib/            # Utility libraries
+│   ├── hooks/          # Custom React hooks
+│   ├── api/            # API client functions
+│   └── utils/          # Helper functions
+├── public/             # Static assets
+└── ...
+```

@@ -7,6 +7,9 @@ import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
+import ProtectedRoute from '@/components/ProtectedRoute';
+import AdminPanel from '@/pages/AdminPanel';
+import Login from '@/pages/Login';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -47,7 +50,22 @@ const AuthenticatedApp = () => {
           <MainPage />
         </LayoutWrapper>
       } />
-      {Object.entries(Pages).map(([path, Page]) => (
+      
+      {/* Login Route - Public */}
+      <Route path="/Login" element={<Login />} />
+      
+      {/* Admin Panel Route - Protected */}
+      <Route 
+        path="/AdminPanel" 
+        element={
+          <ProtectedRoute>
+            <AdminPanel />
+          </ProtectedRoute>
+        } 
+      />
+      
+      {/* Other Pages */}
+      {Object.entries(Pages).filter(([path]) => path !== 'AdminPanel' && path !== 'Login').map(([path, Page]) => (
         <Route
           key={path}
           path={`/${path}`}
@@ -58,6 +76,7 @@ const AuthenticatedApp = () => {
           }
         />
       ))}
+      
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
@@ -67,15 +86,15 @@ const AuthenticatedApp = () => {
 function App() {
 
   return (
-    <AuthProvider>
-      <QueryClientProvider client={queryClientInstance}>
-        <Router>
+    <QueryClientProvider client={queryClientInstance}>
+      <Router>
+        <AuthProvider>
           <NavigationTracker />
           <AuthenticatedApp />
-        </Router>
+        </AuthProvider>
         <Toaster />
-      </QueryClientProvider>
-    </AuthProvider>
+      </Router>
+    </QueryClientProvider>
   )
 }
 
