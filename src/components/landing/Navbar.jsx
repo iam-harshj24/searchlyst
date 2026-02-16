@@ -11,7 +11,7 @@ export default function Navbar() {
 
     return (
         <>
-            <nav className="fixed top-0 left-0 right-0 z-50 bg-[var(--bg-primary)]/95 backdrop-blur-md border-b border-[var(--border)]">
+            <nav className="fixed top-0 left-0 right-0 z-50 bg-black/95 backdrop-blur-xl border-b border-white/[0.08]">
                 <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 md:py-4 flex items-center justify-between">
                     <a href="https://searchlyst.com" className="cursor-pointer">
                         <img 
@@ -25,17 +25,17 @@ export default function Navbar() {
                     
                     {/* Desktop Navigation */}
                     <div className="hidden md:flex items-center gap-8 absolute left-1/2 -translate-x-1/2">
-                        <Link to={createPageUrl('AboutUs')} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm transition-colors">About Us</Link>
-                        <a href="#features" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm transition-colors">Features</a>
-                        <a href="#how-it-works" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm transition-colors">How It Works</a>
-                        <a href="#pricing" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm transition-colors">Pricing</a>
-                        <a href="#faq" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm transition-colors">FAQ</a>
+                        <Link to={createPageUrl('AboutUs')} className="text-white/60 hover:text-white text-sm transition-colors font-medium">About Us</Link>
+                        <a href="#features" className="text-white/60 hover:text-white text-sm transition-colors font-medium">Features</a>
+                        <a href="#how-it-works" className="text-white/60 hover:text-white text-sm transition-colors font-medium">How It Works</a>
+                        <a href="#pricing" className="text-white/60 hover:text-white text-sm transition-colors font-medium">Pricing</a>
+                        <a href="#faq" className="text-white/60 hover:text-white text-sm transition-colors font-medium">FAQ</a>
                     </div>
                     
                     <div className="flex items-center gap-3">
                         <Button 
                             onClick={() => setShowWaitlist(true)}
-                            className="bg-red-600 hover:bg-red-700 text-white rounded-full px-4 md:px-5 h-9 md:h-10 text-sm"
+                            className="bg-red-600 hover:bg-red-700 text-white rounded-full px-4 md:px-5 h-9 md:h-10 text-sm font-medium shadow-lg shadow-red-500/20 transition-all hover:shadow-xl hover:shadow-red-500/30"
                         >
                             Join Waitlist
                         </Button>
@@ -43,7 +43,7 @@ export default function Navbar() {
                         {/* Mobile Menu Button */}
                         <button 
                             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                            className="md:hidden p-2 text-[var(--text-primary)]"
+                            className="md:hidden p-2 text-white hover:text-white/80 transition-colors"
                         >
                             {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
                         </button>
@@ -52,39 +52,39 @@ export default function Navbar() {
                 
                 {/* Mobile Menu */}
                 {mobileMenuOpen && (
-                    <div className="md:hidden border-t border-[var(--border)] bg-[var(--bg-primary)]">
+                    <div className="md:hidden border-t border-white/[0.08] bg-black/95 backdrop-blur-xl">
                         <div className="px-4 py-4 space-y-3">
                             <Link 
                                 to={createPageUrl('AboutUs')} 
-                                className="block text-[var(--text-secondary)] hover:text-[var(--text-primary)] py-2 transition-colors"
+                                className="block text-white/60 hover:text-white py-2 transition-colors font-medium"
                                 onClick={() => setMobileMenuOpen(false)}
                             >
                                 About Us
                             </Link>
                             <a 
                                 href="#features" 
-                                className="block text-[var(--text-secondary)] hover:text-[var(--text-primary)] py-2 transition-colors"
+                                className="block text-white/60 hover:text-white py-2 transition-colors font-medium"
                                 onClick={() => setMobileMenuOpen(false)}
                             >
                                 Features
                             </a>
                             <a 
                                 href="#how-it-works" 
-                                className="block text-[var(--text-secondary)] hover:text-[var(--text-primary)] py-2 transition-colors"
+                                className="block text-white/60 hover:text-white py-2 transition-colors font-medium"
                                 onClick={() => setMobileMenuOpen(false)}
                             >
                                 How It Works
                             </a>
                             <a 
                                 href="#pricing" 
-                                className="block text-[var(--text-secondary)] hover:text-[var(--text-primary)] py-2 transition-colors"
+                                className="block text-white/60 hover:text-white py-2 transition-colors font-medium"
                                 onClick={() => setMobileMenuOpen(false)}
                             >
                                 Pricing
                             </a>
                             <a 
                                 href="#faq" 
-                                className="block text-[var(--text-secondary)] hover:text-[var(--text-primary)] py-2 transition-colors"
+                                className="block text-white/60 hover:text-white py-2 transition-colors font-medium"
                                 onClick={() => setMobileMenuOpen(false)}
                             >
                                 FAQ

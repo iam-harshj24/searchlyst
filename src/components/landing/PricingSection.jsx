@@ -63,7 +63,7 @@ export default function PricingSection() {
 
     return (
         <>
-        <section id="pricing" className="relative bg-[var(--bg-primary)] py-12 md:py-24 overflow-hidden">
+        <section id="pricing" className="relative bg-black py-12 md:py-24 overflow-hidden border-t border-white/[0.05]">
             <div className="relative max-w-6xl mx-auto px-6">
                 {/* Badge */}
                 <motion.div 
@@ -72,7 +72,7 @@ export default function PricingSection() {
                     viewport={{ once: true }}
                     className="flex justify-center mb-8"
                 >
-                    <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-red-500/30 bg-red-500/10">
+                    <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-red-500/20 bg-red-500/5 backdrop-blur-sm">
                         <DollarSign className="w-4 h-4 text-red-500" />
                         <span className="text-red-400 text-sm font-medium">Pricing</span>
                     </div>
@@ -86,10 +86,10 @@ export default function PricingSection() {
                     transition={{ delay: 0.1 }}
                     className="text-center mb-6"
                 >
-                    <h2 className="text-4xl md:text-5xl font-bold text-[var(--text-primary)] mb-4">
+                    <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
                         Plans That Scale With
                     </h2>
-                    <p className="text-3xl md:text-4xl font-bold text-red-500">
+                    <p className="text-3xl md:text-4xl font-bold text-red-500 tracking-tight">
                         Your Ambition
                     </p>
                 </motion.div>
@@ -113,10 +113,10 @@ export default function PricingSection() {
                     transition={{ delay: 0.3 }}
                     className="flex justify-center items-center gap-4 mb-12"
                 >
-                    <span className={`text-sm ${!isAnnual ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>Monthly</span>
+                    <span className={`text-sm font-medium ${!isAnnual ? 'text-white' : 'text-white/40'}`}>Monthly</span>
                     <Switch checked={isAnnual} onCheckedChange={setIsAnnual} />
-                    <span className={`text-sm ${isAnnual ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>Annual</span>
-                    <span className="px-3 py-1 bg-green-500/20 border border-green-500/30 text-green-400 text-xs font-medium rounded-full">
+                    <span className={`text-sm font-medium ${isAnnual ? 'text-white' : 'text-white/40'}`}>Annual</span>
+                    <span className="px-3 py-1 bg-white/10 border border-white/20 text-white text-xs font-medium rounded-full">
                         Save 30%
                     </span>
                 </motion.div>
@@ -132,45 +132,45 @@ export default function PricingSection() {
                     {plans.map((plan, index) => (
                         <div 
                             key={index}
-                            className={`relative rounded-2xl p-6 hover:scale-105 transition-all duration-300 ${
+                            className={`relative rounded-2xl p-6 hover:scale-105 transition-all duration-300 backdrop-blur-sm ${
                                 plan.highlighted 
-                                    ? 'bg-[var(--bg-secondary)] border-2 border-red-500/50 -mt-4 mb-4 md:mb-0 hover:shadow-lg hover:shadow-red-500/20' 
-                                    : 'bg-[var(--bg-secondary)] border border-[var(--border)] hover:border-red-500/30 hover:shadow-lg hover:shadow-red-500/10'
+                                    ? 'bg-white/[0.04] border-2 border-red-500/40 -mt-4 mb-4 md:mb-0 hover:shadow-xl hover:shadow-red-500/20' 
+                                    : 'bg-white/[0.02] border border-white/[0.08] hover:border-red-500/20 hover:shadow-lg hover:shadow-red-500/10'
                             }`}
                         >
                             {plan.highlighted && (
-                                <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-red-500 text-white text-xs font-medium rounded-full">
+                                <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-red-600 text-white text-xs font-semibold rounded-full shadow-lg shadow-red-500/30">
                                     Most Popular
                                 </div>
                             )}
                             
                             <div className="text-center mb-6">
-                                <h3 className="text-xl font-bold text-[var(--text-primary)] mb-1">{plan.name}</h3>
-                                <p className="text-[var(--text-secondary)] text-sm">{plan.subtitle}</p>
+                                <h3 className="text-xl font-bold text-white mb-1">{plan.name}</h3>
+                                <p className="text-white/50 text-sm">{plan.subtitle}</p>
                             </div>
                             
                             <div className="text-center mb-6">
-                                <span className="text-4xl font-bold text-red-500">
+                                <span className="text-4xl font-bold text-red-500 tracking-tight">
                                     ${isAnnual ? plan.price.annual : plan.price.monthly}
                                 </span>
-                                <span className="text-[var(--text-secondary)]">/month</span>
+                                <span className="text-white/40">/month</span>
                             </div>
                             
                             <ul className="space-y-3 mb-8">
                                 {plan.features.map((feature, featureIndex) => (
                                     <li key={featureIndex} className="flex items-start gap-3">
-                                        <Check className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
-                                        <span className="text-[var(--text-secondary)] text-sm">{feature}</span>
+                                        <Check className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
+                                        <span className="text-white/60 text-sm">{feature}</span>
                                     </li>
                                 ))}
                             </ul>
                             
                             <Button 
                                 onClick={() => setShowWaitlist(true)}
-                                className={`w-full rounded-xl ${
+                                className={`w-full rounded-xl transition-all ${
                                     plan.highlighted
-                                        ? 'bg-red-600 hover:bg-red-700 text-white'
-                                        : 'bg-transparent border border-[var(--border)] text-[var(--text-primary)] hover:bg-[var(--bg-primary)]'
+                                        ? 'bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-500/20 hover:shadow-xl hover:shadow-red-500/30'
+                                        : 'bg-transparent border border-white/10 text-white hover:bg-white/[0.04] hover:border-white/20'
                                 }`}
                             >
                                 Join Waitlist
@@ -188,13 +188,13 @@ export default function PricingSection() {
                     className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-8 flex flex-col md:flex-row items-center justify-between gap-6"
                 >
                     <div>
-                        <h3 className="text-xl font-bold text-[var(--text-primary)] mb-2">Enterprise & Custom Solutions</h3>
-                        <p className="text-[var(--text-secondary)] text-sm">
+                        <h3 className="text-xl font-bold text-white mb-2">Enterprise & Custom Solutions</h3>
+                        <p className="text-white/50 text-sm leading-relaxed">
                             Need unlimited prompts, API access, custom integrations, or dedicated support? Let's build a plan<br />
                             tailored to your organization's needs.
                         </p>
                     </div>
-                    <Button className="bg-transparent border border-[var(--border)] text-[var(--text-primary)] hover:bg-[var(--bg-primary)] rounded-xl flex items-center gap-2 whitespace-nowrap">
+                    <Button className="bg-transparent border border-white/10 text-white hover:bg-white/[0.04] hover:border-white/20 rounded-xl flex items-center gap-2 whitespace-nowrap transition-all">
                         <Mail className="w-4 h-4" />
                         Contact Us
                     </Button>

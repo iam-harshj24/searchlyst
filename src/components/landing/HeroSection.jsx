@@ -70,8 +70,8 @@ export default function HeroSection() {
             <div className="relative max-w-4xl mx-auto px-4 md:px-6 text-center">
                 <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-red-500/30 bg-red-500/10 mb-8">
                     <span className="text-red-500 text-sm">★</span>
-                    <span className="text-red-500 text-sm font-medium">AI search optimisation platform</span>
-                </div>
+                    <span className="text-red-400 text-sm font-medium">AI Search Optimization Platform</span>
+                </motion.div>
 
                 <h1 className="text-3xl md:text-5xl lg:text-7xl font-bold text-[var(--text-primary)] mb-4 md:mb-6 tracking-tight">
                     Get your brand<br />recommended by
@@ -111,20 +111,20 @@ export default function HeroSection() {
 
                 <p className="text-[var(--text-secondary)] text-base md:text-lg mb-6 md:mb-10 max-w-2xl mx-auto px-4">
                     The all-in-one platform to track, optimize, and control your brand's presence in the age of AI search.
-                </p>
+                </motion.p>
 
                 <div className="max-w-2xl mx-auto bg-[var(--bg-secondary)] backdrop-blur-sm border border-[var(--border)] rounded-2xl p-4 md:p-6">
                     {submitted ? (
                         <div className="text-center py-8">
-                            <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <CheckCircle className="w-8 h-8 text-green-500" />
+                            <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <CheckCircle className="w-8 h-8 text-white" />
                             </div>
-                            <h3 className="text-2xl font-bold text-[var(--text-primary)] mb-2">You're on the list!</h3>
-                            <p className="text-[var(--text-secondary)] mb-6">We'll be in touch soon with early access details.</p>
+                            <h3 className="text-2xl font-bold text-white mb-2">You're on the list!</h3>
+                            <p className="text-white/50 mb-6">We'll be in touch soon with early access details.</p>
                             <Button 
                                 onClick={() => setSubmitted(false)}
                                 variant="outline"
-                                className="border-[var(--border)] text-[var(--text-primary)]"
+                                className="border-white/10 text-white hover:bg-white/5"
                             >
                                 Submit another
                             </Button>
@@ -218,18 +218,18 @@ export default function HeroSection() {
                                     <Clock className="w-4 h-4 text-red-500" />
                                     Setup in 5 minutes
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <CheckCircle className="w-4 h-4 text-red-500" />
+                                <div className="flex items-center gap-2 hover:text-white/60 transition-colors">
+                                    <CheckCircle className="w-4 h-4 text-red-400" />
                                     No technical skills needed
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <XCircle className="w-4 h-4 text-red-500" />
+                                <div className="flex items-center gap-2 hover:text-white/60 transition-colors">
+                                    <XCircle className="w-4 h-4 text-red-400" />
                                     Cancel anytime
                                 </div>
                             </div>
                         </>
                     )}
-                </div>
+                </motion.div>
             </div>
         </section>
     );

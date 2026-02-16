@@ -56,7 +56,7 @@ export default function GrowthTrajectorySection() {
     
     return (
         <>
-        <section id="how-it-works" className="relative bg-[var(--bg-primary)] py-12 md:py-24 overflow-hidden">
+        <section id="how-it-works" className="relative bg-black py-12 md:py-24 overflow-hidden border-t border-white/[0.05]">
             <div className="relative max-w-6xl mx-auto px-2 md:px-6">
                 {/* Badge */}
                 <motion.div 
@@ -65,7 +65,7 @@ export default function GrowthTrajectorySection() {
                     viewport={{ once: true }}
                     className="flex justify-center mb-8"
                 >
-                    <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-red-500/30 bg-red-500/10">
+                    <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-red-500/20 bg-red-500/5 backdrop-blur-sm">
                         <Sparkles className="w-4 h-4 text-red-500" />
                         <span className="text-red-400 text-sm font-medium">How It Works</span>
                     </div>
@@ -79,11 +79,11 @@ export default function GrowthTrajectorySection() {
                     transition={{ delay: 0.1 }}
                     className="text-center mb-6"
                 >
-                    <h2 className="text-4xl md:text-5xl font-bold text-[var(--text-primary)] mb-4">
+                    <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
                         Growth Trajectory
                     </h2>
-                    <p className="text-[var(--text-secondary)]">
-                        From baseline discovery to total domination. <span className="text-red-500">Every step is AI-Enhanced.</span>
+                    <p className="text-white/50">
+                        From baseline discovery to total domination. <span className="text-red-400 font-medium">Every step is AI-Enhanced.</span>
                     </p>
                 </motion.div>
 
@@ -97,9 +97,9 @@ export default function GrowthTrajectorySection() {
                 >
                     {/* Chart header */}
                     <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-[var(--text-primary)] font-semibold">Visibility score</h3>
-                        <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
-                            <CheckCircle className="w-4 h-4 text-red-500" />
+                        <h3 className="text-white font-semibold text-lg">Visibility Score</h3>
+                        <div className="flex items-center gap-2 text-sm text-white/40">
+                            <CheckCircle className="w-4 h-4 text-red-400" />
                             Avg time to first citation: 18 days
                         </div>
                     </div>
@@ -149,9 +149,9 @@ export default function GrowthTrajectorySection() {
                 >
                     {metrics.map((metric, index) => (
                         <div key={index} className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-xl p-4 md:p-6 text-center transition-all duration-300 hover:scale-105 hover:border-red-500/30 cursor-pointer">
-                            <metric.icon className={`w-6 h-6 md:w-8 md:h-8 ${metric.color} mx-auto mb-2 md:mb-3`} />
-                            <div className="text-xl md:text-2xl lg:text-3xl font-bold text-[var(--text-primary)] mb-1">{metric.value}</div>
-                            <div className="text-[var(--text-secondary)] text-xs md:text-sm">{metric.label}</div>
+                            <metric.icon className={`w-6 h-6 md:w-8 md:h-8 text-white/60 mx-auto mb-2 md:mb-3 group-hover:text-red-400 transition-colors`} />
+                            <div className="text-xl md:text-2xl lg:text-3xl font-bold text-white mb-1 group-hover:scale-110 transition-transform">{metric.value}</div>
+                            <div className="text-white/50 text-xs md:text-sm group-hover:text-white/70 transition-colors">{metric.label}</div>
                         </div>
                     ))}
                 </motion.div>
@@ -166,23 +166,23 @@ export default function GrowthTrajectorySection() {
                 >
                     <Button 
                         onClick={() => setShowWaitlist(true)}
-                        className="bg-red-600 hover:bg-red-700 text-white px-8 h-12 rounded-xl font-medium group transition-transform duration-300 hover:scale-105"
+                        className="bg-red-600 hover:bg-red-700 text-white px-8 h-12 rounded-xl font-medium group shadow-lg shadow-red-500/20 transition-all hover:shadow-xl hover:shadow-red-500/30 hover:scale-105"
                     >
                         Join Waitlist
                         <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
                     </Button>
                     
-                    <div className="flex flex-wrap justify-center gap-6 mt-6 text-sm text-[var(--text-secondary)]">
-                        <div className="flex items-center gap-2 transition-transform duration-300 hover:scale-110 cursor-pointer">
-                            <Clock className="w-4 h-4 text-red-500" />
+                    <div className="flex flex-wrap justify-center gap-6 mt-6 text-sm text-white/40">
+                        <div className="flex items-center gap-2 transition-all duration-300 hover:scale-110 hover:text-white/60 cursor-pointer">
+                            <Clock className="w-4 h-4 text-red-400" />
                             Setup in 5 minutes
                         </div>
-                        <div className="flex items-center gap-2 transition-transform duration-300 hover:scale-110 cursor-pointer">
-                            <CheckCircle className="w-4 h-4 text-red-500" />
+                        <div className="flex items-center gap-2 transition-all duration-300 hover:scale-110 hover:text-white/60 cursor-pointer">
+                            <CheckCircle className="w-4 h-4 text-red-400" />
                             No technical skills needed
                         </div>
-                        <div className="flex items-center gap-2 transition-transform duration-300 hover:scale-110 cursor-pointer">
-                            <XCircle className="w-4 h-4 text-red-500" />
+                        <div className="flex items-center gap-2 transition-all duration-300 hover:scale-110 hover:text-white/60 cursor-pointer">
+                            <XCircle className="w-4 h-4 text-red-400" />
                             Cancel anytime
                         </div>
                     </div>
