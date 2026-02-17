@@ -1,16 +1,12 @@
 import React, { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { motion } from 'framer-motion';
 import { User, Briefcase, ArrowRight, Mail, Globe, Loader2, CheckCircle, Linkedin, MapPin, Building } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { apiClient } from '@/api/apiClient';
 import { toast } from 'sonner';
-import { waitlistSchema } from '@/validations/waitlist';
+import { Link } from 'react-router-dom';
 
 export default function CTASection() {
     const [activeTab, setActiveTab] = useState('brand');
@@ -26,36 +22,6 @@ export default function CTASection() {
     });
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
-
-    const brandForm = useForm({
-        resolver: zodResolver(waitlistSchema),
-        defaultValues: {
-            full_name: '',
-            email: '',
-            website_url: '',
-            source: 'about',
-        },
-    });
-
-    const handleBrandSubmit = async (values) => {
-        setLoading(true);
-        try {
-            await apiClient.waitlist.create({
-                ...values,
-                source: 'about',
-            });
-            setSuccess(true);
-            toast.success('Successfully joined the waitlist!');
-            setTimeout(() => {
-                setSuccess(false);
-                brandForm.reset({ full_name: '', email: '', website_url: '', source: 'about' });
-            }, 3000);
-        } catch (error) {
-            toast.error(error.message || 'Failed to join waitlist. Please try again.');
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const handleInvestorSubmit = async (e) => {
         e.preventDefault();
@@ -126,7 +92,7 @@ export default function CTASection() {
                     {success ? (
                         <div className="py-8 text-center">
                             <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-                            <h3 className="text-2xl font-bold mb-2 text-[var(--text-primary)]">You're on the list!</h3>
+                            <h3 className="text-2xl font-bold mb-2 text-[var(--text-primary)]">Request submitted!</h3>
                             <p className="text-[var(--text-secondary)]">We'll be in touch soon.</p>
                         </div>
                     ) : activeTab === 'brand' ? (
@@ -135,88 +101,25 @@ export default function CTASection() {
                                 Stop Being Invisible
                             </h3>
                             <p className="text-[var(--text-secondary)] mb-6">
-                                Secure early access to the Searchlyst Discovery Engine. Optimize your brand for ChatGPT, Perplexity, and Gemini.
+                                Start optimizing your brand for ChatGPT, Perplexity, Claude, and Gemini. Create your free account in seconds.
                             </p>
 
-                            <Form {...brandForm}>
-                                <form onSubmit={brandForm.handleSubmit(handleBrandSubmit)} className="space-y-4">
-                                    <FormField
-                                        control={brandForm.control}
-                                        name="full_name"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-[var(--text-secondary)]">Full Name</FormLabel>
-                                                <FormControl>
-                                                    <div className="relative">
-                                                        <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-secondary)]" />
-                                                        <Input 
-                                                            placeholder="John Smith"
-                                                            className="bg-[var(--bg-primary)] border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] pl-10"
-                                                            {...field}
-                                                        />
-                                                    </div>
-                                                </FormControl>
-                                                <FormMessage className="text-red-400" />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={brandForm.control}
-                                        name="email"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-[var(--text-secondary)]">Work Email</FormLabel>
-                                                <FormControl>
-                                                    <div className="relative">
-                                                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-secondary)]" />
-                                                        <Input 
-                                                            type="email"
-                                                            placeholder="john@company.com"
-                                                            className="bg-[var(--bg-primary)] border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] pl-10"
-                                                            {...field}
-                                                        />
-                                                    </div>
-                                                </FormControl>
-                                                <FormMessage className="text-red-400" />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={brandForm.control}
-                                        name="website_url"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-[var(--text-secondary)]">Company Website URL</FormLabel>
-                                                <FormControl>
-                                                    <div className="relative">
-                                                        <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-secondary)]" />
-                                                        <Input 
-                                                            placeholder="https://yourcompany.com"
-                                                            className="bg-[var(--bg-primary)] border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] pl-10"
-                                                            {...field}
-                                                        />
-                                                    </div>
-                                                </FormControl>
-                                                <FormMessage className="text-red-400" />
-                                            </FormItem>
-                                        )}
-                                    />
+                            <div className="space-y-4">
+                                <Link to="/Signup">
                                     <Button 
-                                        type="submit"
-                                        disabled={loading}
                                         className="w-full bg-red-600 hover:bg-red-700 text-white h-12 rounded-xl font-medium group"
                                     >
-                                        {loading ? (
-                                            <Loader2 className="w-5 h-5 animate-spin" />
-                                        ) : (
-                                            <>
-                                                Join Waitlist
-                                                <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                                            </>
-                                        )}
+                                        Get Started Free
+                                        <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
                                     </Button>
-                                </form>
-                            </Form>
+                                </Link>
+                                <p className="text-center text-[var(--text-secondary)] text-sm">
+                                    Already have an account?{' '}
+                                    <Link to="/Login" className="text-red-400 hover:text-red-300 font-medium">
+                                        Log in
+                                    </Link>
+                                </p>
+                            </div>
                         </>
                     ) : (
                         <>

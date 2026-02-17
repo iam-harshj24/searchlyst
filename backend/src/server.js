@@ -4,6 +4,15 @@ import dotenv from 'dotenv';
 import { verifyEmailConfig } from './config/email.js';
 import waitlistRoutes from './routes/waitlist.js';
 import authRoutes from './routes/auth.js';
+import projectRoutes from './routes/projects.js';
+import brandProfileRoutes from './routes/brandProfile.js';
+import socialRoutes from './routes/social.js';
+import contentRoutes from './routes/content.js';
+import chatRoutes from './routes/chat.js';
+import auditRoutes from './routes/audits.js';
+import sentimentGeoRoutes from './routes/sentimentGeo.js';
+import overviewRoutes from './routes/overview.js';
+import aiVisibilityRoutes from './routes/aiVisibility.js';
 
 // Load environment variables
 dotenv.config();
@@ -37,6 +46,16 @@ app.get('/health', (req, res) => {
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/waitlist', waitlistRoutes);
+app.use('/api/domains', projectRoutes);
+app.use('/api/projects', projectRoutes);
+app.use('/api/projects/:projectId/brand-profile', brandProfileRoutes);
+app.use('/api/projects/:projectId/audits', auditRoutes);
+app.use('/api/projects/:projectId/sentiment-geo', sentimentGeoRoutes);
+app.use('/api/overview', overviewRoutes);
+app.use('/api/projects/:projectId/ai-visibility', aiVisibilityRoutes);
+app.use('/api/social', socialRoutes);
+app.use('/api/content', contentRoutes);
+app.use('/api/chat', chatRoutes);
 
 // 404 handler
 app.use((req, res) => {

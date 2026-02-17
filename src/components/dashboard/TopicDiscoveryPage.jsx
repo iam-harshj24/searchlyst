@@ -83,7 +83,19 @@ const trendingTopics = [
 
 const filters = ['All', 'Tech', 'Strategy', 'Branding', 'Sustainability'];
 
-export default function TopicDiscoveryPage({ onTabChange }) {
+const PLATFORM_NAME_TO_ID = {
+    'LinkedIn': 'linkedin',
+    'Instagram': 'instagram',
+    'Blog': 'blog',
+    'Newsletter': 'newsletter',
+    'Twitter/X': 'twitter',
+    'Twitter': 'twitter',
+    'X': 'twitter',
+    'Reddit': 'blog',
+    'Quora': 'blog',
+};
+
+export default function TopicDiscoveryPage({ onTabChange, onCreateFromTopic }) {
     const [activeFilter, setActiveFilter] = useState('All');
 
     const filteredTopics = activeFilter === 'All' 
@@ -205,7 +217,13 @@ export default function TopicDiscoveryPage({ onTabChange }) {
                             </div>
                             <Button 
                                 size="sm" 
-                                onClick={() => onTabChange?.('content-studio')}
+                                onClick={() => onCreateFromTopic?.({
+                                    topic: topic.title,
+                                    suggestedPlatforms: topic.platforms,
+                                    suggestedPlatformIds: topic.platforms
+                                        .map(p => PLATFORM_NAME_TO_ID[p])
+                                        .filter(Boolean),
+                                })}
                                 className="h-7 text-[11px] bg-red-500/20 text-red-300 hover:bg-red-500/30 rounded-lg border-0"
                             >
                                 <Sparkles className="w-3 h-3 mr-1" /> Create

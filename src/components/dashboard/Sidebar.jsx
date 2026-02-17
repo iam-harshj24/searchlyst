@@ -4,7 +4,7 @@ import {
     Activity, UserCircle, TrendingUp, User, LogOut, Sparkles,
     FileSearch, Globe, Zap
 } from 'lucide-react';
-import { base44 } from '@/api/base44Client';
+import { apiClient } from '@/api/apiClient';
 import ProjectSwitcher from './ProjectSwitcher';
 
 const menuSections = [
@@ -41,7 +41,7 @@ export default function Sidebar({ activeTab, onTabChange, user, userRole, projec
     const [collapsed, setCollapsed] = useState(false);
 
     return (
-        <div className={`${collapsed ? 'w-16' : 'w-60'} bg-[#030303] border-r border-white/[0.06] h-screen flex flex-col transition-all duration-300`}>
+        <div className={`${collapsed ? 'w-16' : 'w-60'} flex-shrink-0 bg-[#030303] border-r border-white/[0.06] h-screen flex flex-col overflow-hidden transition-all duration-300`}>
             {/* Logo */}
             <div className="p-4 border-b border-white/[0.06]">
                 <div className="flex items-center gap-3">
@@ -128,7 +128,7 @@ export default function Sidebar({ activeTab, onTabChange, user, userRole, projec
                                 <p className="text-white/30 text-[10px] truncate">{user?.email || ''}</p>
                             </div>
                             <button 
-                                onClick={() => base44.auth.logout()}
+                                onClick={() => apiClient.auth.logout()}
                                 className="text-white/20 hover:text-white/60 transition-colors"
                             >
                                 <LogOut className="w-3.5 h-3.5" />

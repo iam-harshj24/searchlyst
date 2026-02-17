@@ -1,10 +1,16 @@
 import React from 'react';
-import { Input } from "@/components/ui/input";
+import { Link } from 'react-router-dom';
+import { createPageUrl } from '@/utils';
 
 const footerLinks = {
     Product: ['Features', 'Pricing', 'How It Works', 'Case Studies', 'API Documentation'],
     Resources: ['Blog', 'AI Search Guide', 'Help Center', 'Status Page'],
     Company: ['About Us', 'Careers', 'Contact', 'Privacy Policy', 'Terms of Service'],
+    Account: [
+        { label: 'Sign Up', href: '/Signup' },
+        { label: 'Log In', href: '/Login' },
+        { label: 'Dashboard', href: '/Dashboard' },
+    ],
 };
 
 const socialLinks = [
@@ -21,7 +27,7 @@ export default function AboutFooter() {
                     <div className="lg:col-span-1">
                         <a href="/">
                             <img 
-                                src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69824440a17c76d392c103dc/2787700e8_Group123-Picsart-BackgroundRemover.png" 
+                                src="/searchlyst_logo.png" 
                                 alt="Searchlyst" 
                                 className="h-8 md:h-10 mb-4"
                             />
@@ -31,45 +37,39 @@ export default function AboutFooter() {
                         </p>
                     </div>
 
-                    {/* Links columns - 3 equal columns */}
-                    <div>
-                        <h4 className="text-[var(--text-primary)] font-semibold mb-4">Product</h4>
-                        <ul className="space-y-3">
-                            {footerLinks.Product.map((link) => (
-                                <li key={link}>
-                                    <a href="#" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm transition-colors">
-                                        {link}
-                                    </a>
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-                    
-                    <div>
-                        <h4 className="text-[var(--text-primary)] font-semibold mb-4">Resources</h4>
-                        <ul className="space-y-3">
-                            {footerLinks.Resources.map((link) => (
-                                <li key={link}>
-                                    <a href="#" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm transition-colors">
-                                        {link}
-                                    </a>
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-                    
-                    <div>
-                        <h4 className="text-[var(--text-primary)] font-semibold mb-4">Company</h4>
-                        <ul className="space-y-3">
-                            {footerLinks.Company.map((link) => (
-                                <li key={link}>
-                                    <a href="#" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm transition-colors">
-                                        {link}
-                                    </a>
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
+                    {/* Links columns */}
+                    {Object.entries(footerLinks).map(([category, links]) => (
+                        <div key={category}>
+                            <h4 className="text-[var(--text-primary)] font-semibold mb-4">{category}</h4>
+                            <ul className="space-y-3">
+                                {links.map((link) => {
+                                    const isObject = typeof link === 'object';
+                                    const label = isObject ? link.label : link;
+                                    const href = isObject ? link.href : '#';
+                                    
+                                    return (
+                                        <li key={label}>
+                                            {isObject && href.startsWith('/') ? (
+                                                <Link 
+                                                    to={href}
+                                                    className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm transition-colors"
+                                                >
+                                                    {label}
+                                                </Link>
+                                            ) : (
+                                                <a 
+                                                    href={href}
+                                                    className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm transition-colors"
+                                                >
+                                                    {label}
+                                                </a>
+                                            )}
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        </div>
+                    ))}
 
                     {/* Connect column */}
                     <div>

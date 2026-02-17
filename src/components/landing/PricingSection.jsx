@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { DollarSign, Check, Mail } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import WaitlistModal from '../WaitlistModal';
+import { Link } from 'react-router-dom';
 
 const plans = [
     {
@@ -59,10 +59,8 @@ const plans = [
 
 export default function PricingSection() {
     const [isAnnual, setIsAnnual] = useState(false);
-    const [showWaitlist, setShowWaitlist] = useState(false);
 
     return (
-        <>
         <section id="pricing" className="relative bg-black py-12 md:py-24 overflow-hidden border-t border-white/[0.05]">
             <div className="relative max-w-6xl mx-auto px-6">
                 {/* Badge */}
@@ -165,16 +163,17 @@ export default function PricingSection() {
                                 ))}
                             </ul>
                             
-                            <Button 
-                                onClick={() => setShowWaitlist(true)}
-                                className={`w-full rounded-xl transition-all ${
-                                    plan.highlighted
-                                        ? 'bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-500/20 hover:shadow-xl hover:shadow-red-500/30'
-                                        : 'bg-transparent border border-white/10 text-white hover:bg-white/[0.04] hover:border-white/20'
-                                }`}
-                            >
-                                Join Waitlist
-                            </Button>
+                            <Link to="/Signup" className="block">
+                                <Button 
+                                    className={`w-full rounded-xl transition-all ${
+                                        plan.highlighted
+                                            ? 'bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-500/20 hover:shadow-xl hover:shadow-red-500/30'
+                                            : 'bg-transparent border border-white/10 text-white hover:bg-white/[0.04] hover:border-white/20'
+                                    }`}
+                                >
+                                    Get Started
+                                </Button>
+                            </Link>
                         </div>
                     ))}
                 </motion.div>
@@ -201,7 +200,5 @@ export default function PricingSection() {
                 </motion.div>
             </div>
         </section>
-        <WaitlistModal open={showWaitlist} onOpenChange={setShowWaitlist} source="pricing" />
-        </>
     );
 }

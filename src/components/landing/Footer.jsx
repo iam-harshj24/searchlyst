@@ -25,6 +25,11 @@ const footerLinks = {
         { label: 'Privacy Policy', href: '#' },
         { label: 'Terms of Service', href: '#' }
     ],
+    Account: [
+        { label: 'Sign Up', href: 'Signup', isPage: true },
+        { label: 'Log In', href: 'Login', isPage: true },
+        { label: 'Dashboard', href: 'Dashboard', isPage: true },
+    ],
 };
 
 const socialLinks = [
@@ -41,7 +46,7 @@ export default function Footer() {
                     <div className="lg:col-span-1">
                         <Link to={createPageUrl('Home')}>
                             <img 
-                                src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69824440a17c76d392c103dc/2787700e8_Group123-Picsart-BackgroundRemover.png" 
+                                src="/searchlyst_logo.png" 
                                 alt="Searchlyst" 
                                 className="h-10 md:h-12 mb-4"
                                 loading="lazy"

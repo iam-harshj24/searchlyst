@@ -18,6 +18,178 @@ model AdminUser {
   @@map("admin_users")
 }
 
+model User {
+  id            Int       @id @default(autoincrement())
+  email         String    @unique @db.VarChar(255)
+  password_hash String    @db.VarChar(255)
+  full_name     String    @db.VarChar(255)
+  onboarded     Boolean   @default(false)
+  profile_data  Json?     // role_type, industry, goals, platforms, etc.
+  created_at    DateTime? @default(now()) @db.Timestamp(6)
+  updated_at    DateTime? @default(now()) @db.Timestamp(6)
+
+  projects           Project[]
+  social_connections SocialConnection[]
+
+  @@index([email], map: "idx_user_email")
+  @@map("users")
+}
+
+model Project {
+  id               Int       @id @default(autoincrement())
+  user_id          Int
+  name             String    @db.VarChar(255)
+  url              String    @db.VarChar(500)
+  status           String    @default("pending") @db.VarChar(50)
+  visibility_score Int       @default(0)
+  total_citations  Int       @default(0)
+  sentiment        Int       @default(0)
+  issues_count     Int       @default(0)
+  created_at       DateTime? @default(now()) @db.Timestamp(6)
+  updated_at       DateTime? @default(now()) @db.Timestamp(6)
+
+  user                 User                 @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  brand_profile        BrandProfile?
+  audits               Audit[]
+  tracked_prompts      TrackedPrompt[]
+  sentiment_geo_results SentimentGeoResult[]
+
+  @@index([user_id], map: "idx_project_user")
+  @@map("projects")
+}
+
+model Audit {
+  id                   Int       @id @default(autoincrement())
+  project_id           Int
+  url                  String    @db.VarChar(500)
+  status               String    @default("pending") @db.VarChar(20) // pending|running|completed|failed
+  audit_mode           String    @default("single") @db.VarChar(20) // single|full
+  pages_crawled        Int       @default(1)
+  seo_score            Int?
+  aeo_score            Int?
+  geo_score            Int?
+  ai_citation_score    Int?
+  ai_citations_found   Int?
+  ai_citation_raw     Json?
+  seo_issues_count    Int       @default(0)
+  aeo_issues_count    Int       @default(0)
+  geo_issues_count    Int       @default(0)
+  started_at           DateTime? @db.Timestamp(6)
+  completed_at         DateTime? @db.Timestamp(6)
+  created_at           DateTime? @default(now()) @db.Timestamp(6)
+
+  project Project     @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  issues  AuditIssue[]
+
+  @@index([project_id], map: "idx_audit_project")
+  @@map("audits")
+}
+
+model AuditIssue {
+  id        Int      @id @default(autoincrement())
+  audit_id  Int
+  category  String   @db.VarChar(20) // seo|aeo|geo
+  severity  String   @db.VarChar(20) // critical|high|medium|low
+  title     String   @db.VarChar(500)
+  impact    String   @db.Text
+  fix       String   @db.Text
+  meta      Json?    // e.g. { page: "/about", count: 23 }
+
+  audit Audit @relation(fields: [audit_id], references: [id], onDelete: Cascade)
+
+  @@index([audit_id], map: "idx_audit_issue_audit")
+  @@map("audit_issues")
+}
+
+model BrandProfile {
+  id                    Int       @id @default(autoincrement())
+  project_id            Int       @unique
+  role_type             String    @default("founder") @db.VarChar(50)
+  industry              String?   @db.VarChar(255)
+  target_audience       String?   @db.VarChar(500)
+  location              String?   @db.VarChar(255)
+  website_url           String?   @db.VarChar(500)
+  writing_style_signature Json?   // tone, vocabulary, traits, analyzed_from_platforms
+  analyzed_at           DateTime? @db.Timestamp(6)
+  created_at            DateTime? @default(now()) @db.Timestamp(6)
+  updated_at            DateTime? @default(now()) @db.Timestamp(6)
+
+  project Project @relation(fields: [project_id], references: [id], onDelete: Cascade)
+
+  @@map("brand_profiles")
+}
+
+model TrackedPrompt {
+  id         Int       @id @default(autoincrement())
+  project_id Int
+  query      String    @db.VarChar(500)
+  source     String    @default("auto") @db.VarChar(20) // user | auto
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+
+  project             Project             @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  sentiment_geo_results SentimentGeoResult[]
+
+  @@index([project_id], map: "idx_tracked_prompt_project")
+  @@map("tracked_prompts")
+}
+
+model SentimentGeoResult {
+  id                 Int       @id @default(autoincrement())
+  project_id         Int
+  tracked_prompt_id  Int
+  platform           String    @db.VarChar(50) // perplexity | gemini
+  country            String    @db.VarChar(10) // ISO code e.g. US, GB, DE
+  citations_count    Int       @default(0)
+  sentiment_score    Int       @default(0) // 0-100
+  sentiment_label    String    @db.VarChar(20) // positive | neutral | negative
+  raw_snippet        String?   @db.Text
+  created_at         DateTime? @default(now()) @db.Timestamp(6)
+
+  project        Project        @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  tracked_prompt TrackedPrompt  @relation(fields: [tracked_prompt_id], references: [id], onDelete: Cascade)
+
+  @@index([project_id, created_at], map: "idx_sentiment_geo_project_created")
+  @@index([tracked_prompt_id, platform, country, created_at], map: "idx_sentiment_geo_prompt_platform_country")
+  @@map("sentiment_geo_results")
+}
+
+model SocialConnection {
+  id               Int       @id @default(autoincrement())
+  user_id          Int
+  project_id       Int?
+  platform         String    @db.VarChar(50) // linkedin, instagram, substack, twitter
+  connection_type  String    @default("manual") @db.VarChar(20) // manual | oauth
+  handle_or_url    String    @db.VarChar(500)
+  access_token     String?   @db.Text
+  refresh_token    String?   @db.Text
+  token_expires_at DateTime? @db.Timestamp(6)
+  status           String    @default("active") @db.VarChar(20)
+  last_fetched_at  DateTime? @db.Timestamp(6)
+  created_at       DateTime? @default(now()) @db.Timestamp(6)
+  updated_at       DateTime? @default(now()) @db.Timestamp(6)
+
+  user           User            @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  fetched_content FetchedContent[]
+
+  @@unique([user_id, platform])
+  @@map("social_connections")
+}
+
+model FetchedContent {
+  id                  Int      @id @default(autoincrement())
+  social_connection_id Int
+  platform            String   @db.VarChar(50)
+  raw_content         String   @db.Text
+  post_id             String?  @db.VarChar(255)
+  post_url            String?  @db.VarChar(500)
+  fetched_at          DateTime @default(now()) @db.Timestamp(6)
+
+  social_connection SocialConnection @relation(fields: [social_connection_id], references: [id], onDelete: Cascade)
+
+  @@index([social_connection_id], map: "idx_fetched_social")
+  @@map("fetched_content")
+}
+
 model waitlist {
   id          Int       @id @default(autoincrement())
   full_name   String    @db.VarChar(255)

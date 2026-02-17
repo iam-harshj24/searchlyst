@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Mail, Lock, Loader2, AlertCircle } from 'lucide-react';
+import { Mail, Lock, Loader2, AlertCircle, Eye, EyeOff, Sparkles } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { toast } from 'sonner';
 import { loginSchema } from '@/validations/auth';
@@ -16,6 +15,7 @@ export default function Login() {
   const { login } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const form = useForm({
     resolver: zodResolver(loginSchema),
@@ -32,8 +32,10 @@ export default function Login() {
     const result = await login(values.email, values.password);
     
     if (result.success) {
-      toast.success('Login successful!');
-      navigate('/AdminPanel');
+      toast.success('Welcome back!');
+      // Redirect admin users to AdminPanel, regular users to Dashboard
+      const destination = result.user?.role === 'admin' ? '/AdminPanel' : '/Dashboard';
+      navigate(destination);
     } else {
       setError(result.error?.message || 'Login failed. Please check your credentials.');
       toast.error('Login failed');
@@ -42,24 +44,26 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-4">
-      <Card className="w-full max-w-md bg-gray-900 border-gray-800">
-        <CardHeader className="space-y-1">
-          <div className="flex justify-center mb-4">
-            <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center">
-              <Lock className="w-8 h-8 text-white" />
-            </div>
+    <div className="min-h-screen flex items-center justify-center bg-black p-4">
+      {/* Background glow */}
+      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-red-600/10 rounded-full blur-[120px]" />
+
+      <div className="relative w-full max-w-md">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <div className="w-14 h-14 bg-red-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-red-500/20">
+            <Sparkles className="w-6 h-6 text-white" />
           </div>
-          <CardTitle className="text-2xl text-center text-white">Admin Login</CardTitle>
-          <CardDescription className="text-center text-gray-400">
-            Enter your credentials to access the admin panel
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+          <h1 className="text-2xl font-semibold text-white">Welcome back</h1>
+          <p className="text-white/40 text-sm mt-2">Log in to access your dashboard</p>
+        </div>
+
+        {/* Form card */}
+        <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-6">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
               {error && (
-                <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
+                <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm">
                   <AlertCircle className="w-4 h-4 flex-shrink-0" />
                   <span>{error}</span>
                 </div>
@@ -70,20 +74,20 @@ export default function Login() {
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-gray-300">Email</FormLabel>
+                    <FormLabel className="text-white/50 text-xs font-medium">Email</FormLabel>
                     <FormControl>
                       <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                        <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
                         <Input
                           type="email"
-                          placeholder="admin@example.com"
-                          className="pl-10 bg-gray-800 border-gray-700 text-white placeholder:text-gray-500"
+                          placeholder="you@company.com"
+                          className="bg-white/[0.03] border-white/[0.06] text-white placeholder:text-white/20 pl-10 h-11 rounded-xl"
                           disabled={loading}
                           {...field}
                         />
                       </div>
                     </FormControl>
-                    <FormMessage className="text-red-400" />
+                    <FormMessage className="text-red-400 text-xs" />
                   </FormItem>
                 )}
               />
@@ -93,27 +97,42 @@ export default function Login() {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-gray-300">Password</FormLabel>
+                    <div className="flex items-center justify-between">
+                      <FormLabel className="text-white/50 text-xs font-medium">Password</FormLabel>
+                      <Link
+                        to="/ForgotPassword"
+                        className="text-xs text-red-400/70 hover:text-red-400 transition-colors"
+                      >
+                        Forgot password?
+                      </Link>
+                    </div>
                     <FormControl>
                       <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                        <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
                         <Input
-                          type="password"
-                          placeholder="••••••••"
-                          className="pl-10 bg-gray-800 border-gray-700 text-white placeholder:text-gray-500"
+                          type={showPassword ? 'text' : 'password'}
+                          placeholder="Enter your password"
+                          className="bg-white/[0.03] border-white/[0.06] text-white placeholder:text-white/20 pl-10 pr-10 h-11 rounded-xl"
                           disabled={loading}
                           {...field}
                         />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
+                        >
+                          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
                       </div>
                     </FormControl>
-                    <FormMessage className="text-red-400" />
+                    <FormMessage className="text-red-400 text-xs" />
                   </FormItem>
                 )}
               />
 
               <Button
                 type="submit"
-                className="w-full bg-red-600 hover:bg-red-700 text-white h-11"
+                className="w-full h-11 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-medium mt-2"
                 disabled={loading}
               >
                 {loading ? (
@@ -122,22 +141,35 @@ export default function Login() {
                     Logging in...
                   </>
                 ) : (
-                  'Login'
+                  'Log In'
                 )}
               </Button>
             </form>
           </Form>
 
           <div className="mt-6 text-center">
-            <button
-              onClick={() => navigate('/')}
-              className="text-sm text-gray-400 hover:text-white transition-colors"
-            >
-              ← Back to Home
-            </button>
+            <p className="text-white/30 text-sm">
+              Don't have an account?{' '}
+              <Link
+                to="/Signup"
+                className="text-red-400 hover:text-red-300 transition-colors font-medium"
+              >
+                Sign up
+              </Link>
+            </p>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+
+        {/* Back to home */}
+        <div className="mt-6 text-center">
+          <Link
+            to="/"
+            className="text-sm text-white/30 hover:text-white/60 transition-colors"
+          >
+            &larr; Back to Home
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }

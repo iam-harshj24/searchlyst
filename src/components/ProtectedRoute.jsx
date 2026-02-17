@@ -1,44 +1,16 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Navigate } from 'react-router-dom';
-import { apiClient } from '@/api/apiClient';
-import { Loader2 } from 'lucide-react';
+import { useAuth } from '@/lib/AuthContext';
 
-export default function ProtectedRoute({ children }) {
-  const [isAuthenticated, setIsAuthenticated] = useState(null);
-  const [loading, setLoading] = useState(true);
+export default function ProtectedRoute({ children, requiredRole }) {
+  const { isAuthenticated, isLoadingAuth, user } = useAuth();
 
-  useEffect(() => {
-    const verifyAuth = async () => {
-      const token = localStorage.getItem('authToken');
-      
-      if (!token) {
-        setIsAuthenticated(false);
-        setLoading(false);
-        return;
-      }
-
-      try {
-        await apiClient.auth.verify();
-        setIsAuthenticated(true);
-      } catch (error) {
-        // Token invalid or expired
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('user');
-        setIsAuthenticated(false);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    verifyAuth();
-  }, []);
-
-  if (loading) {
+  if (isLoadingAuth) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-950">
+      <div className="min-h-screen flex items-center justify-center bg-black">
         <div className="text-center">
-          <Loader2 className="w-8 h-8 text-red-500 animate-spin mx-auto mb-4" />
-          <p className="text-gray-400">Verifying authentication...</p>
+          <div className="w-8 h-8 border-4 border-white/10 border-t-red-500 rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-white/40 text-sm">Verifying authentication...</p>
         </div>
       </div>
     );
@@ -46,6 +18,10 @@ export default function ProtectedRoute({ children }) {
 
   if (!isAuthenticated) {
     return <Navigate to="/Login" replace />;
+  }
+
+  if (requiredRole && user?.role !== requiredRole) {
+    return <Navigate to="/Dashboard" replace />;
   }
 
   return children;

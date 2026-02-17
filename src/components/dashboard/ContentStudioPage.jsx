@@ -1,36 +1,85 @@
-import React, { useState } from 'react';
-import { 
-    PenTool, Sparkles, FileText, Instagram, Linkedin, BookOpen,
-    MessageCircle, Mail, ArrowRight, Loader2, Copy, Check,
-    ChevronDown, Globe, Target, Zap, Eye
-} from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { PenTool, Sparkles, FileText, Instagram, Linkedin, Mail, Loader2, Copy, Check, X, ChevronDown, ChevronRight } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { base44 } from '@/api/base44Client';
+import { apiClient } from '@/api/apiClient';
 
 const platformOptions = [
     { id: 'linkedin', name: 'LinkedIn Post', icon: Linkedin, color: 'text-white' },
     { id: 'instagram', name: 'Instagram Carousel', icon: Instagram, color: 'text-white' },
     { id: 'blog', name: 'Blog Article', icon: FileText, color: 'text-white' },
     { id: 'newsletter', name: 'Newsletter', icon: Mail, color: 'text-white' },
-    { id: 'reddit', name: 'Reddit / Quora', icon: MessageCircle, color: 'text-red-400' },
+    { id: 'twitter', name: 'Twitter / X', icon: X, color: 'text-white' },
 ];
 
-const contentLibrary = [
-    { title: 'AI Agents: The Next Frontier for Enterprise', platform: 'LinkedIn', status: 'published', date: '2d ago', score: 92 },
-    { title: '5 Signs Your Startup Needs an AI Strategy', platform: 'Blog', status: 'published', date: '5d ago', score: 88 },
-    { title: 'Why HNWI Need Personal Branding Now', platform: 'Newsletter', status: 'draft', date: '1d ago', score: 0 },
-    { title: 'Sustainable Tech ROI Breakdown', platform: 'Blog', status: 'draft', date: '3h ago', score: 0 },
-];
+const LIBRARY_STORAGE_KEY = 'searchlyst_content_library';
 
-export default function ContentStudioPage() {
+function formatRelativeTime(isoDate) {
+    const d = new Date(isoDate);
+    const now = new Date();
+    const diffMs = now - d;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return d.toLocaleDateString();
+}
+
+function loadLibrary() {
+    try {
+        const raw = localStorage.getItem(LIBRARY_STORAGE_KEY);
+        return raw ? JSON.parse(raw) : [];
+    } catch {
+        return [];
+    }
+}
+
+function saveToLibrary(items) {
+    const existing = loadLibrary();
+    const merged = [...items, ...existing].slice(0, 100); // keep last 100
+    localStorage.setItem(LIBRARY_STORAGE_KEY, JSON.stringify(merged));
+}
+
+function groupByTopic(items) {
+    const groups = {};
+    for (const item of items) {
+        const key = `${item.topic}::${item.createdAt}`;
+        if (!groups[key]) {
+            groups[key] = { topic: item.topic, createdAt: item.createdAt, items: [] };
+        }
+        groups[key].items.push(item);
+    }
+    return Object.values(groups).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+}
+
+export default function ContentStudioPage({ activeProject, initialTopic, suggestedPlatformIds, onConsumeInitialData }) {
     const [step, setStep] = useState('select'); // select, generate, review
     const [topic, setTopic] = useState('');
     const [selectedPlatforms, setSelectedPlatforms] = useState([]);
     const [generating, setGenerating] = useState(false);
     const [generatedContent, setGeneratedContent] = useState(null);
-    const [copied, setCopied] = useState(false);
+    const [copiedIndex, setCopiedIndex] = useState(null);
+    const [copiedLibId, setCopiedLibId] = useState(null);
+    const [libraryItems, setLibraryItems] = useState([]);
+    const [expandedTopicKey, setExpandedTopicKey] = useState(null);
     const [activeView, setActiveView] = useState('create'); // create, library
+
+    useEffect(() => {
+        if (initialTopic) setTopic(initialTopic);
+        if (suggestedPlatformIds?.length > 0) {
+            setSelectedPlatforms(prev => [...new Set([...prev, ...suggestedPlatformIds])]);
+        }
+        if (initialTopic || suggestedPlatformIds?.length) {
+            onConsumeInitialData?.();
+        }
+    }, []);
+
+    useEffect(() => {
+        setLibraryItems(loadLibrary());
+    }, [activeView]); // refresh when switching to library
 
     const togglePlatform = (id) => {
         setSelectedPlatforms(prev => 
@@ -40,57 +89,47 @@ export default function ContentStudioPage() {
 
     const handleGenerate = async () => {
         if (!topic.trim() || selectedPlatforms.length === 0) return;
+        if (!activeProject?.id) {
+            console.error('No project selected. Please select or create a project first.');
+            return;
+        }
         setGenerating(true);
         setStep('generate');
 
-        const platformNames = selectedPlatforms.map(id => platformOptions.find(p => p.id === id)?.name).join(', ');
-        
-        const result = await base44.integrations.Core.InvokeLLM({
-            prompt: `You are an expert content creator. Create content for the following topic: "${topic}"
-            
-Target platforms: ${platformNames}
-
-Guidelines:
-- Write in a natural, human-like style. Avoid generic AI phrasing.
-- Use specific examples, data points, and anecdotes where possible.
-- Include personal opinions and perspectives as if written by a thought leader.
-- Vary sentence length and structure for natural rhythm.
-- For LinkedIn: Professional but conversational, include a hook and CTA.
-- For Blog: In-depth, structured with headers, include actionable takeaways.
-- For Newsletter: Personal tone, storytelling approach, value-driven.
-- For Instagram: Concise carousel-style slides with punchy copy.
-- For Reddit/Quora: Helpful, detailed, community-focused.
-- Optimize for AI search engines: use semantic richness, answer common questions directly, include structured insights.
-
-Create content for each selected platform.`,
-            response_json_schema: {
-                type: "object",
-                properties: {
-                    contents: {
-                        type: "array",
-                        items: {
-                            type: "object",
-                            properties: {
-                                platform: { type: "string" },
-                                title: { type: "string" },
-                                content: { type: "string" },
-                                ai_optimization_tips: { type: "array", items: { type: "string" } }
-                            }
-                        }
-                    }
-                }
-            }
+        const result = await apiClient.generateContent(topic.trim(), {
+            projectId: activeProject.id,
+            platformIds: selectedPlatforms,
         });
+        const contents = Array.isArray(result) ? result : result?.contents || [];
+        setGeneratedContent(contents);
 
-        setGeneratedContent(result.contents || []);
+        // Save to library
+        const now = new Date().toISOString();
+        const toSave = contents.map((c) => ({
+            id: `lib-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+            topic: topic.trim(),
+            platform: c.platform,
+            title: c.title,
+            content: c.content,
+            ai_optimization_tips: c.ai_optimization_tips || [],
+            createdAt: now,
+        }));
+        saveToLibrary(toSave);
+
         setGenerating(false);
         setStep('review');
     };
 
-    const handleCopy = (text) => {
+    const handleCopy = (text, index) => {
         navigator.clipboard.writeText(text);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+        setCopiedIndex(index);
+        setTimeout(() => setCopiedIndex(null), 2000);
+    };
+
+    const handleLibraryCopy = (text, id) => {
+        navigator.clipboard.writeText(text);
+        setCopiedLibId(id);
+        setTimeout(() => setCopiedLibId(null), 2000);
     };
 
     const resetForm = () => {
@@ -136,40 +175,72 @@ Create content for each selected platform.`,
             </div>
 
             {activeView === 'library' ? (
-                /* Content Library */
+                /* Content Library - topic list, expand to see platform content */
                 <div className="space-y-3">
-                    {contentLibrary.map((item, i) => (
-                        <div key={i} className="bg-[#0a0a0a] border border-white/[0.06] rounded-2xl p-4 flex items-center justify-between hover:border-red-500/20 transition-all cursor-pointer">
-                            <div className="flex items-center gap-4">
-                                <div className="w-10 h-10 bg-white/[0.03] rounded-xl flex items-center justify-center">
-                                    <FileText className="w-5 h-5 text-white/20" />
-                                </div>
-                                <div>
-                                    <p className="text-white text-sm font-medium">{item.title}</p>
-                                    <div className="flex items-center gap-3 mt-1">
-                                        <span className="text-white/30 text-[11px]">{item.platform}</span>
-                                        <span className="text-white/10">•</span>
-                                        <span className="text-white/30 text-[11px]">{item.date}</span>
+                    <p className="text-white/40 text-sm">
+                        {libraryItems.length === 0
+                            ? 'No content yet. Generate content in Create New to see it here.'
+                            : `${groupByTopic(libraryItems).length} topic${groupByTopic(libraryItems).length !== 1 ? 's' : ''} saved`}
+                    </p>
+                    {groupByTopic(libraryItems).map((group) => {
+                        const key = `${group.topic}::${group.createdAt}`;
+                        const isExpanded = expandedTopicKey === key;
+                        return (
+                            <div key={key} className="bg-[#0a0a0a] border border-white/[0.06] rounded-2xl overflow-hidden">
+                                <button
+                                    onClick={() => setExpandedTopicKey(isExpanded ? null : key)}
+                                    className="w-full p-4 flex items-center justify-between gap-4 text-left hover:bg-white/[0.02] transition-colors"
+                                >
+                                    <div className="flex items-center gap-3 min-w-0">
+                                        {isExpanded ? (
+                                            <ChevronDown className="w-4 h-4 text-white/40 shrink-0" />
+                                        ) : (
+                                            <ChevronRight className="w-4 h-4 text-white/40 shrink-0" />
+                                        )}
+                                        <div className="min-w-0">
+                                            <p className="text-white font-medium truncate">{group.topic}</p>
+                                            <p className="text-white/40 text-xs mt-0.5">
+                                                {formatRelativeTime(group.createdAt)} · {group.items.length} platform{group.items.length !== 1 ? 's' : ''}
+                                            </p>
+                                        </div>
                                     </div>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-3">
-                                {item.score > 0 && (
-                                    <div className="flex items-center gap-1.5 px-2.5 py-1 bg-white/10 rounded-lg">
-                                        <Eye className="w-3 h-3 text-white" />
-                                        <span className="text-white text-xs">{item.score}</span>
+                                </button>
+                                {isExpanded && (
+                                    <div className="border-t border-white/[0.06] p-4 space-y-4">
+                                        {group.items.map((item) => (
+                                            <div key={item.id} className="rounded-xl border border-white/[0.06] p-4 bg-white/[0.02]">
+                                                <div className="flex items-start justify-between gap-4 mb-3">
+                                                    <span className="px-2.5 py-1 bg-red-500/10 text-red-300 text-[11px] rounded-lg">{item.platform}</span>
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); handleLibraryCopy(item.content, item.id); }}
+                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border border-white/20 bg-white/10 text-white hover:bg-white/15 hover:border-white/30 transition-colors shrink-0"
+                                                    >
+                                                        {copiedLibId === item.id ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                                                        {copiedLibId === item.id ? 'Copied!' : 'Copy'}
+                                                    </button>
+                                                </div>
+                                                <div className="bg-black/20 rounded-lg p-3 mb-3">
+                                                    <p className="text-white/70 text-sm whitespace-pre-wrap leading-relaxed">{item.content}</p>
+                                                </div>
+                                                {item.ai_optimization_tips?.length > 0 && (
+                                                    <div>
+                                                        <p className="text-white/30 text-[10px] uppercase tracking-wider mb-2">AI Optimization Tips</p>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {item.ai_optimization_tips.map((tip, ti) => (
+                                                                <span key={ti} className="px-2.5 py-1 bg-white/10 text-white text-[10px] rounded-lg">
+                                                                    {tip}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
                                     </div>
                                 )}
-                                <span className={`px-2.5 py-1 text-[11px] rounded-lg ${
-                                    item.status === 'published' 
-                                        ? 'bg-white/10 text-white' 
-                                        : 'bg-red-500/10 text-red-400'
-                                }`}>
-                                    {item.status}
-                                </span>
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             ) : step === 'select' ? (
                 /* Step 1: Topic & Platform Selection */
@@ -213,7 +284,7 @@ Create content for each selected platform.`,
                     {/* Generate Button */}
                     <Button
                         onClick={handleGenerate}
-                        disabled={!topic.trim() || selectedPlatforms.length === 0}
+                        disabled={!activeProject?.id || !topic.trim() || selectedPlatforms.length === 0}
                         className="w-full h-12 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-medium shadow-lg shadow-red-500/20"
                     >
                         <Sparkles className="w-4 h-4 mr-2" />
@@ -235,9 +306,12 @@ Create content for each selected platform.`,
                 <div className="space-y-4">
                     <div className="flex items-center justify-between">
                         <p className="text-white/40 text-sm">{generatedContent?.length || 0} pieces generated</p>
-                        <Button onClick={resetForm} variant="outline" size="sm" className="border-white/[0.06] text-white/40 hover:text-white rounded-xl text-xs">
+                        <button
+                            onClick={resetForm}
+                            className="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-medium border border-white/20 bg-white/10 text-white hover:bg-white/15"
+                        >
                             Create More
-                        </Button>
+                        </button>
                     </div>
                     {generatedContent?.map((item, i) => (
                         <div key={i} className="bg-[#0a0a0a] border border-white/[0.06] rounded-2xl p-6">
@@ -246,15 +320,13 @@ Create content for each selected platform.`,
                                     <span className="px-2.5 py-1 bg-red-500/10 text-red-300 text-[11px] rounded-lg">{item.platform}</span>
                                     <h3 className="text-white font-medium mt-2">{item.title}</h3>
                                 </div>
-                                <Button 
-                                    onClick={() => handleCopy(item.content)}
-                                    variant="outline" 
-                                    size="sm" 
-                                    className="border-white/[0.06] text-white/40 hover:text-white rounded-xl text-xs"
+                                <button
+                                    onClick={() => handleCopy(item.content, i)}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border border-white/20 bg-white/10 text-white hover:bg-white/15 hover:border-white/30 transition-colors"
                                 >
-                                    {copied ? <Check className="w-3 h-3 mr-1" /> : <Copy className="w-3 h-3 mr-1" />}
-                                    {copied ? 'Copied!' : 'Copy'}
-                                </Button>
+                                    {copiedIndex === i ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                                    {copiedIndex === i ? 'Copied!' : 'Copy'}
+                                </button>
                             </div>
                             <div className="bg-white/[0.02] border border-white/[0.04] rounded-xl p-4 mb-4">
                                 <p className="text-white/70 text-sm whitespace-pre-wrap leading-relaxed">{item.content}</p>

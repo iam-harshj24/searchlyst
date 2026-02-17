@@ -1,15 +1,11 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { ArrowRight, Clock, CheckCircle, XCircle, ArrowLeft } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import WaitlistModal from '../WaitlistModal';
 
 export default function AboutHeroSection() {
-    const [showWaitlist, setShowWaitlist] = useState(false);
-    
     return (
-        <>
         <section className="relative bg-[var(--bg-primary)] min-h-screen pt-24 pb-24 overflow-hidden">
             {/* Red glow effects - using transform for GPU acceleration on Safari */}
             <div className="absolute bottom-0 left-0 w-96 h-96 bg-red-600/20 rounded-full blur-[150px] transform-gpu" />
@@ -46,13 +42,14 @@ export default function AboutHeroSection() {
 
                 {/* CTA Buttons */}
                 <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
-                    <Button 
-                        onClick={() => setShowWaitlist(true)}
-                        className="bg-red-600 hover:bg-red-700 text-white px-8 h-12 rounded-full font-medium group"
-                    >
-                        Join Waitlist
-                        <ArrowRight className="ml-2 w-5 h-5" />
-                    </Button>
+                    <Link to="/Signup">
+                        <Button 
+                            className="bg-red-600 hover:bg-red-700 text-white px-8 h-12 rounded-full font-medium group"
+                        >
+                            Get Started Free
+                            <ArrowRight className="ml-2 w-5 h-5" />
+                        </Button>
+                    </Link>
                     <Button variant="outline" className="border-[var(--border)] text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] px-8 h-12 rounded-full font-medium group">
                         See How It Works
                         <ArrowRight className="ml-2 w-5 h-5" />
@@ -76,7 +73,5 @@ export default function AboutHeroSection() {
                 </div>
             </div>
         </section>
-        <WaitlistModal open={showWaitlist} onOpenChange={setShowWaitlist} source="about" />
-        </>
     );
 }

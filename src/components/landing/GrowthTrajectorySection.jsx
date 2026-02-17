@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { Sparkles, Zap, TrendingUp, Target, DollarSign, ArrowRight, Clock, CheckCircle, XCircle } from 'lucide-react';
 import { Button } from "@/components/ui/button";
-import WaitlistModal from '../WaitlistModal';
+import { Link } from 'react-router-dom';
 
 const trajectoryData = [
     { week: 'Week 1', score: 0 },
@@ -52,10 +52,7 @@ const CustomDot = (props) => {
 };
 
 export default function GrowthTrajectorySection() {
-    const [showWaitlist, setShowWaitlist] = useState(false);
-    
     return (
-        <>
         <section id="how-it-works" className="relative bg-black py-12 md:py-24 overflow-hidden border-t border-white/[0.05]">
             <div className="relative max-w-6xl mx-auto px-2 md:px-6">
                 {/* Badge */}
@@ -164,13 +161,14 @@ export default function GrowthTrajectorySection() {
                     transition={{ delay: 0.4 }}
                     className="text-center"
                 >
-                    <Button 
-                        onClick={() => setShowWaitlist(true)}
-                        className="bg-red-600 hover:bg-red-700 text-white px-8 h-12 rounded-xl font-medium group shadow-lg shadow-red-500/20 transition-all hover:shadow-xl hover:shadow-red-500/30 hover:scale-105"
-                    >
-                        Join Waitlist
-                        <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                    </Button>
+                    <Link to="/Signup">
+                        <Button 
+                            className="bg-red-600 hover:bg-red-700 text-white px-8 h-12 rounded-xl font-medium group shadow-lg shadow-red-500/20 transition-all hover:shadow-xl hover:shadow-red-500/30 hover:scale-105"
+                        >
+                            Get Started Free
+                            <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                        </Button>
+                    </Link>
                     
                     <div className="flex flex-wrap justify-center gap-6 mt-6 text-sm text-white/40">
                         <div className="flex items-center gap-2 transition-all duration-300 hover:scale-110 hover:text-white/60 cursor-pointer">
@@ -189,7 +187,5 @@ export default function GrowthTrajectorySection() {
                 </motion.div>
             </div>
         </section>
-        <WaitlistModal open={showWaitlist} onOpenChange={setShowWaitlist} source="home" />
-        </>
     );
 }

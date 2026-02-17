@@ -51,7 +51,9 @@ import AboutUs from './pages/AboutUs';
 import AdminPanel from './pages/AdminPanel';
 import Blogs from './pages/Blogs';
 import Dashboard from './pages/Dashboard';
+import ForgotPassword from './pages/ForgotPassword';
 import Home from './pages/Home';
+import Signup from './pages/Signup';
 
 
 export const PAGES = {
@@ -59,7 +61,9 @@ export const PAGES = {
     "AdminPanel": AdminPanel,
     "Blogs": Blogs,
     "Dashboard": Dashboard,
+    "ForgotPassword": ForgotPassword,
     "Home": Home,
+    "Signup": Signup,
 }
 
 export const pagesConfig = {

@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { base44 } from '@/api/base44Client';
+import { apiClient } from '@/api/apiClient';
 
 const roles = [
     { 
@@ -100,12 +100,18 @@ export default function OnboardingFlow({ onComplete }) {
 
     const handleFinish = async () => {
         setSaving(true);
-        await base44.auth.updateMe({
+        await apiClient.auth.updateMe({
             role_type: selectedRole,
             industry,
             target_audience: audience,
             location,
             website_url: website,
+            goals: selectedGoals,
+            platforms: selectedPlatforms,
+            company_name: companyName,
+            funding_stage: fundingStage,
+            content_style: contentStyle,
+            follower_range: followerRange,
             onboarded: true,
         });
         setSaving(false);
@@ -306,7 +312,7 @@ export default function OnboardingFlow({ onComplete }) {
                         </div>
 
                         <div className="flex gap-3 mt-4">
-                            <Button onClick={() => setStep(1)} variant="outline" className="flex-1 h-11 border-white/[0.06] text-white/40 hover:text-white rounded-xl">Back</Button>
+                            <Button onClick={() => setStep(1)} variant="outline" className="flex-1 h-11 border border-white/40 !bg-white/5 !text-white hover:!bg-white/10 rounded-xl">Back</Button>
                             <Button onClick={() => setStep(3)} disabled={!industry.trim() || !audience.trim()}
                                 className="flex-1 h-11 bg-red-600 hover:bg-red-700 text-white rounded-xl">
                                 Continue <ArrowRight className="w-4 h-4 ml-2" />
@@ -370,7 +376,7 @@ export default function OnboardingFlow({ onComplete }) {
                         </div>
 
                         <div className="flex gap-3 mt-4">
-                            <Button onClick={() => setStep(2)} variant="outline" className="flex-1 h-11 border-white/[0.06] text-white/40 hover:text-white rounded-xl">Back</Button>
+                            <Button onClick={() => setStep(2)} variant="outline" className="flex-1 h-11 border border-white/40 !bg-white/5 !text-white hover:!bg-white/10 rounded-xl">Back</Button>
                             <Button onClick={() => setStep(4)} disabled={selectedGoals.length === 0}
                                 className="flex-1 h-11 bg-red-600 hover:bg-red-700 text-white rounded-xl">
                                 Continue <ArrowRight className="w-4 h-4 ml-2" />
@@ -421,7 +427,7 @@ export default function OnboardingFlow({ onComplete }) {
                         </div>
 
                         <div className="flex gap-3 mt-4">
-                            <Button onClick={() => setStep(3)} variant="outline" className="flex-1 h-11 border-white/[0.06] text-white/40 hover:text-white rounded-xl">Back</Button>
+                            <Button onClick={() => setStep(3)} variant="outline" className="flex-1 h-11 border border-white/40 !bg-white/5 !text-white hover:!bg-white/10 rounded-xl">Back</Button>
                             <Button onClick={handleFinish} disabled={saving}
                                 className="flex-1 h-11 bg-red-600 hover:bg-red-700 text-white rounded-xl">
                                 {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Sparkles className="w-4 h-4 mr-2" />}

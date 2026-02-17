@@ -69,11 +69,37 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('user', JSON.stringify(response.user));
       setUser(response.user);
       setIsAuthenticated(true);
-      return { success: true };
+      return { success: true, user: response.user };
     } catch (error) {
       setAuthError({
         type: 'login_failed',
         message: error.message || 'Login failed'
+      });
+      return { success: false, error };
+    } finally {
+      setIsLoadingAuth(false);
+    }
+  };
+
+  const signup = async (full_name, email, password) => {
+    setIsLoadingAuth(true);
+    setAuthError(null);
+    try {
+      const response = await apiClient.auth.signup({ full_name, email, password });
+      localStorage.setItem('authToken', response.token);
+      localStorage.setItem('user', JSON.stringify(response.user));
+      // New users start with onboarded: false
+      localStorage.setItem('searchlyst_user_profile', JSON.stringify({ 
+        full_name, 
+        onboarded: false 
+      }));
+      setUser(response.user);
+      setIsAuthenticated(true);
+      return { success: true };
+    } catch (error) {
+      setAuthError({
+        type: 'signup_failed',
+        message: error.message || 'Signup failed'
       });
       return { success: false, error };
     } finally {
@@ -100,6 +126,7 @@ export const AuthProvider = ({ children }) => {
       authError,
       appPublicSettings,
       login,
+      signup,
       logout,
       navigateToLogin,
       checkAppState
