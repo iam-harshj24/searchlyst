@@ -1,6 +1,18 @@
 // API client for Searchlyst backend
+// In production: set VITE_API_BASE_URL to your backend URL (e.g. https://api.searchlyst.com/api)
+// If unset in production, uses same-origin /api (works when frontend & backend share a domain via reverse proxy)
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
+const getApiBaseUrl = () => {
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL;
+  }
+  if (import.meta.env.PROD && typeof window !== 'undefined') {
+    return `${window.location.origin}/api`;
+  }
+  return 'http://localhost:3000/api';
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 // Helper to get auth token
 const getAuthHeaders = () => {

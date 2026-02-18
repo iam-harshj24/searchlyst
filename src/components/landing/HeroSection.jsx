@@ -164,7 +164,7 @@ export default function HeroSection() {
                                                                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-secondary)]" />
                                                                 <Input
                                                                     type="email"
-                                                                    placeholder="Your Work Email"
+                                                                    placeholder="Your Email"
                                                                     className="w-full bg-[var(--bg-primary)] border-[var(--border)] text-[var(--text-primary)] pl-12 h-12 rounded-xl placeholder:text-[var(--text-secondary)]"
                                                                     {...field}
                                                                 />
@@ -183,7 +183,7 @@ export default function HeroSection() {
                                                             <div className="relative">
                                                                 <Globe className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-secondary)]" />
                                                                 <Input
-                                                                    placeholder="Company Website URL"
+                                                                    placeholder="Website link"
                                                                     className="w-full bg-[var(--bg-primary)] border-[var(--border)] text-[var(--text-primary)] pl-12 h-12 rounded-xl placeholder:text-[var(--text-secondary)]"
                                                                     {...field}
                                                                 />

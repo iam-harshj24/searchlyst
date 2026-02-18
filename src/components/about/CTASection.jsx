@@ -165,13 +165,13 @@ export default function CTASection() {
                                         name="email"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel className="text-[var(--text-secondary)]">Work Email</FormLabel>
+                                                <FormLabel className="text-[var(--text-secondary)]">Email</FormLabel>
                                                 <FormControl>
                                                     <div className="relative">
                                                         <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-secondary)]" />
                                                         <Input 
                                                             type="email"
-                                                            placeholder="john@company.com"
+                                                            placeholder="you@example.com"
                                                             className="bg-[var(--bg-primary)] border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] pl-10"
                                                             {...field}
                                                         />
@@ -186,12 +186,12 @@ export default function CTASection() {
                                         name="website_url"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel className="text-[var(--text-secondary)]">Company Website URL</FormLabel>
+                                                <FormLabel className="text-[var(--text-secondary)]">Website</FormLabel>
                                                 <FormControl>
                                                     <div className="relative">
                                                         <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-secondary)]" />
                                                         <Input 
-                                                            placeholder="https://yourcompany.com"
+                                                            placeholder="Website link"
                                                             className="bg-[var(--bg-primary)] border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] pl-10"
                                                             {...field}
                                                         />

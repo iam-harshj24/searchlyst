@@ -90,13 +90,13 @@ export default function WaitlistModal({ open, onOpenChange, source = 'home' }) {
                                     name="email"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel className="text-gray-400">Work Email</FormLabel>
+                                            <FormLabel className="text-gray-400">Email</FormLabel>
                                             <FormControl>
                                                 <div className="relative">
                                                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                                                     <Input
                                                         type="email"
-                                                        placeholder="john@company.com"
+                                                        placeholder="you@example.com"
                                                         className="bg-gray-900 border-gray-800 text-white placeholder:text-gray-600 pl-10"
                                                         {...field}
                                                     />
@@ -111,12 +111,12 @@ export default function WaitlistModal({ open, onOpenChange, source = 'home' }) {
                                     name="website_url"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel className="text-gray-400">Company Website URL</FormLabel>
+                                            <FormLabel className="text-gray-400">Website</FormLabel>
                                             <FormControl>
                                                 <div className="relative">
                                                     <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                                                     <Input
-                                                        placeholder="https://yourcompany.com"
+                                                        placeholder="Website link"
                                                         className="bg-gray-900 border-gray-800 text-white placeholder:text-gray-600 pl-10"
                                                         {...field}
                                                     />
