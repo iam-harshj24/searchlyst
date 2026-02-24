@@ -45,7 +45,7 @@ ALTER TABLE "users" ALTER COLUMN "created_at" SET DATA TYPE TIMESTAMP(3);
 ALTER TABLE "users" ALTER COLUMN "updated_at" SET DATA TYPE TIMESTAMP(3);
 
 -- Step 4: Migrate projects (old: user_id, name, url -> new: userId, brandName, domain)
--- Create new projects table with correct schema
+DROP TABLE IF EXISTS "projects_new";
 CREATE TABLE "projects_new" (
     "id" SERIAL NOT NULL,
     "userId" INTEGER NOT NULL,
@@ -75,7 +75,8 @@ SELECT
 FROM "projects" p;
 DROP TABLE "projects";
 ALTER TABLE "projects_new" RENAME TO "projects";
-CREATE INDEX "idx_project_user" ON "projects"("userId");
+CREATE INDEX IF NOT EXISTS "idx_project_user" ON "projects"("userId");
+ALTER TABLE "projects" DROP CONSTRAINT IF EXISTS "projects_userId_fkey";
 ALTER TABLE "projects" ADD CONSTRAINT "projects_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- Step 5: Alter admin_users (type adjustments)
@@ -108,6 +109,7 @@ CREATE TABLE IF NOT EXISTS "audit_jobs" (
     CONSTRAINT "audit_jobs_pkey" PRIMARY KEY ("id")
 );
 CREATE INDEX IF NOT EXISTS "idx_audit_user" ON "audit_jobs"("userId");
+ALTER TABLE "audit_jobs" DROP CONSTRAINT IF EXISTS "audit_jobs_userId_fkey";
 ALTER TABLE "audit_jobs" ADD CONSTRAINT "audit_jobs_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 CREATE TABLE IF NOT EXISTS "visibility_scans" (
@@ -125,4 +127,5 @@ CREATE TABLE IF NOT EXISTS "visibility_scans" (
     CONSTRAINT "visibility_scans_pkey" PRIMARY KEY ("id")
 );
 CREATE INDEX IF NOT EXISTS "idx_scan_user" ON "visibility_scans"("userId");
+ALTER TABLE "visibility_scans" DROP CONSTRAINT IF EXISTS "visibility_scans_userId_fkey";
 ALTER TABLE "visibility_scans" ADD CONSTRAINT "visibility_scans_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
