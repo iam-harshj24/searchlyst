@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
     LayoutDashboard, Bot, Eye, BarChart3, Compass, PenTool,
-    Activity, UserCircle, TrendingUp, User, LogOut, Sparkles,
+    Activity, UserCircle, TrendingUp, User, LogOut,
     FileSearch, Globe, Zap, Sun, Moon, Swords, Terminal
 } from 'lucide-react';
 import ProjectSwitcher from './ProjectSwitcher';
@@ -48,9 +48,7 @@ export default function Sidebar({ activeTab, onTabChange, user, userRole, projec
             {/* Logo */}
             <div className="p-4 border-b border-[var(--border)]">
                 <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 bg-red-600 rounded-xl flex items-center justify-center shadow-lg shadow-red-500/20">
-                        <Sparkles className="w-4 h-4 text-[var(--text-primary)]" />
-                    </div>
+                    <img src="/searchlyst_logo.png" alt="Searchlyst" className="w-9 h-9 object-contain" />
                     {!collapsed && (
                         <div className="flex-1">
                             <span className="text-[var(--text-primary)] font-semibold text-sm tracking-tight">Searchlyst</span>

@@ -15,7 +15,7 @@ export default function Navbar() {
                 <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 md:py-4 flex items-center justify-between">
                     <a href="https://searchlyst.com" className="cursor-pointer">
                         <img 
-                            src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69824440a17c76d392c103dc/2787700e8_Group123-Picsart-BackgroundRemover.png" 
+                            src="/searchlyst_logo.png" 
                             alt="Searchlyst" 
                             className="h-10 md:h-12"
                             loading="eager"

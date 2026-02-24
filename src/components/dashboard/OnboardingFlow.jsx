@@ -297,9 +297,7 @@ export default function OnboardingFlow({ onComplete, mode = 'firstTime' }) {
                 {/* Logo */}
                 <div className="mb-8">
                     <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center">
-                            <Search className="w-4 h-4 text-[var(--text-primary)]" />
-                        </div>
+                        <img src="/searchlyst_logo.png" alt="Searchlyst" className="w-8 h-8 object-contain" />
                         <span className="text-xl font-bold text-gray-900">Searchlyst</span>
                     </div>
                 </div>
