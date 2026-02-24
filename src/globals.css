@@ -1,0 +1,400 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+
+  :root,
+  .dark {
+    --bg-primary: #000000;
+    --bg-secondary: #0a0a0a;
+    --bg-tertiary: #111111;
+    --bg-elevated: #1a1a1a;
+    --text-primary: #ffffff;
+    --text-secondary: #737373;
+    --text-muted: rgba(255, 255, 255, 0.3);
+    --border: rgba(255, 255, 255, 0.08);
+    --border-strong: rgba(255, 255, 255, 0.15);
+    --surface-hover: rgba(0, 0, 0, 0.03);
+    --surface-active: rgba(255, 255, 255, 0.06);
+    --shadow-color: rgba(0, 0, 0, 0.5);
+    --chart-text: #737373;
+
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --input: 0 0% 14.9%;
+    --ring: 0 0% 83.1%;
+    --radius: 0.5rem;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+  }
+
+  .light {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f8f9fa;
+    --bg-tertiary: #f0f1f3;
+    --bg-elevated: #ffffff;
+    --text-primary: #1a1a2e;
+    --text-secondary: #64748b;
+    --text-muted: #94a3b8;
+    --border: #e2e8f0;
+    --border-strong: #cbd5e1;
+    --surface-hover: #f1f5f9;
+    --surface-active: #e2e8f0;
+    --shadow-color: rgba(0, 0, 0, 0.06);
+    --chart-text: #64748b;
+
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --input: 0 0% 89.8%;
+    --ring: 0 0% 3.9%;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+
+    /* Override Tailwind's white and dark color utilities */
+    color-scheme: light;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/*
+ * Light mode overrides for hardcoded dark-mode Tailwind classes.
+ * This catches components that haven't been individually migrated to CSS variables.
+ */
+
+/* text-white → dark text in light mode (exclude buttons with red/colored bg) */
+.light .text-white {
+  color: var(--text-primary);
+}
+
+/* Preserve white text inside buttons with colored backgrounds */
+.light button.bg-red-600>*,
+.light button.bg-red-700>*,
+.light .bg-red-600,
+.light .bg-red-600 *,
+.light .bg-red-700,
+.light .bg-red-700 *,
+.light .bg-blue-600 *,
+.light .bg-green-600 *,
+.light .bg-purple-600 * {
+  color: #ffffff;
+}
+
+/* Fix text-white/opacity classes */
+.light .text-white\/10,
+.light .text-white\/20,
+.light .text-white\/30 {
+  color: var(--text-muted);
+}
+
+.light .text-white\/40,
+.light .text-white\/50,
+.light .text-white\/60 {
+  color: var(--text-secondary);
+}
+
+.light .text-white\/70,
+.light .text-white\/80,
+.light .text-white\/90 {
+  color: var(--text-primary);
+}
+
+/* Fix hardcoded dark backgrounds */
+.light .bg-black {
+  background-color: var(--bg-primary);
+}
+
+.light .bg-\[\#0a0a0a\] {
+  background-color: var(--bg-secondary);
+}
+
+.light .bg-\[\#111111\],
+.light .bg-\[\#111\] {
+  background-color: var(--bg-tertiary);
+}
+
+.light .bg-\[\#1a1a1a\] {
+  background-color: var(--bg-elevated);
+}
+
+/* Fix bg-white/opacity → subtle backgrounds in light mode */
+.light .bg-white\/\[0\.02\],
+.light .bg-white\/\[0\.03\],
+.light .bg-white\/\[0\.04\],
+.light .bg-white\/5 {
+  background-color: var(--surface-hover);
+}
+
+.light .bg-white\/10,
+.light .bg-white\/\[0\.06\] {
+  background-color: var(--surface-active);
+}
+
+/* Fix border-white/opacity */
+.light .border-white\/5,
+.light .border-white\/\[0\.06\],
+.light .border-white\/\[0\.08\],
+.light .border-white\/10,
+.light .border-white\/15,
+.light .border-white\/20 {
+  border-color: var(--border);
+}
+
+.light .border-black {
+  border-color: var(--border);
+}
+
+/* Gradient overrides */
+.light .from-white\/\[0\.04\],
+.light .from-white\/\[0\.03\],
+.light .from-white\/\[0\.02\] {
+  --tw-gradient-from: var(--surface-hover);
+}
+
+.light .to-white\/\[0\.02\],
+.light .to-white\/\[0\.01\] {
+  --tw-gradient-to: transparent;
+}
+
+/* Inputs & selects */
+.light select,
+.light input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+.light textarea {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  border-color: var(--border);
+}
+
+/* Chart tooltip overrides — Recharts uses inline styles but these help fallbacks */
+.light .recharts-default-tooltip {
+  background-color: var(--bg-elevated) !important;
+  border-color: var(--border) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Safari-specific performance optimizations */
+@supports (-webkit-touch-callout: none) {
+
+  .blur-\[150px\],
+  .blur-\[120px\] {
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    will-change: transform;
+  }
+
+  .transition-all,
+  .transition-transform,
+  .transition-colors {
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+  }
+}
+
+/* ================================================================== */
+/*  Premium Animations & Utilities                                     */
+/* ================================================================== */
+
+/* Fade-in-up entrance animation */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in-up {
+  animation: fadeInUp 0.5s ease-out both;
+}
+
+/* Staggered animation delays for card grids */
+.stagger-1 {
+  animation-delay: 0.05s;
+}
+
+.stagger-2 {
+  animation-delay: 0.10s;
+}
+
+.stagger-3 {
+  animation-delay: 0.15s;
+}
+
+.stagger-4 {
+  animation-delay: 0.20s;
+}
+
+.stagger-5 {
+  animation-delay: 0.25s;
+}
+
+.stagger-6 {
+  animation-delay: 0.30s;
+}
+
+.stagger-7 {
+  animation-delay: 0.35s;
+}
+
+.stagger-8 {
+  animation-delay: 0.40s;
+}
+
+/* Shimmer loading skeleton */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.shimmer {
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.04) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.8s infinite;
+}
+
+/* Scan pulse glow for active indicators */
+@keyframes scanPulse {
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.5);
+  }
+
+  50% {
+    box-shadow: 0 0 0 6px rgba(168, 85, 247, 0);
+  }
+}
+
+.scan-pulse {
+  animation: scanPulse 1.5s ease-in-out infinite;
+}
+
+/* Slide-down for expanding elements */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    max-height: 0;
+    transform: translateY(-8px);
+  }
+
+  to {
+    opacity: 1;
+    max-height: 500px;
+    transform: translateY(0);
+  }
+}
+
+.slide-down {
+  animation: slideDown 0.3s ease-out both;
+}
+
+/* Page transition wrapper */
+.page-transition {
+  animation: fadeInUp 0.35s ease-out both;
+}
+
+/* Glassmorphism utility */
+.glass {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.light .glass {
+  background: rgba(255, 255, 255, 0.65);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+/* Hover lift effect for interactive cards */
+.hover-lift {
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 25px -5px var(--shadow-color);
+}
+
+/* Subtle scale on hover for buttons */
+.hover-scale {
+  transition: transform 0.2s ease;
+}
+
+.hover-scale:hover {
+  transform: scale(1.03);
+}
+
+.hover-scale:active {
+  transform: scale(0.98);
+}
+
+/* Coming Soon blur overlay */
+.coming-soon-blur {
+  filter: blur(6px);
+  opacity: 0.4;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Gradient text utility */
+.gradient-text {
+  background: linear-gradient(135deg, #ef4444 0%, #a855f7 50%, #6366f1 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}

@@ -1,0 +1,104 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            Int       @id @default(autoincrement())
+  email         String    @unique
+  password_hash String    
+  name          String    
+  role_type     String?   @default("founder")
+  onboarded     Boolean   @default(false)
+  created_at    DateTime? @default(now())
+  updated_at      DateTime? @default(now())
+  projects        Project[]
+  auditJobs       AuditJob[]
+  visibilityScans VisibilityScan[]
+
+  @@index([email], map: "idx_user_email")
+  @@map("users")
+}
+
+model AdminUser {
+  id            Int       @id @default(autoincrement())
+  email         String    @unique
+  password_hash String    
+  name          String    
+  created_at    DateTime? @default(now())
+  last_login    DateTime? 
+
+  @@index([email], map: "idx_admin_email")
+  @@map("admin_users")
+}
+
+model waitlist {
+  id          Int       @id @default(autoincrement())
+  full_name   String    
+  email       String    @unique
+  website_url String?   
+  source      String?   
+  status      String?   @default("pending")
+  created_at  DateTime? @default(now())
+  updated_at  DateTime? @default(now())
+
+  @@index([email], map: "idx_waitlist_email")
+  @@index([status], map: "idx_waitlist_status")
+}
+
+model Project {
+  id           Int       @id @default(autoincrement())
+  userId       Int
+  brandName    String    
+  domain       String    
+  industry     String?   
+  companySize  String?   
+  location     String?   
+  language     String?   
+  reach        String?   
+  competitors  String?   
+  created_at   DateTime? @default(now())
+  updated_at   DateTime? @default(now())
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "idx_project_user")
+  @@map("projects")
+}
+
+model AuditJob {
+  id          String   @id
+  userId      Int
+  url         String   
+  status      String   @default("pending")
+  progress    String?  
+  results     String?  
+  error       String?  
+  created_at  DateTime @default(now())
+  updated_at  DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "idx_audit_user")
+  @@map("audit_jobs")
+}
+
+model VisibilityScan {
+  id          String   @id
+  userId      Int
+  brandName   String   
+  domain      String   
+  status      String   @default("pending")
+  progress    String?  
+  allRuns     String?  
+  results     String?  
+  error       String?  
+  created_at  DateTime @default(now())
+  updated_at  DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "idx_scan_user")
+  @@map("visibility_scans")
+}
