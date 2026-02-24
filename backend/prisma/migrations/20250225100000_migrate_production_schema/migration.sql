@@ -2,29 +2,36 @@
 -- BACKUP YOUR DATABASE BEFORE RUNNING THIS MIGRATION
 -- This migration is DESTRUCTIVE: drops old tables (audit_issues, audits, brand_profiles, etc.)
 
--- Step 1: Drop foreign keys from tables we're about to drop/alter
-ALTER TABLE "audit_issues" DROP CONSTRAINT IF EXISTS "audit_issues_audit_id_fkey";
-ALTER TABLE "audits" DROP CONSTRAINT IF EXISTS "audits_project_id_fkey";
-ALTER TABLE "brand_profiles" DROP CONSTRAINT IF EXISTS "brand_profiles_project_id_fkey";
-ALTER TABLE "fetched_content" DROP CONSTRAINT IF EXISTS "fetched_content_social_connection_id_fkey";
-ALTER TABLE "projects" DROP CONSTRAINT IF EXISTS "projects_user_id_fkey";
-ALTER TABLE "sentiment_geo_results" DROP CONSTRAINT IF EXISTS "sentiment_geo_results_project_id_fkey";
-ALTER TABLE "sentiment_geo_results" DROP CONSTRAINT IF EXISTS "sentiment_geo_results_tracked_prompt_id_fkey";
-ALTER TABLE "social_connections" DROP CONSTRAINT IF EXISTS "social_connections_user_id_fkey";
-ALTER TABLE "tracked_prompts" DROP CONSTRAINT IF EXISTS "tracked_prompts_project_id_fkey";
+-- Step 1: Drop old tables (IF EXISTS - some may not exist). Order: children before parents.
+DROP TABLE IF EXISTS "audit_issues" CASCADE;
+DROP TABLE IF EXISTS "audits" CASCADE;
+DROP TABLE IF EXISTS "brand_profiles" CASCADE;
+DROP TABLE IF EXISTS "fetched_content" CASCADE;
+DROP TABLE IF EXISTS "sentiment_geo_results" CASCADE;
+DROP TABLE IF EXISTS "social_connections" CASCADE;
+DROP TABLE IF EXISTS "tracked_prompts" CASCADE;
 
--- Step 2: Drop old tables (not used by current codebase)
-DROP TABLE IF EXISTS "audit_issues";
-DROP TABLE IF EXISTS "audits";
-DROP TABLE IF EXISTS "brand_profiles";
-DROP TABLE IF EXISTS "fetched_content";
-DROP TABLE IF EXISTS "sentiment_geo_results";
-DROP TABLE IF EXISTS "social_connections";
-DROP TABLE IF EXISTS "tracked_prompts";
+-- Step 2: Drop projects FK if it exists (before we alter projects)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'projects') THEN
+    ALTER TABLE "projects" DROP CONSTRAINT IF EXISTS "projects_user_id_fkey";
+    ALTER TABLE "projects" DROP CONSTRAINT IF EXISTS "projects_userId_fkey";
+  END IF;
+END $$;
 
 -- Step 3: Migrate users (full_name -> name, add role_type/onboarded)
 ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "name" TEXT;
-UPDATE "users" SET "name" = COALESCE("full_name", "name", email);
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'full_name') THEN
+    UPDATE "users" SET "name" = COALESCE("full_name", "name", email);
+  ELSIF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'name') THEN
+    UPDATE "users" SET "name" = COALESCE("name", email) WHERE "name" IS NULL;
+  ELSE
+    UPDATE "users" SET "name" = email;
+  END IF;
+END $$;
 ALTER TABLE "users" ALTER COLUMN "name" SET NOT NULL;
 ALTER TABLE "users" DROP COLUMN IF EXISTS "full_name";
 ALTER TABLE "users" DROP COLUMN IF EXISTS "profile_data";
