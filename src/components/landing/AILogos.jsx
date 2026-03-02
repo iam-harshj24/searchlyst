@@ -1,9 +1,9 @@
 import React from 'react';
 
-// Claude logo - uses uploaded image, inverts based on theme
+// Claude logo - uses local image from public folder
 export const ClaudeLogo = ({ className = "w-8 h-8" }) => (
     <img 
-        src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69824440a17c76d392c103dc/4f844e269_image.png" 
+        src="/claude.png" 
         alt="Claude" 
         className={`${className} brightness-0 dark:brightness-0 dark:invert`}
     />
@@ -16,12 +16,12 @@ export const GeminiLogo = ({ className = "w-8 h-8" }) => (
     </svg>
 );
 
-// Perplexity logo - uses uploaded image, inverts based on theme
+// Perplexity logo - white on black, no invert needed (shows correctly in light and dark mode)
 export const PerplexityLogo = ({ className = "w-8 h-8" }) => (
     <img 
-        src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69824440a17c76d392c103dc/870d5ee5d_image.png" 
+        src="/perplexity.png" 
         alt="Perplexity" 
-        className={`${className} dark:invert`}
+        className={className}
     />
 );
 

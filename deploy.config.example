@@ -1,0 +1,38 @@
+# Searchlyst Deployment Configuration (clone-on-VM workflow)
+# Copy to deploy.config and fill in your values.
+# deploy.config is gitignored - never commit secrets.
+
+# === Git (required) ===
+# Your GitHub repo URL (use .git for HTTPS, or SSH format)
+GITHUB_REPO_URL=https://github.com/iam-harshj24/searchlyst.git
+GIT_BRANCH=production
+
+# === Connection (choose one) ===
+
+# Option A: Direct SSH (any VM with public IP)
+VM_HOST=34.131.23.40
+VM_USER=admin
+
+# Option B: GCP (uses gcloud compute ssh/scp)
+# GCP_PROJECT=your-gcp-project-id
+# GCP_ZONE=us-central1-a
+# GCP_INSTANCE=searchlyst-vm
+# VM_USER=your_os_login_username  # optional
+
+# === Application ===
+APP_URL=http:34.131.23.40
+REMOTE_APP_DIR=/opt/searchlyst
+
+# === Backend (required) ===
+DATABASE_URL=postgresql://user:password@HOST:5432/searchlyst
+JWT_SECRET=generate-a-long-random-secret-for-production
+
+# === Email (optional, for waitlist notifications) ===
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASSWORD=your-app-password
+NOTIFICATION_EMAIL=admin@searchlyst.com
+
+# === SSH (optional) ===
+# SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=10"

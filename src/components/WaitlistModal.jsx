@@ -1,45 +1,48 @@
 import React, { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { ArrowRight, User, Mail, Globe, Loader2, CheckCircle } from 'lucide-react';
-import { base44 } from '@/api/base44Client';
+import { apiClient } from '@/api/apiClient';
 import { toast } from 'sonner';
-import { isWorkEmail } from '@/components/emailValidation';
+import { waitlistSchema } from '@/validations/waitlist';
 
 export default function WaitlistModal({ open, onOpenChange, source = 'home' }) {
-    const [formData, setFormData] = useState({
-        full_name: '',
-        email: '',
-        website_url: ''
-    });
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        if (!formData.full_name || !formData.email || !formData.website_url) {
-            toast.error('Please fill in all fields');
-            return;
-        }
-        if (!isWorkEmail(formData.email)) {
-            toast.error('Please enter your work email. Personal emails (Gmail, Yahoo, Outlook, etc.) are not accepted.');
-            return;
-        }
-        
+    const form = useForm({
+        resolver: zodResolver(waitlistSchema),
+        defaultValues: {
+            full_name: '',
+            email: '',
+            website_url: '',
+            source: source,
+        },
+    });
+
+    const handleSubmit = async (values) => {
         setLoading(true);
-        await base44.entities.Waitlist.create({
-            ...formData,
-            source: source
-        });
-        setLoading(false);
-        setSuccess(true);
-        toast.success('Successfully joined the waitlist!');
-        setTimeout(() => {
-            onOpenChange(false);
-            setSuccess(false);
-            setFormData({ full_name: '', email: '', website_url: '' });
-        }, 2000);
+        try {
+            await apiClient.waitlist.create({
+                ...values,
+                source: source,
+            });
+            setSuccess(true);
+            toast.success('Successfully joined the waitlist!');
+            setTimeout(() => {
+                onOpenChange(false);
+                setSuccess(false);
+                form.reset({ full_name: '', email: '', website_url: '', source });
+            }, 2000);
+        } catch (error) {
+            toast.error(error.message || 'Failed to join waitlist. Please try again.');
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -60,62 +63,85 @@ export default function WaitlistModal({ open, onOpenChange, source = 'home' }) {
                             </p>
                         </DialogHeader>
                         
-                        <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-                            <div>
-                                <label className="text-gray-400 text-sm mb-2 block">Full Name</label>
-                                <div className="relative">
-                                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
-                                    <Input 
-                                        placeholder="John Smith"
-                                        value={formData.full_name}
-                                        onChange={(e) => setFormData({...formData, full_name: e.target.value})}
-                                        className="bg-gray-900 border-gray-800 text-white placeholder:text-gray-600 pl-10"
-                                        required
-                                    />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="text-gray-400 text-sm mb-2 block">Work Email</label>
-                                <div className="relative">
-                                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
-                                    <Input 
-                                        type="email"
-                                        placeholder="john@company.com"
-                                        value={formData.email}
-                                        onChange={(e) => setFormData({...formData, email: e.target.value})}
-                                        className="bg-gray-900 border-gray-800 text-white placeholder:text-gray-600 pl-10"
-                                        required
-                                    />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="text-gray-400 text-sm mb-2 block">Company Website URL</label>
-                                <div className="relative">
-                                    <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
-                                    <Input 
-                                        placeholder="https://yourcompany.com"
-                                        value={formData.website_url}
-                                        onChange={(e) => setFormData({...formData, website_url: e.target.value})}
-                                        className="bg-gray-900 border-gray-800 text-white placeholder:text-gray-600 pl-10"
-                                        required
-                                    />
-                                </div>
-                            </div>
-                            <Button 
-                                type="submit"
-                                disabled={loading}
-                                className="w-full bg-red-600 hover:bg-red-700 text-white h-12 rounded-xl font-medium group"
-                            >
-                                {loading ? (
-                                    <Loader2 className="w-5 h-5 animate-spin" />
-                                ) : (
-                                    <>
-                                        Join Waitlist
-                                        <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                                    </>
-                                )}
-                            </Button>
-                        </form>
+                        <Form {...form}>
+                            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 mt-4">
+                                <FormField
+                                    control={form.control}
+                                    name="full_name"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-gray-400">Full Name</FormLabel>
+                                            <FormControl>
+                                                <div className="relative">
+                                                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                                                    <Input
+                                                        placeholder="John Smith"
+                                                        className="bg-gray-900 border-gray-800 text-white placeholder:text-gray-600 pl-10"
+                                                        {...field}
+                                                    />
+                                                </div>
+                                            </FormControl>
+                                            <FormMessage className="text-red-400" />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="email"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-gray-400">Email</FormLabel>
+                                            <FormControl>
+                                                <div className="relative">
+                                                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                                                    <Input
+                                                        type="email"
+                                                        placeholder="you@example.com"
+                                                        className="bg-gray-900 border-gray-800 text-white placeholder:text-gray-600 pl-10"
+                                                        {...field}
+                                                    />
+                                                </div>
+                                            </FormControl>
+                                            <FormMessage className="text-red-400" />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="website_url"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-gray-400">Website</FormLabel>
+                                            <FormControl>
+                                                <div className="relative">
+                                                    <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                                                    <Input
+                                                        placeholder="Website link"
+                                                        className="bg-gray-900 border-gray-800 text-white placeholder:text-gray-600 pl-10"
+                                                        {...field}
+                                                    />
+                                                </div>
+                                            </FormControl>
+                                            <FormMessage className="text-red-400" />
+                                        </FormItem>
+                                    )}
+                                />
+                                <Button 
+                                    type="submit"
+                                    disabled={loading}
+                                    className="w-full bg-red-600 hover:bg-red-700 text-white h-12 rounded-xl font-medium group"
+                                >
+                                    {loading ? (
+                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                    ) : (
+                                        <>
+                                            Join Waitlist
+                                            <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                                        </>
+                                    )}
+                                </Button>
+                            </form>
+                        </Form>
                     </>
                 )}
             </DialogContent>

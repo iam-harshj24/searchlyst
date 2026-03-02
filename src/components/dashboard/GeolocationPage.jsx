@@ -37,7 +37,7 @@ export default function GeolocationPage() {
                         <p className="text-[var(--text-primary)] font-medium text-sm">{region.code}</p>
                         <p className="text-[var(--text-secondary)] text-xs mb-2">{region.name}</p>
                         <p className="text-lg font-bold text-[var(--text-primary)]">{(region.citations / 1000).toFixed(1)}K</p>
-                        <p className={`text-xs flex items-center gap-1 ${region.trendUp ? 'text-white' : 'text-red-400'}`}>
+                        <p className={`text-xs flex items-center gap-1 ${region.trendUp ? 'text-[var(--text-primary)]' : 'text-red-400'}`}>
                             {region.trendUp ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                             {region.trend}
                         </p>
@@ -72,8 +72,8 @@ export default function GeolocationPage() {
                 <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-xl p-6">
                     <h3 className="text-[var(--text-primary)] font-medium mb-4">Regional Insights</h3>
                     <div className="space-y-4">
-                        <div className="p-4 bg-white/[0.04] border border-white/10 rounded-lg">
-                            <p className="text-white text-sm font-medium">🚀 Fastest Growing</p>
+                        <div className="p-4 bg-[var(--surface-active)] border border-[var(--border)] rounded-lg">
+                            <p className="text-[var(--text-primary)] text-sm font-medium">🚀 Fastest Growing</p>
                             <p className="text-[var(--text-primary)] mt-1">Asia Pacific (+22%)</p>
                             <p className="text-[var(--text-secondary)] text-xs mt-1">Strong momentum in Japan and Australia</p>
                         </div>

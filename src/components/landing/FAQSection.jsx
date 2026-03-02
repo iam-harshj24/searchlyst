@@ -46,9 +46,9 @@ const faqs = [
 
 export default function FAQSection() {
     return (
-        <section id="faq" className="relative bg-black py-12 md:py-24 overflow-hidden border-t border-white/[0.05]">
+        <section id="faq" className="relative bg-[var(--bg-primary)] py-12 md:py-24 overflow-hidden">
             {/* Gradient line at top */}
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-px bg-gradient-to-r from-transparent via-[var(--border)] to-transparent" />
             
             <div className="relative max-w-3xl mx-auto px-6">
                 {/* Badge */}
@@ -58,7 +58,7 @@ export default function FAQSection() {
                     viewport={{ once: true }}
                     className="flex justify-center mb-8"
                 >
-                    <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-red-500/20 bg-red-500/5 backdrop-blur-sm">
+                    <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-red-500/30 bg-red-500/10">
                         <HelpCircle className="w-4 h-4 text-red-500" />
                         <span className="text-red-400 text-sm font-medium">FAQ</span>
                     </div>
@@ -73,7 +73,7 @@ export default function FAQSection() {
                     className="text-center mb-6"
                 >
                     <h2 className="text-4xl md:text-5xl font-bold mb-4">
-                        <span className="text-white">Common Questions About </span>
+                        <span className="text-[var(--text-primary)]">Common Questions About </span>
                         <span className="text-red-500">AI<br />Search Optimization</span>
                     </h2>
                 </motion.div>
@@ -100,12 +100,12 @@ export default function FAQSection() {
                             <AccordionItem 
                                 key={index} 
                                 value={`item-${index}`}
-                                className="bg-white/[0.02] border border-white/[0.08] rounded-xl px-6 data-[state=open]:border-red-500/20 data-[state=open]:bg-white/[0.04] hover:border-white/[0.12] hover:shadow-md transition-all duration-300 backdrop-blur-sm"
+                                className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-xl px-6 data-[state=open]:border-red-500/30 hover:border-red-500/20 hover:shadow-md transition-all duration-300"
                             >
-                                <AccordionTrigger className="text-white hover:no-underline text-left py-5 font-medium">
+                                <AccordionTrigger className="text-[var(--text-primary)] hover:no-underline text-left py-5">
                                     {faq.question}
                                 </AccordionTrigger>
-                                <AccordionContent className="text-white/60 pb-5 leading-relaxed">
+                                <AccordionContent className="text-[var(--text-secondary)] pb-5">
                                     {faq.answer}
                                 </AccordionContent>
                             </AccordionItem>
@@ -121,8 +121,8 @@ export default function FAQSection() {
                     transition={{ delay: 0.4 }}
                     className="text-center mt-12"
                 >
-                    <p className="text-white/50 mb-4">Still have questions?</p>
-                    <Button className="bg-transparent border border-white/10 text-white hover:bg-white/[0.04] hover:border-white/20 rounded-xl transition-all">
+                    <p className="text-[var(--text-secondary)] mb-4">Still have questions?</p>
+                    <Button className="bg-transparent border border-[var(--border)] text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] rounded-xl">
                         <MessageSquare className="w-4 h-4 mr-2" />
                         Chat with our team
                     </Button>

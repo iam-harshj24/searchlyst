@@ -34,20 +34,20 @@ const socialLinks = [
 
 export default function Footer() {
     return (
-        <footer className="bg-black border-t border-white/[0.08] py-12 md:py-16">
+        <footer className="bg-[var(--bg-primary)] border-t border-[var(--border)] py-12 md:py-16">
             <div className="max-w-6xl mx-auto px-4 md:px-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8 md:gap-12 mb-8 md:mb-12">
                     {/* Brand column */}
                     <div className="lg:col-span-1">
                         <Link to={createPageUrl('Home')}>
                             <img 
-                                src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69824440a17c76d392c103dc/2787700e8_Group123-Picsart-BackgroundRemover.png" 
+                                src="/searchlyst_logo.png" 
                                 alt="Searchlyst" 
                                 className="h-10 md:h-12 mb-4"
                                 loading="lazy"
                             />
                         </Link>
-                        <p className="text-white/50 text-sm leading-relaxed">
+                        <p className="text-[var(--text-secondary)] text-sm">
                             Making brands visible in the age of AI search. Track, optimize, and dominate AI search results.
                         </p>
                     </div>
@@ -55,7 +55,7 @@ export default function Footer() {
                     {/* Links columns */}
                     {Object.entries(footerLinks).map(([category, links]) => (
                         <div key={category}>
-                            <h4 className="text-white font-semibold mb-4">{category}</h4>
+                            <h4 className="text-[var(--text-primary)] font-semibold mb-4">{category}</h4>
                             <ul className="space-y-3">
                                 {links.map((link) => {
                                     const isObject = typeof link === 'object';
@@ -68,14 +68,14 @@ export default function Footer() {
                                             {isPage ? (
                                                 <Link 
                                                     to={createPageUrl(href)} 
-                                                    className="text-white/50 hover:text-white text-sm transition-colors"
+                                                    className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm transition-colors"
                                                 >
                                                     {label}
                                                 </Link>
                                             ) : (
                                                 <a 
                                                     href={href}
-                                                    className="text-white/50 hover:text-white text-sm transition-colors"
+                                                    className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm transition-colors"
                                                 >
                                                     {label}
                                                 </a>
@@ -89,13 +89,13 @@ export default function Footer() {
 
                     {/* Connect column */}
                     <div>
-                        <h4 className="text-white font-semibold mb-4">Connect</h4>
+                        <h4 className="text-[var(--text-primary)] font-semibold mb-4">Connect</h4>
                         <div className="flex gap-3">
                             {socialLinks.map((social) => (
                                 <a 
                                     key={social.name}
                                     href="#"
-                                    className="w-8 h-8 rounded-full bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-white/50 hover:text-white hover:border-white/20 hover:bg-white/[0.08] transition-all text-sm"
+                                    className="w-8 h-8 rounded-full bg-[var(--bg-secondary)] border border-[var(--border)] flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--text-primary)] transition-colors text-sm"
                                 >
                                     {social.icon}
                                 </a>
@@ -105,14 +105,14 @@ export default function Footer() {
                 </div>
 
                 {/* Bottom bar */}
-                <div className="border-t border-white/[0.08] pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
-                    <p className="text-white/40 text-sm">
+                <div className="border-t border-[var(--border)] pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
+                    <p className="text-[var(--text-secondary)] text-sm">
                         © 2026 Searchlyst. Making brands visible in the age of AI search. v2.1
                     </p>
                     <div className="flex gap-6">
-                        <a href="#" className="text-white/40 hover:text-white text-sm transition-colors">Privacy</a>
-                        <a href="#" className="text-white/40 hover:text-white text-sm transition-colors">Terms</a>
-                        <a href="#" className="text-white/40 hover:text-white text-sm transition-colors">Cookies</a>
+                        <a href="#" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm transition-colors">Privacy</a>
+                        <a href="#" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm transition-colors">Terms</a>
+                        <a href="#" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm transition-colors">Cookies</a>
                     </div>
                 </div>
             </div>

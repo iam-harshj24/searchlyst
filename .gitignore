@@ -1,7 +1,12 @@
 #env
 .env
 .env.*
+!.env.example
 
+# Deployment (contains secrets)
+deploy.config
+*.sh
+*.md
 # Logs
 logs
 *.log

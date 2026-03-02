@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Globe, Loader2 } from 'lucide-react';
-import { base44 } from '@/api/base44Client';
+import { apiClient } from '@/api/apiClient';
 import { toast } from 'sonner';
 
 export default function AddDomainModal({ open, onClose, onSuccess }) {
@@ -19,14 +19,9 @@ export default function AddDomainModal({ open, onClose, onSuccess }) {
 
         setLoading(true);
         try {
-            await base44.entities.Domain.create({
-                name,
-                url,
-                visibility_score: 0,
-                total_citations: 0,
-                sentiment: 0,
-                issues_count: 0,
-                status: 'pending'
+            await apiClient.projects.create({
+                brandName: name,
+                domain: url,
             });
             toast.success('Domain added successfully!');
             setName('');
@@ -34,7 +29,8 @@ export default function AddDomainModal({ open, onClose, onSuccess }) {
             onSuccess?.();
             onClose();
         } catch (error) {
-            toast.error('Failed to add domain');
+            console.error('Add domain error:', error);
+            toast.error(error.message || 'Failed to add domain');
         }
         setLoading(false);
     };
@@ -67,8 +63,8 @@ export default function AddDomainModal({ open, onClose, onSuccess }) {
                             className="bg-[var(--bg-secondary)] border-[var(--border)] text-[var(--text-primary)]"
                         />
                     </div>
-                    <Button 
-                        onClick={handleSubmit} 
+                    <Button
+                        onClick={handleSubmit}
                         disabled={loading}
                         className="w-full bg-red-600 hover:bg-red-700"
                     >
