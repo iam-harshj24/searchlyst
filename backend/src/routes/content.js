@@ -1,9 +1,9 @@
 import { Router } from 'express';
 import { generateArticle } from '../controllers/contentController.js';
-import { authMiddleware } from '../middleware/auth.js';
+import { authenticateToken } from '../middleware/auth.js';
 
 const router = Router();
 
-router.post('/generate', authMiddleware, generateArticle);
+router.post('/generate', authenticateToken, generateArticle);
 
 export default router;
