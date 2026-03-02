@@ -1,8 +1,7 @@
+// @ts-nocheck
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
 import { apiClient } from '@/api/apiClient';
-import { useAuth } from '@/lib/AuthContext';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { 
@@ -35,8 +34,6 @@ import { format } from 'date-fns';
 import { toast } from 'sonner';
 
 export default function AdminPanel() {
-    const navigate = useNavigate();
-    const { logout } = useAuth();
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
     const [sourceFilter, setSourceFilter] = useState('all');
@@ -96,46 +93,25 @@ export default function AdminPanel() {
         }
     };
 
-    const handleLogout = () => {
-        logout();
-        toast.success('Logged out successfully');
-        navigate('/Login');
-    };
-
     return (
-        <div className="min-h-screen bg-gray-950 p-6">
-            <div className="max-w-7xl mx-auto">
-                {/* Header */}
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-                    <div>
-                        <h1 className="text-3xl font-bold text-white">Waitlist Admin</h1>
-                        <p className="text-gray-400 mt-1">Manage and export waitlist submissions</p>
-                    </div>
-                    <div className="flex gap-3">
-                        <Button 
-                            variant="outline" 
-                            onClick={() => refetch()}
-                            className="border-gray-600 bg-gray-800/50 text-white hover:bg-gray-700 hover:text-white hover:border-gray-500"
-                        >
-                            <RefreshCw className="w-4 h-4 mr-2" />
-                            Refresh
-                        </Button>
-                        <Button 
-                            onClick={exportToCSV}
-                            className="bg-red-600 hover:bg-red-700 text-white"
-                        >
-                            <Download className="w-4 h-4 mr-2" />
-                            Export CSV
-                        </Button>
-                        <Button 
-                            variant="outline"
-                            onClick={handleLogout}
-                            className="border-gray-600 bg-gray-800/50 text-white hover:bg-gray-700 hover:text-white hover:border-gray-500"
-                        >
-                            <LogOut className="w-4 h-4 mr-2" />
-                            Logout
-                        </Button>
-                    </div>
+        <>
+                {/* Waitlist actions */}
+                <div className="flex justify-end gap-3 mb-6">
+                    <Button 
+                        variant="outline" 
+                        onClick={() => refetch()}
+                        className="border-gray-600 bg-gray-800/50 text-white hover:bg-gray-700 hover:text-white hover:border-gray-500"
+                    >
+                        <RefreshCw className="w-4 h-4 mr-2" />
+                        Refresh
+                    </Button>
+                    <Button 
+                        onClick={exportToCSV}
+                        className="bg-red-600 hover:bg-red-700 text-white"
+                    >
+                        <Download className="w-4 h-4 mr-2" />
+                        Export CSV
+                    </Button>
                 </div>
 
                 {/* Stats Cards */}
@@ -227,6 +203,7 @@ export default function AdminPanel() {
                                     <SelectItem value="home" className="text-white focus:bg-gray-700 focus:text-white hover:bg-gray-700/80 cursor-pointer">Home</SelectItem>
                                     <SelectItem value="about" className="text-white focus:bg-gray-700 focus:text-white hover:bg-gray-700/80 cursor-pointer">About</SelectItem>
                                     <SelectItem value="pricing" className="text-white focus:bg-gray-700 focus:text-white hover:bg-gray-700/80 cursor-pointer">Pricing</SelectItem>
+                                    <SelectItem value="bulk_upload" className="text-white focus:bg-gray-700 focus:text-white hover:bg-gray-700/80 cursor-pointer">Bulk Upload</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -235,15 +212,16 @@ export default function AdminPanel() {
 
                 {/* Table */}
                 <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+                    <div className="max-h-[calc(100vh-320px)] min-h-[300px] overflow-y-auto">
                     <Table>
                         <TableHeader>
                             <TableRow className="border-gray-800 hover:bg-gray-800/50">
-                                <TableHead className="text-gray-400">Full Name</TableHead>
-                                <TableHead className="text-gray-400">Email</TableHead>
-                                <TableHead className="text-gray-400">Website URL</TableHead>
-                                <TableHead className="text-gray-400">Source</TableHead>
-                                <TableHead className="text-gray-400">Status</TableHead>
-                                <TableHead className="text-gray-400">Date</TableHead>
+                                <TableHead className="text-gray-400 bg-gray-900 sticky top-0 z-10">Full Name</TableHead>
+                                <TableHead className="text-gray-400 bg-gray-900 sticky top-0 z-10">Email</TableHead>
+                                <TableHead className="text-gray-400 bg-gray-900 sticky top-0 z-10">Website URL</TableHead>
+                                <TableHead className="text-gray-400 bg-gray-900 sticky top-0 z-10">Source</TableHead>
+                                <TableHead className="text-gray-400 bg-gray-900 sticky top-0 z-10">Status</TableHead>
+                                <TableHead className="text-gray-400 bg-gray-900 sticky top-0 z-10">Date</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -284,6 +262,7 @@ export default function AdminPanel() {
                                             <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                                                 entry.source === 'home' ? 'bg-blue-500/20 text-blue-400' :
                                                 entry.source === 'about' ? 'bg-purple-500/20 text-purple-400' :
+                                                entry.source === 'bulk_upload' ? 'bg-cyan-500/20 text-cyan-400' :
                                                 'bg-orange-500/20 text-orange-400'
                                             }`}>
                                                 {entry.source}
@@ -316,13 +295,13 @@ export default function AdminPanel() {
                             )}
                         </TableBody>
                     </Table>
+                    </div>
                 </div>
 
                 {/* Footer */}
                 <div className="mt-4 text-center text-gray-500 text-sm">
                     Showing {filteredEntries.length} of {waitlistEntries.length} entries
                 </div>
-            </div>
-        </div>
+        </>
     );
 }

@@ -9,7 +9,10 @@ import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import AdminProtectedRoute from '@/components/AdminProtectedRoute';
 import AdminPanel from '@/pages/AdminPanel';
+import AdminLayout from '@/pages/admin/AdminLayout';
+import BulkUploadPage from '@/pages/admin/BulkUploadPage';
 import Dashboard from '@/pages/Dashboard';
 import Login from '@/pages/Login';
 
@@ -59,15 +62,18 @@ const AuthenticatedApp = () => {
       {/* Dashboard Route - Public (auto-creates anonymous user if needed) */}
       <Route path="/Dashboard" element={<Dashboard />} />
       
-      {/* Admin Panel Route - Protected */}
-      <Route 
-        path="/AdminPanel" 
+      {/* Admin Panel Routes - Admin only */}
+      <Route
+        path="/AdminPanel"
         element={
-          <ProtectedRoute>
-            <AdminPanel />
-          </ProtectedRoute>
-        } 
-      />
+          <AdminProtectedRoute>
+            <AdminLayout />
+          </AdminProtectedRoute>
+        }
+      >
+        <Route index element={<AdminPanel />} />
+        <Route path="bulk-upload" element={<BulkUploadPage />} />
+      </Route>
       
       {/* Other Pages */}
       {Object.entries(Pages).filter(([path]) => path !== 'AdminPanel' && path !== 'Login' && path !== 'Dashboard').map(([path, Page]) => (

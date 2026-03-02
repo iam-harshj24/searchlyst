@@ -46,4 +46,34 @@ export const waitlistService = {
   async getStats() {
     return waitlistRepository.getStats();
   },
+
+  async bulkCreateEntries(entries) {
+    const created = [];
+    const skipped = [];
+    const errors = [];
+
+    for (let i = 0; i < entries.length; i++) {
+      const row = i + 1;
+      const entry = entries[i];
+      try {
+        const existing = await waitlistRepository.findByEmail(entry.email);
+        if (existing) {
+          skipped.push({ row, email: entry.email, message: 'Email already on waitlist' });
+          continue;
+        }
+
+        const newEntry = await waitlistRepository.create({
+          full_name: entry.full_name,
+          email: entry.email,
+          website_url: entry.website_url || null,
+          source: 'bulk_upload',
+        });
+        created.push(newEntry);
+      } catch (err) {
+        errors.push({ row, email: entry.email, message: err.message || 'Failed to create entry' });
+      }
+    }
+
+    return { created, skipped, errors };
+  },
 };

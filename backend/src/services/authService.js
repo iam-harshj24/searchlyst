@@ -53,12 +53,12 @@ export const authService = {
   },
 
   async login(email, password) {
-    let user = await authRepository.findUserByEmail(email);
-    let isAdmin = false;
+    // Check admin first so admin credentials take precedence if email exists in both tables
+    let user = await authRepository.findAdminByEmail(email);
+    let isAdmin = !!user;
 
     if (!user) {
-      user = await authRepository.findAdminByEmail(email);
-      isAdmin = true;
+      user = await authRepository.findUserByEmail(email);
     }
 
     if (!user) {

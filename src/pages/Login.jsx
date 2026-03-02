@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,10 +13,18 @@ import { loginSchema, registerSchema } from '@/validations/auth';
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login, register } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [isRegister, setIsRegister] = useState(false);
+  const fromAdmin = location.state?.from === 'admin';
+
+  useEffect(() => {
+    if (fromAdmin && location.state?.message) {
+      toast.info(location.state.message);
+    }
+  }, [fromAdmin, location.state?.message]);
 
   const form = useForm({
     resolver: zodResolver(isRegister ? registerSchema : loginSchema),
@@ -63,7 +71,11 @@ export default function Login() {
           </div>
           <CardTitle className="text-2xl text-center text-white">{isRegister ? 'Create Account' : 'Welcome Back'}</CardTitle>
           <CardDescription className="text-center text-gray-400">
-            {isRegister ? 'Sign up to get started' : 'Enter your credentials to access your account'}
+            {fromAdmin
+              ? 'Log in with admin credentials to access the admin panel'
+              : isRegister
+                ? 'Sign up to get started'
+                : 'Enter your credentials to access your account'}
           </CardDescription>
         </CardHeader>
         <CardContent>

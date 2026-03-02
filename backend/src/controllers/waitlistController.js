@@ -1,4 +1,5 @@
 import { waitlistService } from '../services/waitlistService.js';
+import { addWelcomeEmailJob, welcomeEmailQueue } from '../queues/welcomeEmailQueue.js';
 
 export const createWaitlistEntry = async (req, res) => {
   const { full_name, email, website_url, source } = req.body;
@@ -102,6 +103,104 @@ export const getWaitlistStats = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch statistics',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
+
+export const bulkCreateEntries = async (req, res) => {
+  const { entries } = req.body;
+
+  try {
+    const result = await waitlistService.bulkCreateEntries(entries);
+
+    res.status(200).json({
+      success: true,
+      message: 'Bulk upload completed',
+      data: {
+        created: result.created.length,
+        skipped: result.skipped.length,
+        errors: result.errors.length,
+        details: {
+          created: result.created,
+          skipped: result.skipped,
+          errors: result.errors,
+        },
+      },
+    });
+  } catch (error) {
+    console.error('Error bulk creating waitlist entries:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to bulk upload waitlist',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
+
+export const sendWelcomeBulk = async (req, res) => {
+  const { entryIds } = req.body;
+
+  try {
+    const jobId = await addWelcomeEmailJob(entryIds);
+    res.status(202).json({
+      success: true,
+      message: 'Welcome email job started',
+      data: { jobId: String(jobId), total: entryIds.length },
+    });
+  } catch (error) {
+    console.error('Error starting welcome email job:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to start welcome email job',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
+
+export const getWelcomeJobStatus = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const job = await welcomeEmailQueue.getJob(id);
+    if (!job) {
+      return res.status(404).json({
+        success: false,
+        message: 'Job not found',
+      });
+    }
+
+    const state = await job.getState();
+    const progress = job.progress();
+    const total = job.data?.entryIds?.length ?? 0;
+
+    let status = 'running';
+    if (state === 'completed') status = 'completed';
+    else if (state === 'failed') status = 'failed';
+    else if (state === 'waiting' || state === 'active') status = 'running';
+    else if (state === 'delayed') status = 'running';
+
+    const sent = typeof progress === 'object' && progress?.sent != null ? progress.sent : 0;
+    const failed = typeof progress === 'object' && progress?.failed != null ? progress.failed : 0;
+    const errors = typeof progress === 'object' && Array.isArray(progress?.errors) ? progress.errors : [];
+
+    let resultData = { sent, failed, errors, total };
+    if (state === 'completed' && job.returnvalue) {
+      resultData = { ...resultData, ...job.returnvalue };
+    }
+    if (state === 'failed' && job.failedReason) {
+      resultData = { ...resultData, error: job.failedReason };
+    }
+
+    res.status(200).json({
+      success: true,
+      data: { status, ...resultData },
+    });
+  } catch (error) {
+    console.error('Error fetching welcome job status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch job status',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }
