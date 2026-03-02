@@ -169,6 +169,18 @@ export const apiClient = {
       return apiClient.post('/waitlist', data);
     },
 
+    async bulkCreate(entries) {
+      return apiClient.post('/waitlist/bulk', { entries });
+    },
+
+    async sendWelcomeBulk(entryIds) {
+      return apiClient.post('/waitlist/send-welcome-bulk', { entryIds });
+    },
+
+    async getWelcomeJobStatus(jobId) {
+      return apiClient.get(`/waitlist/welcome-job/${jobId}`);
+    },
+
     async list() {
       return apiClient.get('/waitlist');
     },

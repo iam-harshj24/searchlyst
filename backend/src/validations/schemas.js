@@ -31,3 +31,29 @@ export const createAdminSchema = z.object({
 export const updateStatusSchema = z.object({
   status: z.enum(['pending', 'contacted', 'converted']),
 });
+
+const bulkWaitlistItemSchema = z.object({
+  full_name: z.string().min(2, 'Full name must be at least 2 characters').max(255),
+  email: z.string().email('Must be a valid email address'),
+  website_url: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((v) => {
+      if (!v || typeof v !== 'string') return null;
+      const trimmed = String(v).trim();
+      if (!trimmed) return null;
+      if (websiteUrlRegex.test(trimmed)) {
+        return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+      }
+      return trimmed;
+    }),
+});
+
+export const bulkWaitlistSchema = z.object({
+  entries: z.array(bulkWaitlistItemSchema).min(1, 'At least one entry required').max(1000, 'Maximum 1000 entries per upload'),
+});
+
+export const sendWelcomeBulkSchema = z.object({
+  entryIds: z.array(z.number().int().positive()).min(1, 'At least one entry ID required').max(500, 'Maximum 500 entries per job'),
+});

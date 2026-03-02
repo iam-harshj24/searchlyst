@@ -13,6 +13,13 @@ export const waitlistRepository = {
     });
   },
 
+  async findByIds(ids) {
+    if (!ids?.length) return [];
+    return prisma.waitlist.findMany({
+      where: { id: { in: ids } },
+    });
+  },
+
   async create(data) {
     return prisma.waitlist.create({
       data: {

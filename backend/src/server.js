@@ -10,6 +10,7 @@ import auditRoutes from './routes/audit.js';
 import visibilityRoutes from './routes/visibility.js';
 import projectRoutes from './routes/projects.js';
 import contentRoutes from './routes/content.js';
+import './workers/welcomeEmailWorker.js';
 
 // Load environment variables
 dotenv.config();
