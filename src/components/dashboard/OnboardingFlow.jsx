@@ -185,6 +185,7 @@ export default function OnboardingFlow({ onComplete, mode = 'firstTime' }) {
                     brandName: ud.brandName || '', domain: ud.domain || '', industry: ud.industry || '',
                     competitors: comps, location: ud.location || '', language: ud.language || 'English',
                     country: ud.location?.toLowerCase().includes('india') ? 'IN' : '',
+                    projectId: ud.projectId || undefined,
                 });
                 if (res.scanId) {
                     localStorage.setItem(`searchlyst_active_scan_${ud.domain}`, JSON.stringify({
@@ -197,7 +198,10 @@ export default function OnboardingFlow({ onComplete, mode = 'firstTime' }) {
         };
 
         if (isAddProject) {
-            try { await apiClient.projects.create(userData); } catch (error) { console.error('Failed to save project:', error); }
+            try {
+                const { project } = await apiClient.projects.create(userData);
+                if (project?.id) userData.projectId = project.id;
+            } catch (error) { console.error('Failed to save project:', error); }
             triggerAutoScan(userData);
             onComplete(userData.role || 'founder');
             return;
@@ -220,7 +224,10 @@ export default function OnboardingFlow({ onComplete, mode = 'firstTime' }) {
             await new Promise(resolve => setTimeout(resolve, 800));
         }
 
-        try { await apiClient.projects.create(userData); } catch (error) { console.error('Failed to save project:', error); }
+        try {
+            const { project } = await apiClient.projects.create(userData);
+            if (project?.id) userData.projectId = project.id;
+        } catch (error) { console.error('Failed to save project:', error); }
         triggerAutoScan(userData);
         setDashboardUser(userData);
 

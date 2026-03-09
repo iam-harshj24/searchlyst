@@ -51,20 +51,23 @@ model waitlist {
 }
 
 model Project {
-  id           Int       @id @default(autoincrement())
-  userId       Int
-  brandName    String    
-  domain       String    
-  industry     String?   
-  companySize  String?   
-  location     String?   
-  language     String?   
-  reach        String?   
-  competitors  String?   
-  created_at   DateTime? @default(now())
-  updated_at   DateTime? @default(now())
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id              Int             @id @default(autoincrement())
+  userId          Int
+  brandName       String
+  domain          String
+  industry        String?
+  companySize     String?
+  location        String?
+  language        String?
+  reach           String?
+  competitors     String?
+  created_at      DateTime?       @default(now())
+  updated_at      DateTime?       @default(now())
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  visibilityScans VisibilityScan[]
+  auditJobs       AuditJob[]
 
+  @@unique([userId, domain], map: "unique_user_domain")
   @@index([userId], map: "idx_project_user")
   @@map("projects")
 }
@@ -72,33 +75,41 @@ model Project {
 model AuditJob {
   id          String   @id
   userId      Int
-  url         String   
+  projectId   Int?
+  url         String
   status      String   @default("pending")
-  progress    String?  
-  results     String?  
-  error       String?  
+  progress    String?
+  results     String?
+  error       String?
   created_at  DateTime @default(now())
   updated_at  DateTime @default(now())
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project     Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   @@index([userId], map: "idx_audit_user")
+  @@index([projectId], map: "idx_audit_project")
   @@map("audit_jobs")
 }
 
 model VisibilityScan {
   id          String   @id
   userId      Int
-  brandName   String   
-  domain      String   
+  projectId   Int?
+  brandName   String
+  domain      String
+  industry    String?
   status      String   @default("pending")
-  progress    String?  
-  allRuns     String?  
-  results     String?  
-  error       String?  
+  progress    String?
+  allRuns     String?
+  results     String?
+  error       String?
   created_at  DateTime @default(now())
   updated_at  DateTime @default(now())
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project     Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   @@index([userId], map: "idx_scan_user")
+  @@index([projectId], map: "idx_scan_project")
+  @@index([projectId, created_at], map: "idx_scan_project_date")
   @@map("visibility_scans")
 }

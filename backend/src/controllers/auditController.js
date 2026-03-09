@@ -5,7 +5,7 @@ import { prisma } from '../lib/prisma.js';
 
 export async function startAuditHandler(req, res) {
     try {
-        const { url } = req.body;
+        const { url, projectId } = req.body;
         const userId = req.user.id;
         if (!url) return res.status(400).json({ success: false, message: 'URL is required' });
 
@@ -22,6 +22,7 @@ export async function startAuditHandler(req, res) {
             data: {
                 id: auditId,
                 userId,
+                projectId: projectId ? parseInt(projectId, 10) : null,
                 url: normalizedUrl,
                 status: 'crawling',
                 progress: JSON.stringify({ completed: 0, total: 0, firecrawlJobId: crawlResult.id }),
