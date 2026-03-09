@@ -122,6 +122,7 @@ function useScanManager(user) {
                 brandName: user?.brandName || '', domain: user?.domain || '', industry: user?.industry || '',
                 competitors: comps, location: user?.location || '', language: user?.language || 'English',
                 country: user?.location?.toLowerCase().includes('india') ? 'IN' : '',
+                projectId: user?.projectId || undefined,
             });
             setScanId(res.scanId);
             localStorage.setItem(activeScanKey, JSON.stringify({ scanId: res.scanId, startedAt: new Date().toISOString() }));
@@ -148,8 +149,11 @@ function DashboardInner() {
     const [showAddProjectOnboarding, setShowAddProjectOnboarding] = useState(false);
     const [userRole, setUserRole] = useState('founder');
 
-    // Scan manager — lives at Dashboard level so polling persists across tab switches
-    const scanManager = useScanManager(user);
+    // Scan manager — use activeProject when selected for project-scoped scans
+    const scanUser = activeProject
+        ? { ...user, ...activeProject, domain: activeProject.url || activeProject.domain, brandName: activeProject.name || activeProject.brandName, projectId: activeProject.id }
+        : user;
+    const scanManager = useScanManager(scanUser);
 
     const fetchProjects = async () => {
         try {

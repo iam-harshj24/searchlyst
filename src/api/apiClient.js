@@ -161,6 +161,17 @@ export const apiClient = {
     async getScanStatus(scanId) {
       return apiClient.get(`/visibility/${scanId}/status`);
     },
+    async listScans(projectId) {
+      const q = projectId ? `?projectId=${projectId}` : '';
+      return apiClient.get(`/visibility/scans${q}`);
+    },
+    async getLatestScan(projectId, domain) {
+      const params = new URLSearchParams();
+      if (projectId) params.set('projectId', projectId);
+      if (domain) params.set('domain', domain);
+      const q = params.toString() ? `?${params}` : '';
+      return apiClient.get(`/visibility/latest${q}`);
+    },
   },
 
   // Waitlist specific methods
