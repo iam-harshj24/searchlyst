@@ -11,9 +11,14 @@ export const createAnonymous = async (req, res) => {
     });
   } catch (error) {
     console.error('Anonymous auth error:', error);
+    const isDbUnreachable = error?.name === 'PrismaClientInitializationError' ||
+      /Can't reach database server|Connection refused|ECONNREFUSED/i.test(error?.message || '');
+    const message = isDbUnreachable
+      ? 'Database unavailable. Check DATABASE_URL and ensure PostgreSQL is running and reachable.'
+      : 'Failed to create anonymous user';
     res.status(500).json({
       success: false,
-      message: 'Failed to create anonymous user',
+      message,
       error: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }
@@ -40,9 +45,14 @@ export const registerUser = async (req, res) => {
     });
   } catch (error) {
     console.error('Register user error:', error);
+    const isDbUnreachable = error?.name === 'PrismaClientInitializationError' ||
+      /Can't reach database server|Connection refused|ECONNREFUSED/i.test(error?.message || '');
+    const message = isDbUnreachable
+      ? 'Database unavailable. Check DATABASE_URL and ensure PostgreSQL is running and reachable.'
+      : 'Failed to create user';
     res.status(500).json({
       success: false,
-      message: 'Failed to create user',
+      message,
       error: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }
@@ -68,9 +78,14 @@ export const login = async (req, res) => {
     });
   } catch (error) {
     console.error('Login error:', error);
+    const isDbUnreachable = error?.name === 'PrismaClientInitializationError' ||
+      /Can't reach database server|Connection refused|ECONNREFUSED/i.test(error?.message || '');
+    const message = isDbUnreachable
+      ? 'Database unavailable. Check DATABASE_URL and ensure PostgreSQL is running and reachable.'
+      : 'Login failed';
     res.status(500).json({
       success: false,
-      message: 'Login failed',
+      message,
       error: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }
