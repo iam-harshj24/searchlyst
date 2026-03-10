@@ -17,7 +17,7 @@ export default function ProjectSwitcher({ projects, activeProject, onSwitch, onA
         <div ref={ref} className="relative">
             <button
                 onClick={() => setOpen(!open)}
-                className="w-full flex items-center gap-3 p-2.5 rounded-xl bg-[var(--surface-hover)] border border-[var(--border)] hover:border-[var(--border-strong)] transition-all"
+                className="w-full flex items-center gap-3 p-2.5 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-elevated)] transition-all"
             >
                 <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center flex-shrink-0">
                     <Globe className="w-4 h-4 text-[var(--text-primary)]" />
@@ -34,15 +34,15 @@ export default function ProjectSwitcher({ projects, activeProject, onSwitch, onA
             </button>
 
             {open && (
-                <div className="absolute top-full left-0 right-0 mt-1.5 bg-[var(--bg-elevated)] border border-[var(--border-strong)] rounded-xl shadow-2xl z-50 overflow-hidden" style={{ boxShadow: `0 25px 50px -12px var(--shadow-color)` }}>
+                <div className="absolute top-full left-0 right-0 mt-1.5 rounded-xl shadow-2xl z-50 overflow-hidden border border-[var(--border-strong)] bg-white dark:bg-neutral-900" style={{ boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
                     <div className="p-1.5 max-h-60 overflow-y-auto">
                         {projects.map((project) => (
                             <button
                                 key={project.id}
                                 onClick={() => { onSwitch(project); setOpen(false); }}
                                 className={`w-full flex items-center gap-3 p-2.5 rounded-lg transition-all ${activeProject?.id === project.id
-                                        ? 'bg-red-500/10 text-[var(--text-primary)]'
-                                        : 'text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]'
+                                        ? 'bg-red-500/25 dark:bg-red-900/50 text-[var(--text-primary)]'
+                                        : 'text-[var(--text-secondary)] hover:bg-slate-100 dark:hover:bg-neutral-800 hover:text-[var(--text-primary)]'
                                     }`}
                             >
                                 <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${activeProject?.id === project.id ? 'bg-red-600' : 'bg-[var(--surface-active)]'
@@ -62,7 +62,7 @@ export default function ProjectSwitcher({ projects, activeProject, onSwitch, onA
                     <div className="border-t border-[var(--border)] p-1.5">
                         <button
                             onClick={() => { onAddNew(); setOpen(false); }}
-                            className="w-full flex items-center gap-3 p-2.5 rounded-lg text-[var(--text-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-all"
+                            className="w-full flex items-center gap-3 p-2.5 rounded-lg text-[var(--text-muted)] hover:bg-slate-100 dark:hover:bg-neutral-800 hover:text-[var(--text-primary)] transition-all"
                         >
                             <div className="w-7 h-7 rounded-lg bg-[var(--surface-active)] flex items-center justify-center">
                                 <Plus className="w-3.5 h-3.5" />

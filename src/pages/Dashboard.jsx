@@ -21,14 +21,22 @@ const STORAGE_KEYS = {
     USER: 'searchlyst_user',
 };
 
-export function getDashboardUser() {
+export function getDashboardUser(userId) {
     try {
-        return JSON.parse(localStorage.getItem(STORAGE_KEYS.USER));
+        const key = userId ? `${STORAGE_KEYS.USER}_${userId}` : STORAGE_KEYS.USER;
+        const data = localStorage.getItem(key);
+        if (data) return JSON.parse(data);
+        if (userId) {
+            const legacy = localStorage.getItem(STORAGE_KEYS.USER);
+            if (legacy) return JSON.parse(legacy);
+        }
+        return null;
     } catch { return null; }
 }
 
-export function setDashboardUser(data) {
-    localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(data));
+export function setDashboardUser(userId, data) {
+    const key = (userId != null && userId !== '') ? `${STORAGE_KEYS.USER}_${userId}` : STORAGE_KEYS.USER;
+    localStorage.setItem(key, JSON.stringify(data));
 }
 
 /* ------------------------------------------------------------------ */
@@ -139,7 +147,7 @@ function useScanManager(user) {
 
 function DashboardInner() {
     const navigate = useNavigate();
-    const { isAuthenticated, signInAnonymously } = useAuth();
+    const { user: authUser, logout } = useAuth();
     const [activeTab, setActiveTab] = useState('overview');
     const [projects, setProjects] = useState([]);
     const [activeProject, setActiveProject] = useState(null);
@@ -179,23 +187,24 @@ function DashboardInner() {
 
     useEffect(() => {
         const loadInitialData = async () => {
-            if (!isAuthenticated && !localStorage.getItem('authToken')) {
-                const res = await signInAnonymously();
-                if (!res.success) {
-                    setLoading(false);
-                    return;
-                }
-            }
+            const userData = getDashboardUser(authUser?.id);
+            const loadedProjects = await fetchProjects();
+            const isOnboarded = loadedProjects.length > 0 || userData?.onboarded;
 
-            const userData = getDashboardUser();
-            if (!userData?.onboarded) {
+            if (!isOnboarded) {
                 setShowOnboarding(true);
             } else {
-                setUser(userData);
-                setUserRole(userData.role_type || 'founder');
+                const displayUser = userData || (loadedProjects[0] ? {
+                    brandName: loadedProjects[0].name || loadedProjects[0].brandName,
+                    domain: loadedProjects[0].url || loadedProjects[0].domain,
+                    industry: loadedProjects[0].industry,
+                    competitors: loadedProjects[0].competitors,
+                    role_type: userData?.role_type || 'founder',
+                } : null);
+                setUser(displayUser);
+                setUserRole(displayUser?.role_type || 'founder');
             }
 
-            const loadedProjects = await fetchProjects();
             if (loadedProjects.length > 0) {
                 setActiveProject(loadedProjects[0]);
             }
@@ -204,7 +213,7 @@ function DashboardInner() {
         };
 
         loadInitialData();
-    }, [isAuthenticated, signInAnonymously]);
+    }, [authUser?.id]);
 
     const handleProjectSwitch = (project) => {
         setActiveProject(project);
@@ -223,7 +232,7 @@ function DashboardInner() {
     const handleOnboardingComplete = (role) => {
         setUserRole(role);
         setShowOnboarding(false);
-        const userData = getDashboardUser();
+        const userData = getDashboardUser(authUser?.id);
         setUser(userData);
         fetchProjects().then(loaded => {
             if (loaded.length > 0) setActiveProject(loaded[0]);
@@ -231,7 +240,7 @@ function DashboardInner() {
     };
 
     const handleLogout = () => {
-        localStorage.removeItem(STORAGE_KEYS.USER);
+        logout();
         navigate('/');
     };
 
@@ -246,15 +255,15 @@ function DashboardInner() {
     }
 
     if (showOnboarding) {
-        return <OnboardingFlow onComplete={handleOnboardingComplete} mode="firstTime" />;
+        return <OnboardingFlow userId={authUser?.id} onComplete={handleOnboardingComplete} mode="firstTime" />;
     }
 
     if (showAddProjectOnboarding) {
-        return <OnboardingFlow onComplete={handleAddProjectComplete} mode="addProject" />;
+        return <OnboardingFlow userId={authUser?.id} onComplete={handleAddProjectComplete} mode="addProject" />;
     }
 
     const renderContent = () => {
-        if (activeTab === 'brand-hub') return <BrandHubPage user={user} />;
+        if (activeTab === 'brand-hub') return <BrandHubPage user={user} authUserId={authUser?.id} />;
         if (activeTab === 'agent') return <AgentPage user={user} />;
 
         if (!activeProject) {
@@ -284,11 +293,12 @@ function DashboardInner() {
     };
 
     return (
-        <div className="flex min-h-screen bg-[var(--bg-primary)]">
+        <div className="flex h-screen overflow-hidden bg-[var(--bg-primary)]">
             <Sidebar
                 activeTab={activeTab}
                 onTabChange={setActiveTab}
                 user={user}
+                authUser={authUser}
                 userRole={userRole}
                 projects={projects}
                 activeProject={activeProject}
@@ -297,7 +307,7 @@ function DashboardInner() {
                 onLogout={handleLogout}
                 scanActive={scanManager.scanStatus === 'scanning'}
             />
-            <div className="flex-1 overflow-auto">
+            <div className="flex-1 min-h-0 overflow-auto">
                 {activeProject && activeTab !== 'brand-hub' && activeTab !== 'agent' && (
                     <div className="border-b border-[var(--border)] px-6 py-3 flex items-center gap-3">
                         <div className="w-6 h-6 bg-red-600/20 rounded-md flex items-center justify-center">

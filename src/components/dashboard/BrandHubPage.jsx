@@ -22,7 +22,7 @@ const styleTraits = [
     { label: 'Personality', value: 'Thought Leader, Data-Driven', confidence: 78 },
 ];
 
-export default function BrandHubPage({ user: userProp }) {
+export default function BrandHubPage({ user: userProp, authUserId }) {
     const [user, setUser] = useState(null);
     const [profileData, setProfileData] = useState({
         role_type: 'founder',
@@ -43,10 +43,10 @@ export default function BrandHubPage({ user: userProp }) {
 
     useEffect(() => {
         loadUser();
-    }, []);
+    }, [authUserId]);
 
     const loadUser = () => {
-        const userData = getDashboardUser();
+        const userData = getDashboardUser(authUserId);
         setUser(userData);
         if (userData) {
             setProfileData(prev => ({
@@ -72,8 +72,8 @@ export default function BrandHubPage({ user: userProp }) {
 
     const handleSave = async () => {
         setSaving(true);
-        const existing = getDashboardUser() || {};
-        setDashboardUser({ ...existing, ...profileData });
+        const existing = getDashboardUser(authUserId) || {};
+        setDashboardUser(authUserId, { ...existing, ...profileData });
         setUser({ ...existing, ...profileData });
         setSaving(false);
     };
@@ -90,10 +90,10 @@ export default function BrandHubPage({ user: userProp }) {
             <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-6">
                 <div className="flex items-center gap-4 mb-6">
                     <div className="w-16 h-16 bg-red-600 rounded-2xl flex items-center justify-center shadow-lg shadow-red-500/20">
-                        <span className="text-[var(--text-primary)] text-2xl font-bold">{(user?.brandName || user?.full_name || 'S').charAt(0).toUpperCase()}</span>
+                        <span className="text-[var(--text-primary)] text-2xl font-bold">{(user?.brandName || user?.name || user?.full_name || 'S').charAt(0).toUpperCase()}</span>
                     </div>
                     <div>
-                        <h2 className="text-[var(--text-primary)] font-medium">{user?.brandName || user?.full_name || 'Your Brand'}</h2>
+                        <h2 className="text-[var(--text-primary)] font-medium">{user?.brandName || user?.name || user?.full_name || 'Your Brand'}</h2>
                         <p className="text-[var(--text-muted)] text-sm">{user?.domain ? `https://${user.domain}` : ''}</p>
                     </div>
                 </div>

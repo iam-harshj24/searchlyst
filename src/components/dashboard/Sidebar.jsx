@@ -39,12 +39,12 @@ const menuSections = [
     },
 ];
 
-export default function Sidebar({ activeTab, onTabChange, user, userRole, projects, activeProject, onProjectSwitch, onAddProject, onLogout, scanActive }) {
+export default function Sidebar({ activeTab, onTabChange, user, authUser, userRole, projects, activeProject, onProjectSwitch, onAddProject, onLogout, scanActive }) {
     const [collapsed, setCollapsed] = useState(false);
     const { theme, toggleTheme } = useTheme();
 
     return (
-        <div className={`${collapsed ? 'w-16' : 'w-60'} bg-[var(--bg-primary)] border-r border-[var(--border)] h-screen flex flex-col transition-all duration-300`}>
+        <div className={`${collapsed ? 'w-16' : 'w-60'} shrink-0 bg-[var(--bg-primary)] border-r border-[var(--border)] h-screen flex flex-col transition-all duration-300`}>
             {/* Logo */}
             <div className="p-4 border-b border-[var(--border)]">
                 <div className="flex items-center gap-3">
@@ -146,7 +146,7 @@ export default function Sidebar({ activeTab, onTabChange, user, userRole, projec
                     {!collapsed && (
                         <>
                             <div className="flex-1 min-w-0">
-                                <p className="text-[var(--text-primary)] text-xs font-medium truncate">{user?.full_name || 'User'}</p>
+                                <p className="text-[var(--text-primary)] text-xs font-medium truncate">{user?.name || user?.full_name || authUser?.name || 'User'}</p>
                                 <p className="text-[var(--text-muted)] text-[10px] truncate">{user?.email || ''}</p>
                             </div>
                             <button

@@ -2,11 +2,9 @@ import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import WaitlistModal from '../WaitlistModal';
-import { Menu, X, LayoutDashboard } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 
 export default function Navbar() {
-    const [showWaitlist, setShowWaitlist] = useState(false);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
     return (
@@ -35,21 +33,11 @@ export default function Navbar() {
                     <div className="flex items-center gap-3">
                         <Link to="/Dashboard">
                             <Button 
-                                variant="outline"
-                                className="border-red-500/30 text-red-500 hover:bg-red-500/10 rounded-full px-4 md:px-5 h-9 md:h-10 text-sm hidden md:flex items-center gap-2"
+                                className="bg-red-600 hover:bg-red-700 text-white rounded-full px-4 md:px-5 h-9 md:h-10 text-sm"
                             >
-                                <LayoutDashboard className="w-4 h-4" />
-                                Dashboard
+                                Try Searchlyst
                             </Button>
                         </Link>
-                        <Button 
-                            onClick={() => setShowWaitlist(true)}
-                            className="bg-red-600 hover:bg-red-700 text-white rounded-full px-4 md:px-5 h-9 md:h-10 text-sm"
-                        >
-                            Join Waitlist
-                        </Button>
-                        
-                        {/* Mobile Menu Button */}
                         <button 
                             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                             className="md:hidden p-2 text-[var(--text-primary)]"
@@ -68,8 +56,7 @@ export default function Navbar() {
                                 className="flex items-center gap-2 text-red-500 hover:text-red-400 py-2 transition-colors font-medium"
                                 onClick={() => setMobileMenuOpen(false)}
                             >
-                                <LayoutDashboard className="w-4 h-4" />
-                                Dashboard
+                                Try Searchlyst
                             </Link>
                             <Link 
                                 to={createPageUrl('AboutUs')} 
@@ -110,7 +97,6 @@ export default function Navbar() {
                     </div>
                 )}
             </nav>
-            <WaitlistModal open={showWaitlist} onOpenChange={setShowWaitlist} source="home" />
         </>
     );
 }

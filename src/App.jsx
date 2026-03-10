@@ -59,8 +59,8 @@ const AuthenticatedApp = () => {
       {/* Login Route - Public */}
       <Route path="/Login" element={<Login />} />
       
-      {/* Dashboard Route - Public (auto-creates anonymous user if needed) */}
-      <Route path="/Dashboard" element={<Dashboard />} />
+      {/* Dashboard Route - Protected */}
+      <Route path="/Dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       
       {/* Admin Panel Routes - Admin only */}
       <Route
