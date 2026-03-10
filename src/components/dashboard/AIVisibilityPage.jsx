@@ -89,13 +89,15 @@ function QueryRow({ p }) {
                         <div>
                             <p className="text-sm text-[var(--text-primary)] leading-tight group-hover:text-purple-300 transition-colors">{p.query}</p>
                             <div className="flex gap-2 mt-1">
-                                <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono shrink-0 ${p.intent === 'geo_tracking' ? 'bg-purple-500/10 text-purple-300' :
-                                    p.intent === 'sentiment' ? 'bg-blue-500/10 text-blue-300' :
-                                        p.intent === 'comparison' ? 'bg-green-500/10 text-green-300' :
-                                            p.intent === 'authority' ? 'bg-amber-500/10 text-amber-300' :
-                                                p.intent === 'recommendation' ? 'bg-pink-500/10 text-pink-300' :
-                                                    'bg-[var(--surface-active)] text-[var(--text-muted)]'
-                                    }`}>{p.intent.replace('_', ' ')}</span>
+                                {p.intent && (
+                                    <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono shrink-0 ${p.intent === 'geo_tracking' ? 'bg-purple-500/10 text-purple-300' :
+                                        p.intent === 'sentiment' ? 'bg-blue-500/10 text-blue-300' :
+                                            p.intent === 'comparison' ? 'bg-green-500/10 text-green-300' :
+                                                p.intent === 'authority' ? 'bg-amber-500/10 text-amber-300' :
+                                                    p.intent === 'recommendation' ? 'bg-pink-500/10 text-pink-300' :
+                                                        'bg-[var(--surface-active)] text-[var(--text-muted)]'
+                                        }`}>{String(p.intent).replace('_', ' ')}</span>
+                                )}
                             </div>
                         </div>
                     </div>

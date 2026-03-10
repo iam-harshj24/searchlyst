@@ -161,7 +161,7 @@ function CrawlingProgress({ progress, status }) {
     );
 }
 
-export default function AuditHealthPage({ user }) {
+export default function AuditHealthPage({ user, activeProject }) {
     const [auditUrl, setAuditUrl] = useState(user?.domain ? `https://${user.domain}` : '');
     const [auditId, setAuditId] = useState(null);
     const [status, setStatus] = useState('idle'); // idle | crawling | analyzing | completed | failed
@@ -174,39 +174,9 @@ export default function AuditHealthPage({ user }) {
 
     const storageKey = `searchlyst_audit_${user?.domain || 'default'}`;
 
-    useEffect(() => {
-        const saved = localStorage.getItem(storageKey);
-        if (saved) {
-            try {
-                const parsed = JSON.parse(saved);
-                if (parsed) {
-                    setResult(parsed);
-                    setStatus('completed');
-                }
-            } catch (err) {
-                console.error('Failed to load saved audit', err);
-            }
-        } else {
-            // If there is no cache for THIS project, reset the state
-            setResult(null);
-            setStatus('idle');
-            setAuditUrl(user?.domain ? `https://${user.domain}` : '');
-        }
-    }, [storageKey, user?.domain]);
-
     const stopPolling = useCallback(() => {
         if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
     }, []);
-
-    useEffect(() => () => stopPolling(), [stopPolling]);
-
-    // AUTO-START: Trigger audit on mount when domain exists but no cached result
-    useEffect(() => {
-        if (status === 'idle' && !result && auditUrl.trim()) {
-            console.log('[Audit] Auto-starting audit for', auditUrl);
-            handleRunAudit();
-        }
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const pollStatus = useCallback((id) => {
         stopPolling();
@@ -232,24 +202,62 @@ export default function AuditHealthPage({ user }) {
         }, 4000);
     }, [stopPolling, storageKey]);
 
-    const handleRunAudit = async () => {
-        if (!auditUrl.trim()) return;
+    const handleRunAudit = useCallback(async (urlOverride) => {
+        const urlToUse = (urlOverride || auditUrl || '').trim();
+        if (!urlToUse) return;
         setStatus('crawling');
         setResult(null);
         setError(null);
         setProgress({ completed: 0, total: 0 });
         setSelectedCategory('all');
         setSeverityFilter('all');
+        if (!urlOverride) setAuditUrl(urlToUse);
 
         try {
-            const res = await apiClient.audit.start(auditUrl.trim());
+            const res = await apiClient.audit.start({ url: urlToUse, projectId: user?.projectId ?? activeProject?.id });
             setAuditId(res.auditId);
             pollStatus(res.auditId);
         } catch (err) {
             setStatus('failed');
             setError(err.message || 'Failed to start audit');
         }
-    };
+    }, [auditUrl, user?.projectId, activeProject?.id, pollStatus]);
+
+    useEffect(() => () => stopPolling(), [stopPolling]);
+
+    useEffect(() => {
+        const saved = localStorage.getItem(storageKey);
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                if (parsed) {
+                    setResult(parsed);
+                    setStatus('completed');
+                    setAuditUrl(user?.domain ? `https://${user.domain}` : '');
+                    return;
+                }
+            } catch (err) {
+                console.error('Failed to load saved audit', err);
+            }
+        }
+        setResult(null);
+        setStatus('idle');
+        const url = (user?.domain ? `https://${user.domain}` : '').trim();
+        setAuditUrl(url || '');
+        if (!url) return;
+
+        apiClient.audit.getLatest({ url, projectId: user?.projectId ?? activeProject?.id })
+            .then((savedResult) => {
+                if (savedResult) {
+                    setResult(savedResult);
+                    setStatus('completed');
+                    localStorage.setItem(storageKey, JSON.stringify(savedResult));
+                } else {
+                    handleRunAudit(url);
+                }
+            })
+            .catch(() => handleRunAudit(url));
+    }, [storageKey, user?.domain, user?.projectId, activeProject?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleNewAudit = () => {
         stopPolling();
