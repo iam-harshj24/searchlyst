@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { getDashboardUser, setDashboardUser } from '@/pages/Dashboard';
+import { getDashboardUser, setDashboardUser, getBrandHubData, setBrandHubData } from '@/pages/Dashboard';
 
 const socialPlatforms = [
     { id: 'linkedin', name: 'LinkedIn', icon: Linkedin, placeholder: 'linkedin.com/in/yourprofile', color: 'text-[var(--text-secondary)]' },
@@ -43,38 +43,48 @@ export default function BrandHubPage({ user: userProp, authUserId }) {
 
     useEffect(() => {
         loadUser();
-    }, [authUserId]);
+    }, [authUserId, userProp?.projectId, userProp?.domain, userProp?.brandName]);
 
     const loadUser = () => {
-        const userData = getDashboardUser(authUserId);
-        setUser(userData);
-        if (userData) {
-            setProfileData(prev => ({
-                ...prev,
-                industry: userData.industry || '',
-                target_audience: userData.target_audience || '',
-                location: userData.location || '',
-                website_url: userData.website_url || (userData.domain ? `https://${userData.domain}` : ''),
-                companySize: userData.companySize || '',
-                language: userData.language || '',
-                reach: userData.reach || '',
-                social_linkedin: userData.social_linkedin || '',
-                social_instagram: userData.social_instagram || '',
-                social_substack: userData.social_substack || '',
-                social_reddit: userData.social_reddit || '',
-                role_type: userData.role_type || 'founder',
-            }));
-            if (userData.social_linkedin || userData.social_instagram) {
-                setStyleAnalyzed(true);
-            }
+        const projectId = userProp?.projectId;
+        const stored = projectId != null
+            ? getBrandHubData(authUserId, projectId)
+            : getDashboardUser(authUserId);
+        const merged = { ...userProp, ...stored };
+        setUser(merged);
+        setProfileData(prev => ({
+            ...prev,
+            industry: merged?.industry || prev.industry || '',
+            target_audience: merged?.target_audience || prev.target_audience || '',
+            location: merged?.location || prev.location || '',
+            website_url: merged?.website_url || (merged?.domain ? `https://${merged.domain}` : prev.website_url || ''),
+            companySize: merged?.companySize || prev.companySize || '',
+            language: merged?.language || prev.language || '',
+            reach: merged?.reach || prev.reach || '',
+            social_linkedin: merged?.social_linkedin || prev.social_linkedin || '',
+            social_instagram: merged?.social_instagram || prev.social_instagram || '',
+            social_substack: merged?.social_substack || prev.social_substack || '',
+            social_reddit: merged?.social_reddit || prev.social_reddit || '',
+            role_type: merged?.role_type || prev.role_type || 'founder',
+        }));
+        if (merged?.social_linkedin || merged?.social_instagram) {
+            setStyleAnalyzed(true);
         }
     };
 
     const handleSave = async () => {
         setSaving(true);
-        const existing = getDashboardUser(authUserId) || {};
-        setDashboardUser(authUserId, { ...existing, ...profileData });
-        setUser({ ...existing, ...profileData });
+        const projectId = userProp?.projectId;
+        const existing = projectId != null
+            ? getBrandHubData(authUserId, projectId) || {}
+            : getDashboardUser(authUserId) || {};
+        const toSave = { ...existing, ...profileData };
+        if (projectId != null) {
+            setBrandHubData(authUserId, projectId, toSave);
+        } else {
+            setDashboardUser(authUserId, toSave);
+        }
+        setUser({ ...userProp, ...toSave });
         setSaving(false);
     };
 

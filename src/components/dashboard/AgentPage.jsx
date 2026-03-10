@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Loader2, Bot, User, FileText, Sparkles, Search, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Send, Loader2, Bot, User, FileText, Sparkles, Search } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import ReactMarkdown from 'react-markdown';
+import { apiClient } from '@/api/apiClient';
 
 export default function AgentPage({ user }) {
     const [messages, setMessages] = useState([]);
@@ -35,18 +36,25 @@ export default function AgentPage({ user }) {
         setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
         setIsLoading(true);
 
-        await new Promise(resolve => setTimeout(resolve, 1500));
-
-        // PROMPT 12 — Agent Page Demo Response (Enhanced)
-        const preview = userMessage.slice(0, 80) + (userMessage.length > 80 ? '...' : '');
-        const competitorCount = user?.competitors?.length || 0;
-        const demoContent = `Great question about "${preview}"\n\nI can definitely help with that. Here's a preview of what I know about your brand:\n\n🏢 **${user?.brandName || 'Your Brand'}** | ${user?.domain || 'your-domain.com'}\n📍 ${user?.location || 'Global market'} | ${user?.industry || 'your industry'}\n🎯 ${competitorCount} competitor${competitorCount !== 1 ? 's' : ''} being tracked\n\nWhen fully connected, I can help you with:\n• Content strategies tailored to ${user?.industry || 'your industry'} trends\n• AI search visibility improvements for ${user?.brandName || 'your brand'}\n• Real-time competitor monitoring and alerts\n• Website audits and citation-gap analysis\n\n👉 To unlock live AI responses, connect an API key in **Settings → AI Configuration**. It takes under 2 minutes.`;
-
-        setMessages(prev => [...prev, {
-            role: 'assistant',
-            content: demoContent
-        }]);
-        setIsLoading(false);
+        try {
+            const chatMessages = [...messages, { role: 'user', content: userMessage }];
+            const brandContext = {
+                brandName: user?.brandName,
+                domain: user?.domain,
+                industry: user?.industry,
+                location: user?.location,
+                competitors: user?.competitors,
+            };
+            const reply = await apiClient.agent.chat(chatMessages, brandContext);
+            setMessages(prev => [...prev, { role: 'assistant', content: reply || 'I could not generate a response. Please try again.' }]);
+        } catch (err) {
+            const errorMsg = err.message?.includes('503') || err.message?.includes('not configured')
+                ? 'AI service is not configured. Please set GEMINI_API_KEY in the backend .env file.'
+                : (err.message || 'Failed to get AI response. Please try again.');
+            setMessages(prev => [...prev, { role: 'assistant', content: `Sorry, something went wrong: ${errorMsg}` }]);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const brandName = user?.brandName || 'my brand';

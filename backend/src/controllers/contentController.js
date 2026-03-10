@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { prisma } from '../lib/prisma.js';
 
 let genAI = null;
 function getModel() {
@@ -6,10 +7,57 @@ function getModel() {
     return genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 }
 
+export async function listContent(req, res) {
+    try {
+        const userId = req.user.id;
+        const { projectId } = req.query;
+        const where = { userId };
+        if (projectId) {
+            const pid = parseInt(projectId, 10);
+            if (!isNaN(pid)) where.projectId = pid;
+        }
+        const items = await prisma.content.findMany({
+            where,
+            orderBy: { created_at: 'desc' },
+            take: 100,
+            select: { id: true, topic: true, platform: true, title: true, payload: true, status: true, projectId: true, created_at: true },
+        });
+        const contents = items.map((c) => {
+            let article = null;
+            try {
+                article = JSON.parse(c.payload);
+            } catch {}
+            return {
+                id: c.id,
+                title: c.title,
+                platform: c.platform,
+                status: c.status,
+                date: formatDate(c.created_at),
+                article: article || { title: c.title, content: '' },
+            };
+        });
+        return res.json({ success: true, contents });
+    } catch (error) {
+        console.error('List content error:', error);
+        return res.status(500).json({ success: false, message: error.message });
+    }
+}
+
+function formatDate(d) {
+    if (!d) return '';
+    const diff = Date.now() - new Date(d).getTime();
+    if (diff < 60000) return 'Just now';
+    if (diff < 3600000) return `${Math.floor(diff / 60000)} min ago`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)} hours ago`;
+    if (diff < 604800000) return `${Math.floor(diff / 86400000)} days ago`;
+    return new Date(d).toLocaleDateString();
+}
+
 export async function generateArticle(req, res) {
     try {
-        const { topic, brandName, industry, domain, platform, keywords } = req.body;
+        const { topic, brandName, industry, domain, platform, keywords, projectId } = req.body;
         if (!topic) return res.status(400).json({ success: false, message: 'Topic is required' });
+        const userId = req.user.id;
 
         const model = getModel();
         const prompt = `ROLE: You are an expert content strategist who creates articles that AI search engines love to cite.
@@ -51,11 +99,13 @@ Return a JSON object:
         const result = await model.generateContent(prompt);
         const text = result.response.text().trim();
 
-        // Parse JSON from response
+        // Parse JSON from response — extract object even if wrapped in markdown or extra text
         let article;
         try {
             const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-            article = JSON.parse(cleaned);
+            const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+            const toParse = jsonMatch ? jsonMatch[0] : cleaned;
+            article = JSON.parse(toParse);
         } catch {
             // If JSON parsing fails, return the raw text as content
             article = {
@@ -70,7 +120,22 @@ Return a JSON object:
             };
         }
 
-        res.json({ success: true, article });
+        const title = article.title || topic;
+        const platformName = platform || 'Blog';
+
+        const saved = await prisma.content.create({
+            data: {
+                userId,
+                projectId: projectId ? parseInt(projectId, 10) : null,
+                topic,
+                platform: platformName,
+                title,
+                payload: JSON.stringify(article),
+                status: 'draft',
+            },
+        });
+
+        res.json({ success: true, article, id: saved.id });
     } catch (error) {
         console.error('Content generation error:', error);
         res.status(500).json({ success: false, message: error.message });

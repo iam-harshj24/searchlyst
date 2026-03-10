@@ -20,7 +20,7 @@ function getClient() {
 
 async function callGemini(prompt) {
     const client = getClient();
-    const model = client.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    const model = client.getGenerativeModel({ model: 'gemini-2.5-flash' });
     const result = await model.generateContent(prompt);
     return result.response.text().trim();
 }
@@ -69,9 +69,12 @@ EXTRACT AND RETURN ONLY THIS JSON (no markdown, no explanation):
   "sources": [
     {"url": "<full URL>", "domain": "<domain>", "title": "<title>", "tier": <1=gold/2=silver/3=bronze>, "brandMentioned": <bool>}
   ],
+  "entityGraph": [
+    {"name": "<brand>", "domain": "<domain or empty>", "isTargetBrand": <bool>, "isCompetitor": <bool>, "totalMentions": <n>, "queryCount": <n>}
+  ],
   "competitorInsights": {
     "ranking": [{"rank": <n>, "name": "<brand>", "evidence": "<why>"}],
-    "gaps": ["<gap description with evidence>"],
+    "gaps": [{"query": "<topic/query where competitors appear but ${brandName} does not>", "competitors": ["<name1>", "<name2>"]}],
     "threats": [{"competitor": "<name>", "move": "<what happened>", "impact": "<high/medium/low>", "source": "<url>"}]
   },
   "topFindings": [
@@ -87,6 +90,8 @@ RULES:
 - For URLs/sources: extract any URL mentioned in the raw text
 - visibilityScore: 80+ if brand dominates, 50-80 if present but not leading, below 50 if weak
 - shareOfVoice percentages must sum to 100
+- entityGraph: Extract ALL brands/entities mentioned across responses. Include "${brandName}" (isTargetBrand: true) and each competitor (isCompetitor: true). totalMentions = count of times mentioned, queryCount = number of response blocks where they appear.
+- gaps: For each topic/query where competitors are mentioned but "${brandName}" is not, extract the query and list which competitors appeared. Use structured format with "query" and "competitors" array.
 - Return ONLY valid JSON, nothing else`;
 
     try {
@@ -135,10 +140,20 @@ function buildFallbackAnalytics(rawResponses, brandName, compStr) {
     const gMentioned = rawResponses.some(r => r.engine === 'gemini' && (r.rawText || '').toLowerCase().includes(brandName.toLowerCase()));
     const gaiMentioned = rawResponses.some(r => r.engine === 'googleAI' && (r.rawText || '').toLowerCase().includes(brandName.toLowerCase()));
 
+    const entityGraph = [
+        { name: brandName, domain: '', isTargetBrand: true, isCompetitor: false, totalMentions: brandMentions, queryCount: rawResponses.length },
+        ...competitors.map((comp, i) => {
+            const compLower = comp.toLowerCase();
+            const mentions = (allText.match(new RegExp(compLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length;
+            return { name: comp, domain: '', isTargetBrand: false, isCompetitor: true, totalMentions: mentions, queryCount: rawResponses.length };
+        }),
+    ];
+
     return {
         visibilityScore: Math.min(100, Math.round((brandMentions / Math.max(totalMentions, 1)) * 100)),
         sentiment: { positive: 0, negative: 0, neutral: brandMentions },
         shareOfVoice: sov,
+        entityGraph,
         platformBreakdown: {
             perplexity: { mentioned: pMentioned, sentiment: 'neutral', snippets: [] },
             gemini: { mentioned: gMentioned, sentiment: 'neutral', snippets: [] },

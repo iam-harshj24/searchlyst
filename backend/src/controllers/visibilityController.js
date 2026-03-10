@@ -16,6 +16,36 @@ function buildCompStr(competitors) {
     return list.slice(0, 5).join(', ') || 'major competitors';
 }
 
+function buildEntityGraphFromPrompts(prompts, brandName, domain, compStr) {
+    const brandLower = brandName.toLowerCase();
+    const competitors = compStr.split(',').map(c => c.trim()).filter(Boolean);
+    const entities = [];
+    let brandMentions = 0;
+    const compMentions = Object.fromEntries(competitors.map(c => [c, 0]));
+
+    for (const p of prompts) {
+        const engines = p.engines || {};
+        for (const [, data] of Object.entries(engines)) {
+            if (data.mentioned) brandMentions++;
+        }
+    }
+
+    entities.push({ name: brandName, domain: domain || '', isTargetBrand: true, isCompetitor: false, totalMentions: brandMentions, queryCount: prompts.length });
+    for (const comp of competitors) {
+        entities.push({ name: comp, domain: '', isTargetBrand: false, isCompetitor: true, totalMentions: compMentions[comp] || 0, queryCount: prompts.length });
+    }
+    return entities;
+}
+
+function normalizeGaps(gaps) {
+    if (!Array.isArray(gaps)) return [];
+    return gaps.map(g => {
+        if (typeof g === 'string') return { query: g, competitors: [] };
+        if (g && typeof g === 'object' && (g.query || g.topic)) return { query: g.query || g.topic, competitors: Array.isArray(g.competitors) ? g.competitors : (g.competitorsPresent || []).map(c => c.name || c) };
+        return g;
+    }).filter(Boolean);
+}
+
 function stripHtml(html) {
     if (!html) return '';
     return typeof html === 'string'
@@ -115,7 +145,7 @@ async function executeScan(scanId, brandName, domain, industry, competitors, loc
             analytics = await analyzeRawResponses(rawResponses, brandName, domain, industry, compStr);
         } catch (err) {
             console.error('[Scan] Gemini analytics failed:', err.message);
-            analytics = { visibilityScore: 0, sentiment: { positive: 0, negative: 0, neutral: 0 }, shareOfVoice: [], platformBreakdown: {}, sources: [], competitorInsights: { ranking: [], gaps: [], threats: [] }, topFindings: [], recommendations: [] };
+            analytics = { visibilityScore: 0, sentiment: { positive: 0, negative: 0, neutral: 0 }, shareOfVoice: [], entityGraph: [], platformBreakdown: {}, sources: [], competitorInsights: { ranking: [], gaps: [], threats: [] }, topFindings: [], recommendations: [] };
         }
 
         // ── Build final result ─────────────────────────────────────────
@@ -187,9 +217,11 @@ async function executeScan(scanId, brandName, domain, industry, competitors, loc
                     }, []).sort((a, b) => b.count - a.count).slice(0, 15),
             },
             prompts,
-            entityGraph: [],
+            entityGraph: (Array.isArray(analytics.entityGraph) && analytics.entityGraph.length > 0)
+                ? analytics.entityGraph
+                : buildEntityGraphFromPrompts(prompts, brandName, domain, compStr),
             citationSummary: (analytics.sources || []).slice(0, 10),
-            competitorGaps: analytics.competitorInsights?.gaps || [],
+            competitorGaps: normalizeGaps(analytics.competitorInsights?.gaps || []),
             competitorAnalysis: {
                 shareOfVoice: sovArr,
                 industryRanking: sovArr,

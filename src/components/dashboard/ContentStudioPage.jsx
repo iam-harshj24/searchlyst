@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { PenTool, Sparkles, FileText, Instagram, Linkedin, MessageCircle, Mail, Loader2, Copy, Check, Eye, Target, ArrowRight, BookOpen, ExternalLink, Zap } from 'lucide-react';
+import { PenTool, Sparkles, FileText, Instagram, Linkedin, MessageCircle, Mail, Loader2, Copy, Check, Eye, Target, ArrowRight, BookOpen, ExternalLink, Zap, X } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { apiClient } from '@/api/apiClient';
+import ReactMarkdown from 'react-markdown';
 
 const platformOptions = [
     { id: 'linkedin', name: 'LinkedIn Post', icon: Linkedin, color: 'text-blue-400' },
@@ -12,10 +13,110 @@ const platformOptions = [
     { id: 'reddit', name: 'Reddit / Quora', icon: MessageCircle, color: 'text-red-400' },
 ];
 
-function getVisibilityData(domain) {
+function normalizeArticle(article, topic) {
+    if (!article) return null;
+    if (typeof article === 'string') {
+        try {
+            const parsed = JSON.parse(article);
+            return normalizeArticle(parsed, topic);
+        } catch {
+            return { title: topic, content: article, sources: [], faq: [], keyTakeaways: [], suggestedKeywords: [] };
+        }
+    }
+    if (article.content && typeof article.content === 'string' && article.content.trim().startsWith('{')) {
+        try {
+            const parsed = JSON.parse(article.content);
+            if (parsed.content || parsed.title) return normalizeArticle(parsed, topic);
+        } catch {}
+    }
+    return {
+        title: article.title || topic,
+        metaDescription: article.metaDescription,
+        keyTakeaways: article.keyTakeaways || [],
+        content: article.content || '',
+        faq: article.faq || [],
+        sources: article.sources || [],
+        suggestedKeywords: article.suggestedKeywords || [],
+        wordCount: article.wordCount,
+        readingTime: article.readingTime,
+    };
+}
+
+function getArticleFromItem(item) {
+    return item?.article || (item?.content ? { title: item.title, content: item.content, sources: item.sources || [], faq: item.faq || [], keyTakeaways: item.keyTakeaways || [], suggestedKeywords: item.suggestedKeywords || [], metaDescription: item.metaDescription } : null);
+}
+
+function getArticleContent(item) {
+    const art = getArticleFromItem(item);
+    return art?.content || '';
+}
+
+function ArticleDisplay({ article }) {
+    if (!article) return null;
+    return (
+        <div className="p-6 space-y-6">
+            {article.metaDescription && <p className="text-[var(--text-muted)] text-xs italic">{article.metaDescription}</p>}
+            {article.keyTakeaways?.length > 0 && (
+                <div className="bg-green-500/5 rounded-xl p-4">
+                    <h4 className="text-xs font-bold text-green-400 uppercase tracking-wider mb-2">Key Takeaways</h4>
+                    <ul className="space-y-1.5">
+                        {article.keyTakeaways.map((t, i) => (
+                            <li key={i} className="flex gap-2 text-sm text-[var(--text-secondary)]"><span className="text-green-400">•</span> {t}</li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+            <div className="prose prose-sm prose-invert max-w-none text-[var(--text-primary)] leading-relaxed text-sm [&_h1]:text-lg [&_h2]:text-base [&_h3]:text-sm [&_p]:my-2 [&_ul]:my-2 [&_ol]:my-2">
+                <ReactMarkdown>{article.content || ''}</ReactMarkdown>
+            </div>
+            {article.faq?.length > 0 && (
+                <div className="bg-purple-500/5 rounded-xl p-4">
+                    <h4 className="text-xs font-bold text-purple-400 uppercase tracking-wider mb-3">FAQ</h4>
+                    <div className="space-y-3">
+                        {article.faq.map((item, i) => (
+                            <div key={i} className="bg-[var(--bg-primary)]/50 rounded-lg p-3">
+                                <p className="text-sm font-medium text-[var(--text-primary)] mb-1">Q: {item.q}</p>
+                                <p className="text-xs text-[var(--text-secondary)]">A: {item.a}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+            {article.sources?.length > 0 && (
+                <div>
+                    <h4 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 flex items-center gap-1.5"><BookOpen className="w-3.5 h-3.5" /> Sources</h4>
+                    <div className="space-y-2">
+                        {article.sources.map((src, i) => (
+                            <div key={i} className="flex gap-2 p-2 rounded-lg bg-[var(--surface-hover)] text-xs">
+                                <ExternalLink className="w-3 h-3 text-blue-400 mt-0.5 shrink-0" />
+                                <div><p className="text-[var(--text-primary)] font-medium">{src.name}</p>{src.description && <p className="text-[var(--text-muted)] text-[10px]">{src.description}</p>}</div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+            {article.suggestedKeywords?.length > 0 && (
+                <div>
+                    <h4 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2">Suggested Keywords</h4>
+                    <div className="flex flex-wrap gap-1.5">
+                        {article.suggestedKeywords.map((kw, i) => (
+                            <span key={i} className="px-2 py-1 bg-[var(--surface-active)] text-[var(--text-secondary)] text-[10px] rounded-lg">{kw}</span>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+function getVisibilityData(domain, projectId) {
     try {
-        const key = `searchlyst_visibility_${domain || 'default'}`;
-        return JSON.parse(localStorage.getItem(key));
+        const key = `searchlyst_visibility_${domain || 'default'}_${projectId ?? 'default'}`;
+        let saved = localStorage.getItem(key);
+        if (!saved && (projectId == null || projectId === 'default')) {
+            saved = localStorage.getItem(`searchlyst_visibility_${domain || 'default'}`);
+        }
+        return saved ? JSON.parse(saved) : null;
     } catch { return null; }
 }
 
@@ -28,9 +129,33 @@ export default function ContentStudioPage({ user }) {
     const [copied, setCopied] = useState(null);
     const [activeView, setActiveView] = useState('create');
     const [contentLibrary, setContentLibrary] = useState([]);
+    const [selectedLibraryItem, setSelectedLibraryItem] = useState(null);
+    const [loadingLibrary, setLoadingLibrary] = useState(true);
+
+    // Load content library from DB on mount
+    useEffect(() => {
+        const load = async () => {
+            try {
+                const contents = await apiClient.content.list(user?.projectId);
+                setContentLibrary((contents || []).map((c) => ({
+                    id: c.id,
+                    title: c.title,
+                    platform: c.platform,
+                    status: c.status,
+                    date: c.date,
+                    article: c.article,
+                })));
+            } catch {
+                setContentLibrary([]);
+            } finally {
+                setLoadingLibrary(false);
+            }
+        };
+        load();
+    }, [user?.projectId]);
 
     // Scan data for topic suggestions
-    const scanData = useMemo(() => getVisibilityData(user?.domain), [user?.domain]);
+    const scanData = useMemo(() => getVisibilityData(user?.domain, user?.projectId), [user?.domain, user?.projectId]);
     const suggestedTopics = useMemo(() => {
         const topics = [];
         // From competitor gaps
@@ -77,22 +202,21 @@ export default function ContentStudioPage({ user }) {
                 domain: user?.domain || '',
                 platform: platformName,
                 keywords: '',
+                projectId: user?.projectId,
             });
 
             if (response.success && response.article) {
-                const article = response.article;
+                const article = normalizeArticle(response.article, topic);
                 setGeneratedContent(article);
 
-                // Save to library
+                // Add to library (saved in DB by backend)
                 const newItem = {
+                    id: response.id,
                     title: article.title || topic,
                     platform: platformName,
                     status: 'draft',
                     date: 'Just now',
-                    score: 0,
-                    content: article.content,
-                    sources: article.sources,
-                    faq: article.faq,
+                    article,
                 };
                 setContentLibrary(prev => [newItem, ...prev]);
             } else {
@@ -154,13 +278,37 @@ export default function ContentStudioPage({ user }) {
 
             {activeView === 'library' ? (
                 <div className="space-y-3">
-                    {contentLibrary.length === 0 ? (
+                    {loadingLibrary ? (
+                        <div className="flex items-center justify-center py-12">
+                            <Loader2 className="w-6 h-6 text-red-400 animate-spin" />
+                        </div>
+                    ) : selectedLibraryItem != null ? (
+                        <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl overflow-hidden">
+                            <div className="p-4 border-b border-[var(--border)] flex items-center justify-between">
+                                <h3 className="text-[var(--text-primary)] font-medium text-sm truncate">{selectedLibraryItem.title}</h3>
+                                <div className="flex items-center gap-2 shrink-0">
+                                    <button onClick={() => handleCopy(getArticleContent(selectedLibraryItem), 'lib-view')}
+                                        className="px-3 py-1.5 text-xs text-red-400 border border-red-500/30 rounded-lg hover:bg-red-500/10">
+                                        {copied === 'lib-view' ? 'Copied!' : 'Copy'}
+                                    </button>
+                                    <button onClick={() => setSelectedLibraryItem(null)}
+                                        className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] rounded-lg hover:bg-[var(--surface-hover)]">
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="max-h-[60vh] overflow-y-auto">
+                                <ArticleDisplay article={getArticleFromItem(selectedLibraryItem)} />
+                            </div>
+                        </div>
+                    ) : contentLibrary.length === 0 ? (
                         <div className="text-center py-12">
                             <FileText className="w-8 h-8 text-[var(--text-muted)] mx-auto mb-3" />
                             <p className="text-[var(--text-muted)] text-sm">No content generated yet. Create your first piece!</p>
                         </div>
                     ) : contentLibrary.map((item, i) => (
-                        <div key={i} className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-4 flex items-center justify-between hover:border-red-500/20 transition-all">
+                        <button key={i} onClick={() => setSelectedLibraryItem(item)}
+                            className="w-full text-left bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-4 flex items-center justify-between hover:border-red-500/20 transition-all">
                             <div className="flex items-center gap-4 min-w-0">
                                 <div className="w-10 h-10 bg-[var(--surface-hover)] rounded-xl flex items-center justify-center shrink-0">
                                     <FileText className="w-5 h-5 text-[var(--text-muted)]" />
@@ -174,11 +322,8 @@ export default function ContentStudioPage({ user }) {
                                     </div>
                                 </div>
                             </div>
-                            <button onClick={() => handleCopy(item.content, `lib-${i}`)}
-                                className="px-3 py-1.5 text-xs text-[var(--text-secondary)] border border-[var(--border)] rounded-lg hover:bg-[var(--surface-hover)]">
-                                {copied === `lib-${i}` ? 'Copied!' : 'Copy'}
-                            </button>
-                        </div>
+                            <ArrowRight className="w-4 h-4 text-[var(--text-muted)] shrink-0" />
+                        </button>
                     ))}
                 </div>
             ) : step === 'select' ? (
@@ -263,89 +408,20 @@ export default function ContentStudioPage({ user }) {
 
                     {generatedContent && (
                         <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl overflow-hidden">
-                            {/* Title & Meta */}
-                            <div className="p-6 border-b border-[var(--border)]">
-                                <h2 className="text-lg font-bold text-[var(--text-primary)] mb-2">{generatedContent.title || topic}</h2>
-                                {generatedContent.metaDescription && (
-                                    <p className="text-[var(--text-muted)] text-xs italic">{generatedContent.metaDescription}</p>
-                                )}
-                                <div className="flex items-center gap-3 mt-3">
-                                    {generatedContent.wordCount && <span className="text-[10px] px-2 py-1 bg-[var(--surface-active)] text-[var(--text-secondary)] rounded">{generatedContent.wordCount} words</span>}
-                                    {generatedContent.readingTime && <span className="text-[10px] px-2 py-1 bg-[var(--surface-active)] text-[var(--text-secondary)] rounded">{generatedContent.readingTime} read</span>}
-                                    <button onClick={() => handleCopy(generatedContent.content, 'main')}
-                                        className="ml-auto flex items-center gap-1 px-3 py-1.5 text-xs bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20 transition-colors">
-                                        {copied === 'main' ? <><Check className="w-3 h-3" /> Copied!</> : <><Copy className="w-3 h-3" /> Copy Article</>}
-                                    </button>
+                            <div className="p-6 border-b border-[var(--border)] flex items-center justify-between">
+                                <div>
+                                    <h2 className="text-lg font-bold text-[var(--text-primary)] mb-1">{generatedContent.title || topic}</h2>
+                                    <div className="flex items-center gap-3 mt-2">
+                                        {generatedContent.wordCount && <span className="text-[10px] px-2 py-1 bg-[var(--surface-active)] text-[var(--text-secondary)] rounded">{generatedContent.wordCount} words</span>}
+                                        {generatedContent.readingTime && <span className="text-[10px] px-2 py-1 bg-[var(--surface-active)] text-[var(--text-secondary)] rounded">{generatedContent.readingTime} read</span>}
+                                    </div>
                                 </div>
+                                <button onClick={() => handleCopy(generatedContent.content, 'main')}
+                                    className="flex items-center gap-1 px-3 py-1.5 text-xs bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20 transition-colors">
+                                    {copied === 'main' ? <><Check className="w-3 h-3" /> Copied!</> : <><Copy className="w-3 h-3" /> Copy Article</>}
+                                </button>
                             </div>
-
-                            {/* Key Takeaways */}
-                            {generatedContent.keyTakeaways?.length > 0 && (
-                                <div className="p-5 border-b border-[var(--border)] bg-green-500/5">
-                                    <h4 className="text-xs font-bold text-green-400 uppercase tracking-wider mb-2">Key Takeaways</h4>
-                                    <ul className="space-y-1.5">
-                                        {generatedContent.keyTakeaways.map((t, i) => (
-                                            <li key={i} className="flex items-start gap-2 text-sm text-[var(--text-secondary)]">
-                                                <span className="text-green-400 mt-0.5">•</span> {t}
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            )}
-
-                            {/* Article Content */}
-                            <div className="p-6">
-                                <div className="prose prose-sm prose-invert max-w-none text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed text-sm">
-                                    {generatedContent.content}
-                                </div>
-                            </div>
-
-                            {/* FAQ Section */}
-                            {generatedContent.faq?.length > 0 && (
-                                <div className="p-5 border-t border-[var(--border)] bg-purple-500/5">
-                                    <h4 className="text-xs font-bold text-purple-400 uppercase tracking-wider mb-3">FAQ Section</h4>
-                                    <div className="space-y-3">
-                                        {generatedContent.faq.map((item, i) => (
-                                            <div key={i} className="bg-[var(--bg-primary)]/50 rounded-lg p-3">
-                                                <p className="text-sm font-medium text-[var(--text-primary)] mb-1">Q: {item.q}</p>
-                                                <p className="text-xs text-[var(--text-secondary)]">A: {item.a}</p>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Sources */}
-                            {generatedContent.sources?.length > 0 && (
-                                <div className="p-5 border-t border-[var(--border)]">
-                                    <h4 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                                        <BookOpen className="w-3.5 h-3.5" /> Sources & References
-                                    </h4>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                        {generatedContent.sources.map((src, i) => (
-                                            <div key={i} className="flex items-start gap-2 p-2 rounded-lg bg-[var(--surface-hover)] text-xs">
-                                                <ExternalLink className="w-3 h-3 text-blue-400 mt-0.5 shrink-0" />
-                                                <div>
-                                                    <p className="text-[var(--text-primary)] font-medium">{src.name}</p>
-                                                    {src.description && <p className="text-[var(--text-muted)] text-[10px]">{src.description}</p>}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Suggested Keywords */}
-                            {generatedContent.suggestedKeywords?.length > 0 && (
-                                <div className="p-5 border-t border-[var(--border)]">
-                                    <h4 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2">Suggested Keywords</h4>
-                                    <div className="flex flex-wrap gap-1.5">
-                                        {generatedContent.suggestedKeywords.map((kw, i) => (
-                                            <span key={i} className="px-2 py-1 bg-[var(--surface-active)] text-[var(--text-secondary)] text-[10px] rounded-lg">{kw}</span>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
+                            <ArticleDisplay article={generatedContent} />
                         </div>
                     )}
                 </div>

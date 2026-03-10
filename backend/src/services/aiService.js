@@ -62,9 +62,9 @@ OUTPUT — return ONLY this raw JSON array, nothing else:
 If you cannot find 15 with high confidence, return fewer. Do not pad the list with uncertain entries.`;
 
     try {
-        // Try with Google Search grounding first (gemini-2.0-flash supports it)
+        // Try with Google Search grounding first (if supported)
         const groundedModel = client.getGenerativeModel({
-            model: 'gemini-2.0-flash',
+            model: 'gemini-2.5-flash',
             tools: [{ googleSearch: {} }],
         });
 
@@ -109,6 +109,42 @@ function parseCompetitorResponse(text, competitorNames, domain) {
             relevance: typeof c.relevance === 'number' ? c.relevance : 7,
             confidence: c.confidence || 'medium',
         }));
+}
+
+// Agent Chat — powered by Gemini
+export async function chatWithAgent({ messages, brandContext }) {
+    const client = getClient();
+    const model = client.getGenerativeModel({ model: 'gemini-2.5-flash' });
+
+    const { brandName, domain, industry, location, competitors } = brandContext || {};
+    const contextBlock = (brandName || domain || industry) ? `
+You are an AI assistant for ${brandName || 'the user'}'s content and visibility strategy. You help with:
+- AI search visibility and how to appear in ChatGPT, Perplexity, Gemini responses
+- Content strategy, writing, and optimization
+- Competitor analysis and market trends
+- Website audits and citation gaps
+
+Brand context: ${brandName || 'N/A'} | ${domain || 'N/A'} | ${industry || 'N/A'}${location ? ` | ${location}` : ''}
+${competitors?.length ? `Competitors: ${competitors.slice(0, 5).map(c => typeof c === 'string' ? c : c.name).join(', ')}` : ''}
+
+Be concise, actionable, and professional. Use markdown for lists and formatting when helpful.
+` : 'You are a helpful AI assistant for content strategy and AI search visibility. Be concise and actionable. Use markdown when helpful.\n';
+
+    const history = (messages || []).map(m => {
+        const role = m.role === 'user' ? 'User' : 'Assistant';
+        return `${role}: ${m.content}`;
+    }).join('\n\n');
+
+    const prompt = `${contextBlock}\n\nConversation:\n${history}\n\nAssistant:`;
+
+    try {
+        const result = await model.generateContent(prompt);
+        const text = result.response?.text?.();
+        return (text || '').trim();
+    } catch (err) {
+        console.error('[Agent Chat] Error:', err.message);
+        throw err;
+    }
 }
 
 // PROMPT: Brand Knowledge Summary

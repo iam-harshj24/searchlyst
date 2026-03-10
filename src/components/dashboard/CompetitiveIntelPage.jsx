@@ -4,10 +4,14 @@ import {
     ChevronDown, ChevronUp, AlertTriangle, ArrowRight, Sparkles, ExternalLink
 } from 'lucide-react';
 
-function getVisibilityData(domain) {
+function getVisibilityData(domain, projectId) {
     try {
-        const key = `searchlyst_visibility_${domain || 'default'}`;
-        return JSON.parse(localStorage.getItem(key));
+        const key = `searchlyst_visibility_${domain || 'default'}_${projectId ?? 'default'}`;
+        let saved = localStorage.getItem(key);
+        if (!saved && (projectId == null || projectId === 'default')) {
+            saved = localStorage.getItem(`searchlyst_visibility_${domain || 'default'}`);
+        }
+        return saved ? JSON.parse(saved) : null;
     } catch { return null; }
 }
 
@@ -15,18 +19,29 @@ const threatColor = { high: 'text-red-400 bg-red-500/10', medium: 'text-yellow-4
 
 export default function CompetitiveIntelPage({ user, onTabChange }) {
     const [activeTab, setActiveTab] = useState('sov');
-    const scanData = useMemo(() => getVisibilityData(user?.domain), [user?.domain]);
+    const scanData = useMemo(() => getVisibilityData(user?.domain, user?.projectId), [user?.domain, user?.projectId]);
 
     const compAnalysis = scanData?.competitorAnalysis || null;
     const compInsights = scanData?.competitorInsights || null;
-    const sovData = compAnalysis?.shareOfVoice || scanData?.shareOfVoice || [];
+    const rawSov = compAnalysis?.shareOfVoice || scanData?.shareOfVoice || [];
+    const sovData = useMemo(() => {
+        if (Array.isArray(rawSov)) return rawSov;
+        if (rawSov?.brand) return [rawSov.brand, ...(rawSov.competitors || [])];
+        return [];
+    }, [rawSov]);
     const rankings = compAnalysis?.industryRankingDetailed || scanData?.industryRanking || [];
     const sentiment = compAnalysis?.sentimentComparison || [];
-    const threats = compAnalysis?.threatRadar || [];
+    const rawThreats = compAnalysis?.threatRadar || compAnalysis?.threats || [];
+    const threats = useMemo(() => (rawThreats || []).map(t => ({
+        competitor: t.competitor || t.brand || t.name,
+        level: t.level || t.impact || 'medium',
+        reason: t.reason || t.description || t.move || 'Competitive threat detected',
+    })), [rawThreats]);
     const gaps = scanData?.competitorGaps || [];
     const entityGraph = scanData?.entityGraph || [];
 
-    const hasData = sovData.length > 0 || rankings.length > 0 || entityGraph.length > 0;
+    const hasData = sovData.length > 0 || (Array.isArray(rankings) ? rankings : []).length > 0 || entityGraph.length > 0;
+
 
     if (!hasData) {
         return (
@@ -71,7 +86,10 @@ export default function CompetitiveIntelPage({ user, onTabChange }) {
                 <div className="bg-gradient-to-br from-red-500/10 to-red-600/10 border border-red-500/20 rounded-xl p-4">
                     <p className="text-[var(--text-muted)] text-xs mb-1">Your SOV</p>
                     <p className="text-2xl font-bold text-[var(--text-primary)]">
-                        {sovData.find(s => s.brand === user?.brandName || s.name === user?.brandName)?.percentage || sovData[0]?.percentage || '--'}%
+                        {(() => {
+                            const entry = sovData.find(s => (s.brand || s.name) === user?.brandName) || sovData[0];
+                            return entry ? (entry.percentage ?? entry.sov ?? '--') : '--';
+                        })()}%
                     </p>
                 </div>
                 <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-xl p-4">
@@ -89,15 +107,44 @@ export default function CompetitiveIntelPage({ user, onTabChange }) {
             </div>
 
             {/* Insights Banner */}
-            {compInsights && (
-                <div className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20 rounded-xl p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                        <Sparkles className="w-4 h-4 text-purple-400" />
-                        <span className="text-sm font-semibold text-[var(--text-primary)]">AI Insights</span>
+            {compInsights && (() => {
+                const findings = Array.isArray(compInsights.topFindings) ? compInsights.topFindings : [];
+                const recs = Array.isArray(compInsights.recommendations) ? compInsights.recommendations : [];
+                const hasContent = findings.length > 0 || recs.length > 0 || (typeof compInsights === 'string' && compInsights.trim());
+                if (!hasContent && typeof compInsights !== 'string') return null;
+                return (
+                    <div className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20 rounded-xl p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                            <Sparkles className="w-4 h-4 text-purple-400" />
+                            <span className="text-sm font-semibold text-[var(--text-primary)]">AI Insights</span>
+                        </div>
+                        {typeof compInsights === 'string' ? (
+                            <p className="text-[var(--text-secondary)] text-sm whitespace-pre-line">{compInsights}</p>
+                        ) : compInsights.summary ? (
+                            <p className="text-[var(--text-secondary)] text-sm whitespace-pre-line">{compInsights.summary}</p>
+                        ) : (
+                            <div className="space-y-3 text-sm">
+                                {findings.length > 0 && (
+                                    <div>
+                                        <p className="text-[var(--text-muted)] text-xs font-medium mb-1">Key Findings</p>
+                                        <ul className="list-disc list-inside space-y-1 text-[var(--text-secondary)]">
+                                            {findings.map((f, i) => <li key={i}>{typeof f === 'string' ? f : f.text || f.finding || JSON.stringify(f)}</li>)}
+                                        </ul>
+                                    </div>
+                                )}
+                                {recs.length > 0 && (
+                                    <div>
+                                        <p className="text-[var(--text-muted)] text-xs font-medium mb-1">Recommendations</p>
+                                        <ul className="list-disc list-inside space-y-1 text-[var(--text-secondary)]">
+                                            {recs.map((r, i) => <li key={i}>{typeof r === 'string' ? r : r.action || r.text || JSON.stringify(r)}</li>)}
+                                        </ul>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
-                    <p className="text-[var(--text-secondary)] text-sm whitespace-pre-line">{typeof compInsights === 'string' ? compInsights : compInsights.summary || JSON.stringify(compInsights).slice(0, 500)}</p>
-                </div>
-            )}
+                );
+            })()}
 
             {/* Tabs */}
             <div className="flex gap-1 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-xl p-1 overflow-x-auto">

@@ -5,10 +5,14 @@ import {
     BarChart3, Target, ArrowRight
 } from 'lucide-react';
 
-function getVisibilityData(domain) {
+function getVisibilityData(domain, projectId) {
     try {
-        const key = `searchlyst_visibility_${domain || 'default'}`;
-        return JSON.parse(localStorage.getItem(key));
+        const key = `searchlyst_visibility_${domain || 'default'}_${projectId ?? 'default'}`;
+        let saved = localStorage.getItem(key);
+        if (!saved && (projectId == null || projectId === 'default')) {
+            saved = localStorage.getItem(`searchlyst_visibility_${domain || 'default'}`);
+        }
+        return saved ? JSON.parse(saved) : null;
     } catch { return null; }
 }
 
@@ -32,7 +36,7 @@ export default function PromptIntelPage({ user }) {
     const [filterCategory, setFilterCategory] = useState('all');
     const [filterMentioned, setFilterMentioned] = useState('all');
 
-    const scanData = useMemo(() => getVisibilityData(user?.domain), [user?.domain]);
+    const scanData = useMemo(() => getVisibilityData(user?.domain, user?.projectId), [user?.domain, user?.projectId]);
     const prompts = scanData?.prompts || [];
 
     const categories = useMemo(() => {
