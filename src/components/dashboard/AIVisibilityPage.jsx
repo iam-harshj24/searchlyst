@@ -42,8 +42,9 @@ function ProgressBar({ phase, phaseDetail, progress, completedPrompts, totalProm
                 </div>
                 <div className="flex-1">
                     <h3 className="text-[var(--text-primary)] text-sm font-medium">
-                        {phase === 'generating_prompts' ? '🧠 Generating smart prompts...' :
-                            phase === 'querying' ? `🔍 Querying AI engines (${completedPrompts || 0}/${totalPrompts || '?'} prompts)` :
+                        {phase === 'agents_running' ? '⚡ 3 parallel agents (Perplexity, Gemini, Google AI)...' :
+                            phase === 'generating_prompts' ? '🧠 Generating smart prompts...' :
+                            phase === 'querying' ? `🔍 Querying AI engines (${completedPrompts || 0}/${totalPrompts || '?'} completed)` :
                                 phase === 'analyzing' ? '📊 Running deep intelligence analysis...' : 'Starting scan...'}
                     </h3>
                     <p className="text-[var(--text-muted)] text-xs">{phaseDetail}</p>
@@ -276,6 +277,7 @@ export default function AIVisibilityPage({ user, scanManager }) {
 
     const tabs = [
         { k: 'overview', l: 'Overview', i: BarChart3 },
+        { k: 'platforms', l: 'By Platform', i: Layers },
         { k: 'prompts', l: 'Prompts', i: Search },
         { k: 'entities', l: 'Entities', i: Users },
         { k: 'citations', l: 'Citations', i: BookOpen },
@@ -328,7 +330,7 @@ export default function AIVisibilityPage({ user, scanManager }) {
                             <p className="text-[var(--text-secondary)] text-sm max-w-md mx-auto mb-1.5">
                                 Gemini 2.5 Flash generates smart prompts, queries 3 AI platforms, and analyzes brand mentions in real-time.
                             </p>
-                            <p className="text-[var(--text-muted)] text-xs mb-5">~18 API calls • Results update live as each prompt completes</p>
+                            <p className="text-[var(--text-muted)] text-xs mb-5">~45 API calls (15 per platform) • Results update live as each prompt completes</p>
                             <Button onClick={startScan} disabled={!domain} className="bg-purple-600 hover:bg-purple-700 text-[var(--text-primary)] rounded-xl px-8">
                                 <Zap className="w-4 h-4 mr-2" /> Start Scan
                             </Button>
@@ -530,6 +532,88 @@ export default function AIVisibilityPage({ user, scanManager }) {
                                     </table>
                                 </div>
                             </div>
+                        </div>
+                    )}
+
+                    {/* By Platform Tab */}
+                    {tab === 'platforms' && (
+                        <div className="space-y-4">
+                            {!r?.platforms ? (
+                                <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-6 text-center">
+                                    <p className="text-[var(--text-secondary)] text-sm">Re-run a scan to see per-platform analytics. Three parallel agents provide separate visibility, SOV, and ranking for Perplexity, Gemini, and Google AI Overview.</p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                                    {['perplexity', 'gemini', 'googleAI'].map((engine) => {
+                                        const platform = r.platforms[engine];
+                                        if (!platform) return <div key={engine} className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-5"><p className="text-[var(--text-muted)] text-xs">No data for {EL[engine]}</p></div>;
+                                        const plScore = platform.score?.overall ?? 0;
+                                        const plSov = platform.shareOfVoice;
+                                        const plRanking = platform.industryRanking || [];
+                                        const isError = platform.error;
+                                        return (
+                                            <div key={engine} className={`bg-[var(--bg-secondary)] border rounded-2xl p-5 overflow-hidden ${isError ? 'border-red-500/20' : 'border-[var(--border)]'}`}>
+                                                <div className="flex items-center gap-2 mb-4">
+                                                    <span className="text-xl">{PI[engine]}</span>
+                                                    <h3 className="text-[var(--text-primary)] font-medium text-sm">{platform.platformName || EL[engine]}</h3>
+                                                </div>
+                                                {isError ? (
+                                                    <p className="text-red-400 text-xs">{platform.error}</p>
+                                                ) : (
+                                                    <>
+                                                        <div className="flex items-center gap-3 mb-4">
+                                                            <ScoreRing score={plScore} size={80} sw={6} />
+                                                            <div className="flex-1">
+                                                                <p className="text-[10px] text-[var(--text-muted)]">Visibility Score</p>
+                                                                <p className="text-lg font-semibold text-[var(--text-primary)]">{platform.config?.promptCount || 0} prompts</p>
+                                                                <p className="text-[10px] text-[var(--text-muted)]">{platform.config?.totalCalls || 0} API calls</p>
+                                                            </div>
+                                                        </div>
+                                                        {plSov && (
+                                                            <div className="mb-4">
+                                                                <p className="text-[10px] text-[var(--text-muted)] mb-1">Share of Voice</p>
+                                                                <div className="space-y-1">
+                                                                    <div className="flex justify-between text-xs">
+                                                                        <span className="text-[var(--text-secondary)]">{plSov.brand?.name || brandName}</span>
+                                                                        <span className="font-medium text-[var(--text-primary)]">{plSov.brand?.sov || 0}%</span>
+                                                                    </div>
+                                                                    {(plSov.competitors || []).slice(0, 3).map((c, i) => (
+                                                                        <div key={i} className="flex justify-between text-[10px]">
+                                                                            <span className="text-[var(--text-muted)] truncate max-w-[100px]">{c.name}</span>
+                                                                            <span>{c.sov || 0}%</span>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                        {plRanking.length > 0 && (
+                                                            <div>
+                                                                <p className="text-[10px] text-[var(--text-muted)] mb-1">Ranking</p>
+                                                                <div className="space-y-0.5">
+                                                                    {plRanking.slice(0, 5).map((item, i) => (
+                                                                        <div key={i} className="flex items-center gap-2 text-[10px]">
+                                                                            <span className="w-4 text-[var(--text-muted)]">#{item.rank || i + 1}</span>
+                                                                            <span className={`truncate flex-1 ${item.isTargetBrand ? 'text-purple-400 font-medium' : 'text-[var(--text-secondary)]'}`}>
+                                                                                {item.name} {item.isTargetBrand && '(You)'}
+                                                                            </span>
+                                                                            <span className="text-[var(--text-muted)]">{item.sov || 0}%</span>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                        {(platform.competitorGaps || []).length > 0 && (
+                                                            <p className="text-[10px] text-amber-400 mt-2">
+                                                                {platform.competitorGaps.length} gap{platform.competitorGaps.length !== 1 ? 's' : ''} (competitors present, you absent)
+                                                            </p>
+                                                        )}
+                                                    </>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </div>
                     )}
 

@@ -1,40 +1,22 @@
 import { randomUUID } from 'crypto';
-import { queryPerplexity, queryGemini, queryGoogleAI } from '../services/infaticaService.js';
+import { runAllAgentsInParallel } from '../services/visibilityAgents.js';
+import { batchDeepAnalysis } from '../services/responseParser.js';
 import {
-    PP1_BrandVisibilityRanking,
-    PP2_AIMentionAudit,
-    PP3_ShareOfVoice,
-    GP1_BrandRankingWithEvidence,
-    GP2_MentionQualityAuditWithCitations,
-    GP3_ThreatRadarWithSources,
-} from '../services/visibilityPrompts.js';
-import { analyzeRawResponses } from '../services/geminiAnalyticsService.js';
+    computeVisibilityScore,
+    computeShareOfVoice,
+    computePerEngine,
+    computePerCategory,
+    computeCompetitorGap,
+    computeSentimentBreakdown,
+    computeQueryTracking,
+    computeSourceDomains,
+    computeIndustryRanking,
+} from '../services/scoringEngine.js';
 import { prisma } from '../lib/prisma.js';
 
 function buildCompStr(competitors) {
     const list = (competitors || []).map(c => typeof c === 'string' ? c : (c.name || c.domain)).filter(Boolean);
     return list.slice(0, 5).join(', ') || 'major competitors';
-}
-
-function buildEntityGraphFromPrompts(prompts, brandName, domain, compStr) {
-    const brandLower = brandName.toLowerCase();
-    const competitors = compStr.split(',').map(c => c.trim()).filter(Boolean);
-    const entities = [];
-    let brandMentions = 0;
-    const compMentions = Object.fromEntries(competitors.map(c => [c, 0]));
-
-    for (const p of prompts) {
-        const engines = p.engines || {};
-        for (const [, data] of Object.entries(engines)) {
-            if (data.mentioned) brandMentions++;
-        }
-    }
-
-    entities.push({ name: brandName, domain: domain || '', isTargetBrand: true, isCompetitor: false, totalMentions: brandMentions, queryCount: prompts.length });
-    for (const comp of competitors) {
-        entities.push({ name: comp, domain: '', isTargetBrand: false, isCompetitor: true, totalMentions: compMentions[comp] || 0, queryCount: prompts.length });
-    }
-    return entities;
 }
 
 function normalizeGaps(gaps) {
@@ -46,212 +28,159 @@ function normalizeGaps(gaps) {
     }).filter(Boolean);
 }
 
-function stripHtml(html) {
-    if (!html) return '';
-    return typeof html === 'string'
-        ? html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
-        : '';
-}
+function buildOverviewFromPlatforms(platformResults, allRuns, brandName, domain, industry, competitors) {
+    const score = computeVisibilityScore(allRuns, brandName);
+    const sov = computeShareOfVoice(allRuns, brandName, competitors);
+    const perEngine = computePerEngine(allRuns);
+    const perCategory = computePerCategory(allRuns);
+    const sentiment = computeSentimentBreakdown(allRuns);
+    const queryTracking = computeQueryTracking(allRuns, brandName);
+    const sourceDomains = computeSourceDomains(allRuns);
+    const industryRanking = computeIndustryRanking(allRuns, brandName, competitors);
+    const competitorGaps = computeCompetitorGap(allRuns, brandName, competitors);
 
-async function runWithTimeout(fn, timeoutMs = 120000) {
-    return Promise.race([
-        fn(),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('Timeout')), timeoutMs))
-    ]);
+    const promptMap = {};
+    for (const run of allRuns) {
+        const key = `${run.promptId}-${run.engine}`;
+        if (!promptMap[key]) {
+            promptMap[key] = { promptId: run.promptId, query: run.query, category: run.category, intent: run.intent, engines: {} };
+        }
+        promptMap[key].engines[run.engine] = {
+            mentioned: run.brandMentioned,
+            snippet: run.brandEntity?.snippet || null,
+            sentiment: run.brandEntity?.sentiment || 'n/a',
+            positionRank: run.brandEntity?.positionRank || null,
+            citations: (run.citations || []).slice(0, 3).map(c => ({ domain: c?.domain, url: c?.url, isTargetBrand: c?.isTargetBrand })) || [],
+        };
+    }
+    const prompts = Object.values(promptMap);
+
+    const entityMap = {};
+    for (const run of allRuns) {
+        for (const e of run.entities || []) {
+            if (!entityMap[e.name]) entityMap[e.name] = { ...e, totalMentions: 0, queryCount: new Set(), positionSum: 0, positionCount: 0 };
+            entityMap[e.name].totalMentions += e.mentions || 1;
+            entityMap[e.name].queryCount.add(run.query);
+            if (e.positionRank) { entityMap[e.name].positionSum += e.positionRank; entityMap[e.name].positionCount++; }
+        }
+    }
+    const entityGraph = Object.values(entityMap)
+        .map(e => ({ name: e.name, domain: e.domain, isTargetBrand: e.isTargetBrand, isCompetitor: e.isCompetitor, totalMentions: e.totalMentions, queryCount: e.queryCount.size, sentiment: e.sentiment, avgPosition: e.positionCount > 0 ? (e.positionSum / e.positionCount).toFixed(1) : '-' }))
+        .sort((a, b) => b.totalMentions - a.totalMentions).slice(0, 20);
+
+    const totalCalls = allRuns.length;
+    const promptCount = new Set(allRuns.map(r => r.query)).size;
+
+    return {
+        score,
+        shareOfVoice: sov,
+        industryRanking,
+        perEngine,
+        platformBreakdown: {
+            perplexity: { name: 'Perplexity', ...(perEngine.perplexity || { score: 0, runs: 0, mentions: 0 }) },
+            gemini: { name: 'Gemini', ...(perEngine.gemini || { score: 0, runs: 0, mentions: 0 }) },
+            googleAI: { name: 'Google AI Overview', ...(perEngine.googleAI || { score: 0, runs: 0, mentions: 0 }) },
+        },
+        perCategory,
+        sentiment,
+        queryTracking,
+        sourceDomains,
+        prompts,
+        entityGraph,
+        citationSummary: sourceDomains.topDomains,
+        competitorGaps,
+        config: { promptCount, engines: 3, totalCalls },
+        completedPrompts: promptCount,
+        totalPrompts: promptCount,
+    };
 }
 
 /**
- * Phase 1: Send prompts to LLMs via Infatica
- * Phase 2: Feed raw responses to Gemini API for structured analytics
+ * 3 parallel agents (Perplexity, Gemini, Google AI) generate platform-specific prompts,
+ * query Infatica, and produce per-platform analytics. Combined into Overview.
  */
 async function executeScan(scanId, brandName, domain, industry, competitors, location, country, language) {
-    const compStr = buildCompStr(competitors);
-    const topCompetitor = (competitors || [])[0];
-    const compName = typeof topCompetitor === 'string' ? topCompetitor : topCompetitor?.name || compStr.split(',')[0]?.trim() || 'leading competitor';
-
-    const year = new Date().getFullYear();
-
-    // Build prompts for Perplexity & Gemini
-    const pp1 = PP1_BrandVisibilityRanking(brandName, domain, industry, compStr, compName);
-    const pp2 = PP2_AIMentionAudit(brandName, industry, compStr, compName);
-    const pp3 = PP3_ShareOfVoice(brandName, industry, compStr, compName);
-    const gp1 = GP1_BrandRankingWithEvidence(brandName, compStr, industry, compName);
-    const gp2 = GP2_MentionQualityAuditWithCitations(brandName, compStr, industry, compName);
-    const gp3 = GP3_ThreatRadarWithSources(brandName, compStr, industry);
-
-    // Google AI Overview queries — searches that surface AI Overview at top of SERP
-    const industrySlug = (industry || 'software').trim() || 'software';
-    const gai1 = `best ${industrySlug} tools ${year}`;
-    const gai2 = `${brandName} reviews`;
-    const gai3 = compName ? `${brandName} vs ${compName}` : `best ${industrySlug} software ${year}`;
-
-    const JOBS = [
-        { id: 'PP1', engine: 'perplexity', prompt: pp1, fn: () => queryPerplexity(pp1) },
-        { id: 'PP2', engine: 'perplexity', prompt: pp2, fn: () => queryPerplexity(pp2) },
-        { id: 'PP3', engine: 'perplexity', prompt: pp3, fn: () => queryPerplexity(pp3) },
-        { id: 'GP1', engine: 'gemini',     prompt: gp1, fn: () => queryGemini(gp1) },
-        { id: 'GP2', engine: 'gemini',     prompt: gp2, fn: () => queryGemini(gp2) },
-        { id: 'GP3', engine: 'gemini',     prompt: gp3, fn: () => queryGemini(gp3) },
-        { id: 'GAI1', engine: 'googleAI',  prompt: gai1, fn: () => queryGoogleAI(gai1, country) },
-        { id: 'GAI2', engine: 'googleAI',  prompt: gai2, fn: () => queryGoogleAI(gai2, country) },
-        { id: 'GAI3', engine: 'googleAI',  prompt: gai3, fn: () => queryGoogleAI(gai3, country) },
-    ];
-
-    const totalJobs = JOBS.length;
+    const expandedCompetitors = (competitors || []).map(c => typeof c === 'string' ? { name: c, domain: c } : c);
+    const compStr = buildCompStr(expandedCompetitors);
 
     try {
-        // ── Phase 1: Query all LLMs via Infatica ───────────────────────
         await prisma.visibilityScan.update({
             where: { id: scanId },
-            data: { progress: JSON.stringify({ phase: 'querying', detail: `Querying ${totalJobs} prompts (Perplexity, Gemini, Google AI Overview) via Infatica...`, completed: 0, total: totalJobs }) }
+            data: { progress: JSON.stringify({ phase: 'agents_running', detail: '3 parallel agents (Perplexity, Gemini, Google AI) generating prompts & querying Infatica...', completed: 0, total: 0 }) }
         });
 
-        const rawResponses = [];
-        let completed = 0;
+        const agentConfig = { brandName, domain, industry, competitors: expandedCompetitors, location, country, language };
 
-        for (const job of JOBS) {
-            let rawText = '';
-            try {
-                const html = await runWithTimeout(job.fn, 120000);
-                rawText = stripHtml(html);
-                console.log(`[Scan] ${job.id} (${job.engine}) → ${rawText.length} chars`);
-            } catch (err) {
-                console.error(`[Scan] ${job.id} (${job.engine}) failed:`, err.message);
-            }
-            rawResponses.push({ id: job.id, engine: job.engine, prompt: job.prompt.slice(0, 200), rawText });
-            completed++;
+        const progressByEngine = { perplexity: 0, gemini: 0, googleAI: 0 };
+        const { platformResults, allRuns, errors } = await runAllAgentsInParallel(agentConfig, (p) => {
+            if (p?.engine) progressByEngine[p.engine] = p.completed;
+        });
 
-            await prisma.visibilityScan.update({
-                where: { id: scanId },
-                data: {
-                    progress: JSON.stringify({
-                        phase: 'querying',
-                        detail: `Completed ${completed}/${totalJobs} LLM queries...`,
-                        completed,
-                        total: totalJobs + 1,
-                    })
-                }
-            });
-        }
+        const completedCalls = allRuns.length;
+        const totalCalls = Object.values(platformResults).reduce((s, p) => s + (p.totalCalls || p.config?.totalCalls || 0), 0);
 
-        // ── Phase 2: Gemini analyzes raw responses into structured data ─
         await prisma.visibilityScan.update({
             where: { id: scanId },
-            data: { progress: JSON.stringify({ phase: 'analyzing', detail: 'Gemini is analyzing raw responses into structured analytics...', completed: totalJobs, total: totalJobs + 1 }) }
+            data: { allRuns: JSON.stringify(allRuns), progress: JSON.stringify({ phase: 'querying', detail: `Perplexity ${progressByEngine.perplexity}, Gemini ${progressByEngine.gemini}, Google AI ${progressByEngine.googleAI} completed`, completed: completedCalls, total: totalCalls }) }
         });
 
-        let analytics;
+        await prisma.visibilityScan.update({
+            where: { id: scanId },
+            data: { progress: JSON.stringify({ phase: 'analyzing', detail: 'Running deep AI analysis...', completed: completedCalls, total: totalCalls }) }
+        });
+
+        let intelligence = null;
         try {
-            analytics = await analyzeRawResponses(rawResponses, brandName, domain, industry, compStr);
-        } catch (err) {
-            console.error('[Scan] Gemini analytics failed:', err.message);
-            analytics = { visibilityScore: 0, sentiment: { positive: 0, negative: 0, neutral: 0 }, shareOfVoice: [], entityGraph: [], platformBreakdown: {}, sources: [], competitorInsights: { ranking: [], gaps: [], threats: [] }, topFindings: [], recommendations: [] };
-        }
+            intelligence = await batchDeepAnalysis(allRuns, brandName, domain, expandedCompetitors);
+        } catch (err) { console.error('[Scan] Deep analysis failed:', err.message); }
 
-        // ── Build final result ─────────────────────────────────────────
-        const perplexityRuns = rawResponses.filter(r => r.engine === 'perplexity');
-        const geminiRuns = rawResponses.filter(r => r.engine === 'gemini');
-        const googleRuns = rawResponses.filter(r => r.engine === 'googleAI');
-        const pMentioned = rawResponses.filter(r => r.engine === 'perplexity' && (r.rawText || '').toLowerCase().includes(brandName.toLowerCase())).length;
-        const gMentioned = rawResponses.filter(r => r.engine === 'gemini' && (r.rawText || '').toLowerCase().includes(brandName.toLowerCase())).length;
-        const gaiMentioned = rawResponses.filter(r => r.engine === 'googleAI' && (r.rawText || '').toLowerCase().includes(brandName.toLowerCase())).length;
+        const overview = buildOverviewFromPlatforms(platformResults, allRuns, brandName, domain, industry, expandedCompetitors);
 
-        const allSources = (analytics.sources || []).filter(s => s?.url);
-
-        const prompts = rawResponses.map(r => ({
-            promptId: r.id,
-            query: r.prompt,
-            engine: r.engine,
-            engines: {
-                [r.engine]: {
-                    mentioned: (r.rawText || '').toLowerCase().includes(brandName.toLowerCase()),
-                    snippet: (r.rawText || '').slice(0, 300),
-                    citations: allSources.slice(0, 5).map(s => ({ url: s.url, domain: s.domain || '', isTargetBrand: !!s.brandMentioned })),
-                }
-            },
-        }));
-
-        const sovArr = analytics.shareOfVoice || [];
-        const brandEntry = sovArr.find(s => s.name?.toLowerCase() === brandName.toLowerCase()) || { name: brandName, sov: 0 };
-        const competitorEntries = sovArr.filter(s => s.name?.toLowerCase() !== brandName.toLowerCase());
+        const sovArr = overview.shareOfVoice?.competitors?.map(c => ({ name: c.name, sov: c.sov })) || [];
+        sovArr.unshift({ name: overview.shareOfVoice?.brand?.name || brandName, sov: overview.shareOfVoice?.brand?.sov || 0 });
 
         const finalResult = {
             brandName,
             domain,
             industry: industry || '',
             scannedAt: new Date().toISOString(),
-            score: {
-                overall: analytics.visibilityScore || 0,
-                components: {
-                    mentionProbability: Math.min(100, Math.round(((pMentioned + gMentioned + gaiMentioned) / 3) * 100)),
-                    citationAuthority: Math.min(100, (analytics.sources || []).filter(s => s.tier === 1).length * 15),
-                    positionScore: Math.min(100, Math.round((analytics.visibilityScore || 0) * 0.8)),
-                    sentimentScore: Math.min(100, (analytics.sentiment?.positive || 0) * 25 + (analytics.sentiment?.neutral || 0) * 3),
-                    coverageBreadth: Math.min(100, Math.round(((pMentioned + gMentioned + gaiMentioned) / 3) * 100)),
-                },
-            },
-            shareOfVoice: {
-                brand: { name: brandEntry.name, sov: brandEntry.sov || 0 },
-                competitors: competitorEntries.map(c => ({ name: c.name, sov: c.sov || 0 })),
-            },
-            industryRanking: [{ name: brandEntry.name, sov: brandEntry.sov }, ...competitorEntries].map((e, i) => ({ name: e.name, sov: e.sov })),
-            platformBreakdown: {
-                perplexity: { name: 'Perplexity', score: pMentioned ? analytics.visibilityScore : 0, runs: perplexityRuns.length, mentions: pMentioned },
-                gemini: { name: 'Gemini', score: gMentioned ? analytics.visibilityScore : 0, runs: geminiRuns.length, mentions: gMentioned },
-                googleAI: { name: 'Google AI Overview', score: gaiMentioned ? analytics.visibilityScore : 0, runs: googleRuns.length, mentions: gaiMentioned },
-            },
-            perCategory: {},
-            sentiment: analytics.sentiment || { positive: 0, negative: 0, neutral: 0 },
-            queryTracking: [],
-            sourceDomains: {
-                topDomains: (analytics.sources || [])
-                    .filter(s => s && (s.domain || s.url))
-                    .reduce((acc, s) => {
-                        let d = s.domain || '';
-                        if (!d && s.url) { try { d = new URL(s.url).hostname?.replace(/^www\./, '') || ''; } catch { d = 'unknown'; } }
-                        if (!d) d = 'unknown';
-                        const existing = acc.find(a => a.domain === d);
-                        if (existing) { existing.count++; }
-                        else { acc.push({ domain: d, count: 1, tier: s.tier === 1 ? 'gold' : s.tier === 2 ? 'silver' : 'standard' }); }
-                        return acc;
-                    }, []).sort((a, b) => b.count - a.count).slice(0, 15),
-            },
-            prompts,
-            entityGraph: (Array.isArray(analytics.entityGraph) && analytics.entityGraph.length > 0)
-                ? analytics.entityGraph
-                : buildEntityGraphFromPrompts(prompts, brandName, domain, compStr),
-            citationSummary: (analytics.sources || []).slice(0, 10),
-            competitorGaps: normalizeGaps(analytics.competitorInsights?.gaps || []),
-            competitorAnalysis: {
-                shareOfVoice: sovArr,
-                industryRanking: sovArr,
-                threats: analytics.competitorInsights?.threats || [],
-            },
+            score: overview.score,
+            shareOfVoice: overview.shareOfVoice,
+            industryRanking: overview.industryRanking,
+            perEngine: overview.perEngine,
+            platformBreakdown: overview.platformBreakdown,
+            perCategory: overview.perCategory,
+            sentiment: overview.sentiment,
+            queryTracking: overview.queryTracking,
+            sourceDomains: overview.sourceDomains,
+            prompts: overview.prompts,
+            entityGraph: overview.entityGraph,
+            citationSummary: overview.citationSummary,
+            competitorGaps: normalizeGaps(overview.competitorGaps),
+            competitorAnalysis: { shareOfVoice: sovArr, industryRanking: sovArr, threats: [] },
             competitorInsights: {
-                topFindings: analytics.topFindings || [],
-                recommendations: analytics.recommendations || [],
+                topFindings: intelligence?.strengthAreas || [],
+                recommendations: intelligence?.topOpportunities || [],
             },
-            config: { promptCount: totalJobs, engines: 3, totalCalls: totalJobs },
-            completedPrompts: totalJobs,
-            totalPrompts: totalJobs,
-            rawResponses: rawResponses.map(r => ({ id: r.id, engine: r.engine, textLength: r.rawText?.length || 0 })),
+            intelligence,
+            config: overview.config,
+            completedPrompts: overview.completedPrompts,
+            totalPrompts: overview.totalPrompts,
+            platforms: {
+                perplexity: platformResults.perplexity,
+                gemini: platformResults.gemini,
+                googleAI: platformResults.googleAI,
+            },
+            agentErrors: errors.length > 0 ? errors : undefined,
         };
 
         await prisma.visibilityScan.update({
             where: { id: scanId },
-            data: {
-                status: 'completed',
-                allRuns: JSON.stringify(rawResponses),
-                results: JSON.stringify(finalResult),
-                progress: JSON.stringify({ phase: 'done', detail: 'Scan completed', completed: totalJobs + 1, total: totalJobs + 1 })
-            }
+            data: { status: 'completed', allRuns: JSON.stringify(allRuns), results: JSON.stringify(finalResult), progress: JSON.stringify({ phase: 'done', detail: 'Scan completed', completed: completedCalls, total: completedCalls }) }
         });
     } catch (err) {
         console.error('[Scan] Fatal:', err);
-        await prisma.visibilityScan.update({
-            where: { id: scanId },
-            data: { status: 'failed', error: err.message }
-        });
+        await prisma.visibilityScan.update({ where: { id: scanId }, data: { status: 'failed', error: err.message } });
     }
 }
 

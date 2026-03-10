@@ -7,11 +7,134 @@ function getModel() {
 }
 
 function safeParse(text) {
+    if (!text || typeof text !== 'string') throw new Error('Invalid input');
     const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    return JSON.parse(cleaned);
+    try {
+        return JSON.parse(cleaned);
+    } catch (e) {
+        const jsonMatch = cleaned.match(/\[[\s\S]*\]/);
+        if (jsonMatch) return JSON.parse(jsonMatch[0]);
+        throw e;
+    }
 }
 
 const promptCache = new Map();
+
+// Per-category weights: discovery/ranking categories matter more for visibility
+const CATEGORY_WEIGHTS = {
+    direct_brand: 0.8,
+    industry_best: 2.0,
+    problem_solution: 1.8,
+    alternative: 1.5,
+    social_proof: 1.3,
+    general: 0.9,
+};
+
+function getCategoryWeight(category) {
+    return CATEGORY_WEIGHTS[category] ?? 0.9;
+}
+
+// Platform-specific context for enhanced prompt generation
+const PLATFORM_PROFILES = {
+    perplexity: {
+        name: 'Perplexity',
+        context: `Perplexity (Superplexity) users tend to ask research-depth questions. They often:\n- Use longer, exploratory queries (15-25 words)\n- Include context like "for a B2B SaaS company" or "as a marketer"\n- Seek comprehensive comparisons and alternatives\n- Cite sources and want evidence-based answers\n- Ask follow-up style questions even in first query`,
+        queryStyle: 'conversational, research-oriented, often multi-clause',
+    },
+    gemini: {
+        name: 'Gemini',
+        context: `Google Gemini users (via gemini.google.com) tend to:\n- Ask in a chat interface similar to ChatGPT\n- Use conversational, direct questions (8-18 words)\n- Mix casual language with specific intent\n- Often include "best", "top", "recommend" keywords\n- May add location or context ("in 2025", "for startups")`,
+        queryStyle: 'direct, chat-style, mix of casual and specific',
+    },
+    googleAI: {
+        name: 'Google AI Overview',
+        context: `Google AI Overview appears in Search results. Users type:\n- Short, intent-driven queries (5-12 words typical)\n- Traditional search-style phrasing\n- Often include year, comparison keywords ("vs"), or "best"\n- May include "near me" or location for local intent\n- More keyword-like than conversational`,
+        queryStyle: 'concise, search-intent, keyword-aware',
+    },
+};
+
+/**
+ * Generate platform-specific prompts for enhanced visibility measurement.
+ * Each platform gets prompts tailored to how its users actually search.
+ */
+export async function generatePromptMatrixForPlatform(brand, platform) {
+    const { brandName, domain, industry, competitors = [], location, language } = brand;
+    const compList = competitors.map(c => typeof c === 'string' ? c : c.name).filter(Boolean).slice(0, 5);
+    const profile = PLATFORM_PROFILES[platform] || PLATFORM_PROFILES.perplexity;
+
+    const cacheKey = `${brandName}_${domain}_${industry}_${location}_${language}_${platform}_${compList.join(',')}`.toLowerCase();
+    if (promptCache.has(cacheKey)) {
+        console.log(`[Prompt Intelligence] Using cached prompts for ${brandName} on ${platform}`);
+        return promptCache.get(cacheKey);
+    }
+
+    const compContext = compList.length > 0
+        ? compList.join(', ')
+        : '[none provided — use typical market leaders for this industry]';
+
+    const systemPrompt = `ROLE:
+You are an AI Search Intelligence Analyst specializing in how real buyers research products. You understand search intent, query psychology, and how different AI platforms rank and surface brands.
+
+PLATFORM CONTEXT — ${profile.name}:
+${profile.context}
+
+CONTEXT:
+You are generating test queries to measure how visible "${brandName}" (${domain}) is when real potential customers search on ${profile.name}. These queries will be submitted to ${profile.name} to see whether "${brandName}" gets mentioned organically. Queries must match how ${profile.name} users typically phrase their questions.
+
+BRAND CONTEXT:
+- Brand: ${brandName} | Domain: ${domain}
+- Industry: ${industry}
+- Location: ${location || 'Global'}
+- Language: ${language || 'English'}
+- Known Competitors: ${compContext}
+
+TASK:
+Generate exactly 15 search queries — 3 per category below.
+Each query must sound like a real person typed it into ${profile.name}.
+Query style: ${profile.queryStyle}
+Write all queries in: ${language || 'English'}.
+
+CATEGORIES (3 queries each = 15 total):
+CATEGORY 1 — "direct_brand": Buyer knows the brand → MUST include "${brandName}" or competitor. Intent: "direct" or "comparison"
+CATEGORY 2 — "industry_best": Buyer wants best tool → Must NOT include brand names. Intent: "discovery" or "ranking"
+CATEGORY 3 — "problem_solution": Buyer describes problem → Must NOT include brand names. Intent: "problem_aware" or "solution_seeking"
+CATEGORY 4 — "alternative": Buyer seeks alternatives → MUST include competitor name. Intent: "switching" or "comparison"
+CATEGORY 5 — "social_proof": Buyer wants reviews → Must NOT include brand names. Intent: "validation" or "review_seeking"
+
+CONSTRAINTS:
+✅ Exactly 15 queries total. All in: ${language || 'English'}
+✅ Categories 2, 3, 5: zero brand names. Categories 1, 4: must include at least one real name
+✅ Queries must match ${profile.name} user behavior
+❌ No keyword stuffing. Return ONLY a valid raw JSON array
+
+OUTPUT FORMAT:
+[{"id":1,"category":"direct_brand","query":"...","intent":"direct","includes_brand":true}]`;
+
+    try {
+        const model = getModel();
+        const result = await model.generateContent(systemPrompt);
+        const parsed = safeParse(result.response.text().trim());
+
+        const generatedPrompts = parsed.slice(0, 15).map((p, i) => {
+            const category = p.category || 'general';
+            return {
+                id: i,
+                core: p.query || p.prompt,
+                intent: p.intent || 'awareness',
+                category,
+                includesBrand: p.includes_brand ?? false,
+                strategicValue: 9,
+                weight: getCategoryWeight(category),
+            };
+        });
+
+        promptCache.set(cacheKey, generatedPrompts);
+        return generatedPrompts;
+    } catch (err) {
+        console.warn(`[Prompt Intelligence] Platform-specific gen failed for ${platform}, using fallback:`, err.message);
+        return generateFallbackPrompts(brandName, domain, industry, competitors, location).slice(0, 15);
+    }
+}
 
 // PROMPT 3 — Visibility Scan: Query Generation (Enhanced)
 export async function generatePromptMatrix(brand) {
@@ -94,22 +217,32 @@ OUTPUT FORMAT:
 Return ONLY a valid raw JSON array:
 [{"id":1,"category":"direct_brand","query":"...","intent":"direct","includes_brand":true}]`;
 
-    const model = getModel();
-    const result = await model.generateContent(prompt);
-    const parsed = safeParse(result.response.text().trim());
+    try {
+        const model = getModel();
+        const result = await model.generateContent(prompt);
+        const text = result.response?.text?.();
+        if (!text) throw new Error('Empty model response');
+        const parsed = safeParse(text.trim());
 
-    const generatedPrompts = parsed.map((p, i) => ({
-        id: i,
-        core: p.query || p.prompt,
-        intent: p.intent || 'awareness',
-        category: p.category || 'general',
-        includesBrand: p.includes_brand ?? false,
-        strategicValue: 9,
-        weight: 0.9,
-    }));
+        const generatedPrompts = parsed.map((p, i) => {
+            const category = p.category || 'general';
+            return {
+                id: i,
+                core: p.query || p.prompt,
+                intent: p.intent || 'awareness',
+                category,
+                includesBrand: p.includes_brand ?? false,
+                strategicValue: 9,
+                weight: getCategoryWeight(category),
+            };
+        });
 
-    promptCache.set(cacheKey, generatedPrompts);
-    return generatedPrompts;
+        promptCache.set(cacheKey, generatedPrompts);
+        return generatedPrompts;
+    } catch (err) {
+        console.warn('[Prompt Intelligence] Gen failed, using fallback:', err.message);
+        return generateFallbackPrompts(brandName, domain, industry, competitors, location);
+    }
 }
 
 // PROMPT 4 — Visibility Scan: Fallback Queries (Enhanced)
@@ -135,24 +268,29 @@ export function generateFallbackPrompts(brandName, domain, industry, competitors
                     : 'business results';
 
     return [
-        // Category 1: Direct Brand (2 queries)
-        { id: 0, core: `${brandName} pricing and features ${year} — is it worth it?`, intent: 'direct', category: 'direct_brand', includesBrand: true, strategicValue: 9, weight: 0.9 },
-        { id: 1, core: `${brandName} vs ${compStr} — which is better for ${industry}?`, intent: 'comparison', category: 'direct_brand', includesBrand: true, strategicValue: 9, weight: 0.9 },
+        // Category 1: Direct Brand (3 queries) — weight 0.8
+        { id: 0, core: `${brandName} pricing and features ${year} — is it worth it?`, intent: 'direct', category: 'direct_brand', includesBrand: true, strategicValue: 9, weight: 0.8 },
+        { id: 1, core: `${brandName} vs ${compStr} — which is better for ${industry}?`, intent: 'comparison', category: 'direct_brand', includesBrand: true, strategicValue: 9, weight: 0.8 },
+        { id: 2, core: `compare ${brandName} with ${compStr} for ${industry} in ${year}`, intent: 'comparison', category: 'direct_brand', includesBrand: true, strategicValue: 9, weight: 0.8 },
 
-        // Category 2: Industry Best-Of (2 queries)
-        { id: 2, core: `best ${industry} tools in ${year}`, intent: 'discovery', category: 'industry_best', includesBrand: false, strategicValue: 9, weight: 0.9 },
-        { id: 3, core: `top ${industry} platforms for small and mid-sized businesses`, intent: 'ranking', category: 'industry_best', includesBrand: false, strategicValue: 9, weight: 0.9 },
+        // Category 2: Industry Best-Of (3 queries) — weight 2.0
+        { id: 3, core: `best ${industry} tools in ${year}`, intent: 'discovery', category: 'industry_best', includesBrand: false, strategicValue: 10, weight: 2.0 },
+        { id: 4, core: `top ${industry} platforms for small and mid-sized businesses`, intent: 'ranking', category: 'industry_best', includesBrand: false, strategicValue: 10, weight: 2.0 },
+        { id: 5, core: `most recommended ${industry} solutions ${year}`, intent: 'discovery', category: 'industry_best', includesBrand: false, strategicValue: 10, weight: 2.0 },
 
-        // Category 3: Problem-Solution (2 queries)
-        { id: 4, core: `how to improve ${outcome} with ${industry} tools in ${year}`, intent: 'problem_aware', category: 'problem_solution', includesBrand: false, strategicValue: 9, weight: 0.9 },
-        { id: 5, core: `what is ${industry} and why does it matter for businesses in ${year}`, intent: 'solution_seeking', category: 'problem_solution', includesBrand: false, strategicValue: 8, weight: 0.8 },
+        // Category 3: Problem-Solution (3 queries) — weight 1.8
+        { id: 6, core: `how to improve ${outcome} with ${industry} tools in ${year}`, intent: 'problem_aware', category: 'problem_solution', includesBrand: false, strategicValue: 9, weight: 1.8 },
+        { id: 7, core: `what is ${industry} and why does it matter for businesses in ${year}`, intent: 'solution_seeking', category: 'problem_solution', includesBrand: false, strategicValue: 9, weight: 1.8 },
+        { id: 8, core: `need help choosing ${industry} tools for my business`, intent: 'solution_seeking', category: 'problem_solution', includesBrand: false, strategicValue: 9, weight: 1.8 },
 
-        // Category 4: Alternative-Seeking (2 queries)
-        { id: 6, core: `best alternatives to ${compStr} for ${industry} in ${year}`, intent: 'switching', category: 'alternative', includesBrand: false, strategicValue: 9, weight: 0.9 },
-        { id: 7, core: `${compStr2} alternatives — what do users recommend`, intent: 'comparison', category: 'alternative', includesBrand: false, strategicValue: 9, weight: 0.9 },
+        // Category 4: Alternative-Seeking (3 queries) — weight 1.5
+        { id: 9, core: `best alternatives to ${compStr} for ${industry} in ${year}`, intent: 'switching', category: 'alternative', includesBrand: false, strategicValue: 9, weight: 1.5 },
+        { id: 10, core: `${compStr2} alternatives — what do users recommend`, intent: 'comparison', category: 'alternative', includesBrand: false, strategicValue: 9, weight: 1.5 },
+        { id: 11, core: `replace ${compStr} with another ${industry} tool`, intent: 'switching', category: 'alternative', includesBrand: false, strategicValue: 9, weight: 1.5 },
 
-        // Category 5: Social Proof & Reviews (2 queries)
-        { id: 8, core: `honest reviews of ${brandName} — Reddit and G2 ${year}`, intent: 'validation', category: 'social_proof', includesBrand: true, strategicValue: 10, weight: 1.0 },
-        { id: 9, core: `what do real users say about ${industry} tools on Reddit`, intent: 'review_seeking', category: 'social_proof', includesBrand: false, strategicValue: 9, weight: 0.9 },
+        // Category 5: Social Proof & Reviews (3 queries) — weight 1.3
+        { id: 12, core: `honest reviews of ${brandName} — Reddit and G2 ${year}`, intent: 'validation', category: 'social_proof', includesBrand: true, strategicValue: 10, weight: 1.3 },
+        { id: 13, core: `what do real users say about ${industry} tools on Reddit`, intent: 'review_seeking', category: 'social_proof', includesBrand: false, strategicValue: 9, weight: 1.3 },
+        { id: 14, core: `${industry} tool reviews and comparisons ${year}`, intent: 'validation', category: 'social_proof', includesBrand: false, strategicValue: 9, weight: 1.3 },
     ];
 }
