@@ -20,7 +20,13 @@ export const projectService = {
         return projectRepository.update(id, data);
     },
 
-    async deleteProject(id) {
+    async deleteProject(id, userId) {
+        const project = await projectRepository.findById(id);
+        if (!project || project.userId !== userId) {
+            const err = new Error('Project not found');
+            err.code = 'NOT_FOUND';
+            throw err;
+        }
         return projectRepository.delete(id);
     },
 };

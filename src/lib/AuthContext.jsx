@@ -120,6 +120,15 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     apiClient.auth.logout();
+    // Clear visibility/scan cache only; keep searchlyst_user_* so returning users retain profile/onboarding state
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith('searchlyst_visibility_') || key?.startsWith('searchlyst_active_scan_')) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(k => localStorage.removeItem(k));
     setUser(null);
     setIsAuthenticated(false);
   };

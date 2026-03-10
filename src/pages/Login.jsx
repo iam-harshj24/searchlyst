@@ -19,6 +19,7 @@ export default function Login() {
   const [error, setError] = useState('');
   const [isRegister, setIsRegister] = useState(false);
   const fromAdmin = location.state?.from === 'admin';
+  const fromPath = location.state?.from;
 
   useEffect(() => {
     if (fromAdmin && location.state?.message) {
@@ -51,7 +52,7 @@ export default function Login() {
       if (result.user?.role === 'admin') {
         navigate('/AdminPanel');
       } else {
-        navigate('/Dashboard');
+        navigate(fromPath && fromPath !== '/Login' ? fromPath : '/Dashboard');
       }
     } else {
       setError(result.error?.message || (isRegister ? 'Registration failed.' : 'Login failed. Please check your credentials.'));

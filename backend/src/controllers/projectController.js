@@ -33,9 +33,13 @@ export async function getProjects(req, res) {
 export async function deleteProject(req, res) {
     try {
         const { id } = req.params;
-        await projectService.deleteProject(id);
+        const userId = req.user.id;
+        await projectService.deleteProject(id, userId);
         res.json({ success: true, message: 'Project deleted successfully' });
     } catch (error) {
+        if (error.code === 'NOT_FOUND') {
+            return res.status(404).json({ success: false, message: 'Project not found' });
+        }
         console.error('Delete project error:', error.message);
         res.status(500).json({ success: false, message: 'Failed to delete project' });
     }

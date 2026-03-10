@@ -66,7 +66,7 @@ const stepMeta = [
     { num: 5, title: 'Finish', icon: Sparkles },
 ];
 
-export default function OnboardingFlow({ onComplete, mode = 'firstTime' }) {
+export default function OnboardingFlow({ userId, onComplete, mode = 'firstTime' }) {
     const isAddProject = mode === 'addProject';
     const [step, setStep] = useState(1);
     const [testimonialIndex, setTestimonialIndex] = useState(0);
@@ -229,7 +229,7 @@ export default function OnboardingFlow({ onComplete, mode = 'firstTime' }) {
             if (project?.id) userData.projectId = project.id;
         } catch (error) { console.error('Failed to save project:', error); }
         triggerAutoScan(userData);
-        setDashboardUser(userData);
+        setDashboardUser(userId, userData);
 
         const projects = [{ id: 'project-1', name: brandName, domain: userData.domain, ...userData }];
         localStorage.setItem('searchlyst_projects', JSON.stringify(projects));

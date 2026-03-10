@@ -38,7 +38,7 @@ export default function OverviewPage({ domains, activeProject, onAddDomain, onTa
 
     const getGreeting = () => {
         const hour = new Date().getHours();
-        const name = user?.brandName || user?.full_name?.split(' ')[0] || '';
+        const name = user?.brandName || user?.name?.split(' ')[0] || user?.full_name?.split(' ')[0] || '';
         const timeGreeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
         return name ? `${timeGreeting}, ${name}` : timeGreeting;
     };
