@@ -231,7 +231,7 @@ export default function AIVisibilityPage({ user, scanManager }) {
         scanStatus: status, scanResult: result, scanPhase: phase,
         scanPhaseDetail: phaseDetail, scanProgress: progress,
         completedPrompts, totalPrompts, scanError: error,
-        startScan,
+        loadingFromBackend, startScan,
     } = scanManager;
 
     const [tab, setTab] = useState('overview');
@@ -247,13 +247,14 @@ export default function AIVisibilityPage({ user, scanManager }) {
         }
     }, [result]);
 
-    // AUTO-START: Trigger scan on mount when user data exists but no cached result
+    // AUTO-START: Trigger scan only when backend check is done and no result exists
     useEffect(() => {
+        if (loadingFromBackend) return;
         if (status === 'idle' && !result && domain && user?.brandName && user?.industry) {
             console.log('[AIVisibility] Auto-starting scan for', domain);
             startScan();
         }
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [loadingFromBackend, status, result, domain, user?.brandName, user?.industry, startScan]);
 
     const r = result;
     const sovData = r ? [
@@ -314,15 +315,25 @@ export default function AIVisibilityPage({ user, scanManager }) {
 
             {status === 'idle' && !r && (
                 <div className="bg-gradient-to-br from-purple-500/5 to-blue-500/5 border border-purple-500/10 rounded-2xl p-10 text-center">
-                    <Eye className="w-12 h-12 text-purple-400/20 mx-auto mb-3" />
-                    <h3 className="text-[var(--text-primary)] font-medium text-lg mb-1">Check Your AI Visibility</h3>
-                    <p className="text-[var(--text-secondary)] text-sm max-w-md mx-auto mb-1.5">
-                        Gemini 2.5 Flash generates smart prompts, queries 3 AI platforms, and analyzes brand mentions in real-time.
-                    </p>
-                    <p className="text-[var(--text-muted)] text-xs mb-5">~18 API calls • Results update live as each prompt completes</p>
-                    <Button onClick={startScan} disabled={!domain} className="bg-purple-600 hover:bg-purple-700 text-[var(--text-primary)] rounded-xl px-8">
-                        <Zap className="w-4 h-4 mr-2" /> Start Scan
-                    </Button>
+                    {loadingFromBackend ? (
+                        <>
+                            <Loader2 className="w-12 h-12 text-purple-400/60 mx-auto mb-3 animate-spin" />
+                            <h3 className="text-[var(--text-primary)] font-medium text-lg mb-1">Loading scan data...</h3>
+                            <p className="text-[var(--text-muted)] text-sm">Checking for existing results</p>
+                        </>
+                    ) : (
+                        <>
+                            <Eye className="w-12 h-12 text-purple-400/20 mx-auto mb-3" />
+                            <h3 className="text-[var(--text-primary)] font-medium text-lg mb-1">Check Your AI Visibility</h3>
+                            <p className="text-[var(--text-secondary)] text-sm max-w-md mx-auto mb-1.5">
+                                Gemini 2.5 Flash generates smart prompts, queries 3 AI platforms, and analyzes brand mentions in real-time.
+                            </p>
+                            <p className="text-[var(--text-muted)] text-xs mb-5">~18 API calls • Results update live as each prompt completes</p>
+                            <Button onClick={startScan} disabled={!domain} className="bg-purple-600 hover:bg-purple-700 text-[var(--text-primary)] rounded-xl px-8">
+                                <Zap className="w-4 h-4 mr-2" /> Start Scan
+                            </Button>
+                        </>
+                    )}
                 </div>
             )}
 
@@ -677,16 +688,22 @@ export default function AIVisibilityPage({ user, scanManager }) {
                             <h3 className="text-[var(--text-primary)] font-medium text-sm mb-1">Competitive Gaps</h3>
                             <p className="text-[var(--text-muted)] text-xs mb-3">Queries where competitors appear but you don't — your content priorities</p>
                             <div className="space-y-2">
-                                {(r.competitorGaps || []).map((g, i) => (
-                                    <div key={i} className="p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl">
-                                        <p className="text-sm text-[var(--text-primary)] mb-1">"{g.query}"</p>
-                                        <div className="flex gap-1 flex-wrap">
-                                            {g.competitorsPresent.map((c, j) => (
-                                                <span key={j} className="text-[10px] bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded">{c.name} ({c.count}x)</span>
-                                            ))}
+                                {(r.competitorGaps || []).map((g, i) => {
+                                    const query = g.query || g.topic || (typeof g === 'string' ? g : '');
+                                    const competitors = g.competitorsPresent || (Array.isArray(g.competitors) ? g.competitors.map(c => typeof c === 'string' ? { name: c, count: 1 } : c) : []);
+                                    return (
+                                        <div key={i} className="p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl">
+                                            <p className="text-sm text-[var(--text-primary)] mb-1">"{query}"</p>
+                                            {competitors.length > 0 && (
+                                                <div className="flex gap-1 flex-wrap">
+                                                    {competitors.map((c, j) => (
+                                                        <span key={j} className="text-[10px] bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded">{c.name || c} ({c.count ?? 1}x)</span>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                                 {(r.competitorGaps || []).length === 0 && (
                                     <div className="text-center py-6">
                                         <CheckCircle className="w-7 h-7 text-green-400/20 mx-auto mb-1.5" />

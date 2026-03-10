@@ -25,7 +25,7 @@ const menuSections = [
         label: 'Analyze',
         items: [
             { id: 'ai-visibility', label: 'AI Visibility', icon: Eye },
-            { id: 'competitive-intel', label: 'Competitive Intel', icon: Swords, badge: 'Soon' },
+            { id: 'competitive-intel', label: 'Competitive Intel', icon: Swords },
             { id: 'sentiment-geo', label: 'Sentiment & Geo', icon: Globe },
             { id: 'audit-health', label: 'Audits & Health', icon: FileSearch },
             { id: 'prompt-intel', label: 'Prompt Intelligence', icon: Terminal },

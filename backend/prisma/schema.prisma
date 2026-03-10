@@ -19,6 +19,7 @@ model User {
   projects        Project[]
   auditJobs       AuditJob[]
   visibilityScans VisibilityScan[]
+  contents        Content[]
 
   @@index([email], map: "idx_user_email")
   @@map("users")
@@ -66,10 +67,30 @@ model Project {
   user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   visibilityScans VisibilityScan[]
   auditJobs       AuditJob[]
+  contents        Content[]
 
   @@unique([userId, domain], map: "unique_user_domain")
   @@index([userId], map: "idx_project_user")
   @@map("projects")
+}
+
+model Content {
+  id              Int       @id @default(autoincrement())
+  userId          Int
+  projectId      Int?
+  topic          String
+  platform       String    @default("Blog")
+  title          String
+  payload        String    // JSON: article object (content, faq, sources, keyTakeaways, etc.)
+  status         String    @default("draft")
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @default(now())
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project        Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([userId], map: "idx_content_user")
+  @@index([projectId], map: "idx_content_project")
+  @@map("contents")
 }
 
 model AuditJob {

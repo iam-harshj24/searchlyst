@@ -39,12 +39,29 @@ export function setDashboardUser(userId, data) {
     localStorage.setItem(key, JSON.stringify(data));
 }
 
+const BRANDHUB_PREFIX = 'searchlyst_brandhub';
+
+export function getBrandHubData(userId, projectId) {
+    try {
+        if (!userId) return null;
+        const key = projectId != null ? `${BRANDHUB_PREFIX}_${userId}_${projectId}` : `${BRANDHUB_PREFIX}_${userId}`;
+        const data = localStorage.getItem(key);
+        return data ? JSON.parse(data) : null;
+    } catch { return null; }
+}
+
+export function setBrandHubData(userId, projectId, data) {
+    if (!userId) return;
+    const key = projectId != null ? `${BRANDHUB_PREFIX}_${userId}_${projectId}` : `${BRANDHUB_PREFIX}_${userId}`;
+    localStorage.setItem(key, JSON.stringify(data));
+}
+
 /* ------------------------------------------------------------------ */
 /*  useScanManager — persistent background scan polling               */
 /* ------------------------------------------------------------------ */
 function useScanManager(user) {
     const [scanId, setScanId] = useState(null);
-    const [scanStatus, setScanStatus] = useState('idle');         // idle | scanning | completed | failed
+    const [scanStatus, setScanStatus] = useState('idle');         // idle | scanning | completed | failed | loading
     const [scanResult, setScanResult] = useState(null);
     const [scanPhase, setScanPhase] = useState('');
     const [scanPhaseDetail, setScanPhaseDetail] = useState('');
@@ -52,11 +69,13 @@ function useScanManager(user) {
     const [completedPrompts, setCompletedPrompts] = useState(0);
     const [totalPrompts, setTotalPrompts] = useState(0);
     const [scanError, setScanError] = useState(null);
+    const [loadingFromBackend, setLoadingFromBackend] = useState(true);
     const pollRef = useRef(null);
 
     const domain = user?.domain || '';
-    const storageKey = `searchlyst_visibility_${domain || 'default'}`;
-    const activeScanKey = `searchlyst_active_scan_${domain}`;
+    const projectId = user?.projectId;
+    const storageKey = `searchlyst_visibility_${domain || 'default'}_${projectId ?? 'default'}`;
+    const activeScanKey = `searchlyst_active_scan_${domain}_${projectId ?? 'default'}`;
 
     // Stop polling
     const stopPolling = useCallback(() => {
@@ -78,44 +97,84 @@ function useScanManager(user) {
                 if (res.status === 'completed') {
                     setScanStatus('completed');
                     if (res.result) {
-                        localStorage.setItem(`searchlyst_visibility_${domain || 'default'}`, JSON.stringify(res.result));
+                        localStorage.setItem(storageKey, JSON.stringify(res.result));
                     }
-                    localStorage.removeItem(`searchlyst_active_scan_${domain}`);
+                    localStorage.removeItem(activeScanKey);
                     stopPolling();
                 } else if (res.status === 'failed') {
                     setScanStatus('failed');
                     setScanError(res.error);
-                    localStorage.removeItem(`searchlyst_active_scan_${domain}`);
+                    localStorage.removeItem(activeScanKey);
                     stopPolling();
                 }
             } catch { }
         }, 3000);
-    }, [stopPolling, domain]);
+    }, [stopPolling, storageKey, activeScanKey]);
 
     // Cleanup on unmount
     useEffect(() => () => stopPolling(), [stopPolling]);
 
-    // On mount: load cached result or resume active scan
+    // On mount: load from localStorage, then backend if empty
     useEffect(() => {
-        if (!domain) return;
-        const saved = localStorage.getItem(storageKey);
-        if (saved) {
-            try {
-                const parsed = JSON.parse(saved);
-                if (parsed) { setScanResult(parsed); setScanStatus('completed'); }
-            } catch { }
+        if (!domain) {
+            setLoadingFromBackend(false);
+            return;
         }
-        try {
-            const active = JSON.parse(localStorage.getItem(activeScanKey));
-            if (active?.scanId) {
-                setScanId(active.scanId);
-                setScanStatus('scanning');
-                setScanPhase('initializing');
-                setScanPhaseDetail('Resuming scan...');
-                startPolling(active.scanId);
+        setLoadingFromBackend(true);
+
+        const loadFromStorage = () => {
+            let saved = localStorage.getItem(storageKey);
+            if (!saved && (projectId == null || projectId === 'default')) {
+                const legacyKey = `searchlyst_visibility_${domain || 'default'}`;
+                saved = localStorage.getItem(legacyKey);
+                if (saved) localStorage.setItem(storageKey, saved);
             }
-        } catch { }
-    }, [domain, storageKey, activeScanKey, startPolling]);
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    if (parsed) {
+                        setScanResult(parsed);
+                        setScanStatus('completed');
+                        setLoadingFromBackend(false);
+                        return true;
+                    }
+                } catch { }
+            }
+            return false;
+        };
+
+        const loadFromActiveScan = () => {
+            try {
+                const active = JSON.parse(localStorage.getItem(activeScanKey));
+                if (active?.scanId) {
+                    setScanId(active.scanId);
+                    setScanStatus('scanning');
+                    setScanPhase('initializing');
+                    setScanPhaseDetail('Resuming scan...');
+                    startPolling(active.scanId);
+                    setLoadingFromBackend(false);
+                    return true;
+                }
+            } catch { }
+            return false;
+        };
+
+        if (loadFromStorage() || loadFromActiveScan()) return;
+
+        (async () => {
+            try {
+                const res = await apiClient.visibility.getLatestScan(projectId, domain);
+                if (res?.scan?.result) {
+                    setScanResult(res.scan.result);
+                    setScanStatus('completed');
+                    localStorage.setItem(storageKey, JSON.stringify(res.scan.result));
+                }
+            } catch { }
+            finally {
+                setLoadingFromBackend(false);
+            }
+        })();
+    }, [domain, projectId, storageKey, activeScanKey, startPolling]);
 
     // Start a new scan
     const startScan = useCallback(async () => {
@@ -141,6 +200,7 @@ function useScanManager(user) {
     return {
         scanId, scanStatus, scanResult, scanPhase, scanPhaseDetail,
         scanProgress, completedPrompts, totalPrompts, scanError,
+        loadingFromBackend,
         startScan, stopPolling,
     };
 }

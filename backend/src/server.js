@@ -10,6 +10,7 @@ import auditRoutes from './routes/audit.js';
 import visibilityRoutes from './routes/visibility.js';
 import projectRoutes from './routes/projects.js';
 import contentRoutes from './routes/content.js';
+import agentRoutes from './routes/agent.js';
 import './workers/welcomeEmailWorker.js';
 
 // Load environment variables
@@ -54,6 +55,7 @@ app.use('/api/audit', auditRoutes);
 app.use('/api/visibility', visibilityRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/content', contentRoutes);
+app.use('/api/agent', agentRoutes);
 
 // 404 handler
 app.use((req, res) => {

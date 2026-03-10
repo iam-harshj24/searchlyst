@@ -231,5 +231,18 @@ export const apiClient = {
     async generate(data) {
       return apiClient.post('/content/generate', data);
     },
+    async list(projectId) {
+      const q = projectId ? `?projectId=${projectId}` : '';
+      const res = await apiClient.get(`/content${q}`);
+      return res?.contents ?? [];
+    },
+  },
+
+  // AI Assistant / Agent chat
+  agent: {
+    async chat(messages, brandContext) {
+      const res = await apiClient.post('/agent/chat', { messages, brandContext });
+      return res?.reply ?? '';
+    },
   },
 };
