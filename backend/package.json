@@ -12,7 +12,9 @@
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:diff": "prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --script",
-    "db:status": "prisma migrate status"
+    "db:status": "prisma migrate status",
+    "test:visibility": "node scripts/test-visibility.mjs",
+    "test:user-flow": "node scripts/test-user-flow.mjs"
   },
   "keywords": [
     "api",

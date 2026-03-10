@@ -166,7 +166,7 @@ export function fastParse(html, brandName, domain, competitors, engine) {
     const text = extractText(html);
     const textLower = text.toLowerCase();
     const links = extractLinks(html);
-    const domainClean = domain.replace(/^www\./, '').toLowerCase();
+    const domainClean = (domain || '').replace(/^www\./, '').toLowerCase();
     const competitorDomains = competitors.map(c => typeof c === 'string' ? c : c.domain || '').filter(Boolean);
 
     const brandAliases = getAliases(brandName, domain);
@@ -262,8 +262,8 @@ export async function batchDeepAnalysis(allResults, brandName, domain, competito
     const compNames = competitors.map(c => typeof c === 'string' ? c : c.name).filter(Boolean);
 
     const summary = allResults.map(r => {
-        const entNames = r.entities.map(e => `${e.name}(${e.mentions}x,${e.sentiment})`).join(', ');
-        const citDomains = [...new Set(r.citations.map(c => c.domain))].slice(0, 5).join(', ');
+        const entNames = (r.entities || []).map(e => `${e.name}(${e.mentions}x,${e.sentiment})`).join(', ');
+        const citDomains = [...new Set((r.citations || []).map(c => c.domain))].slice(0, 5).join(', ');
         return `Query: "${r.query}" | Engine: ${r.engine} | Brand mentioned: ${r.brandMentioned} | Entities: [${entNames}] | Citations: [${citDomains}]`;
     }).join('\n');
 
@@ -295,8 +295,11 @@ Return ONLY valid JSON. Make it strategic, data-driven, and highly actionable fo
     try {
         const model = getModel();
         const result = await model.generateContent(prompt);
-        const text = result.response.text().trim().replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-        return JSON.parse(text);
+        const raw = result.response?.text?.() ?? '';
+        const text = raw.trim().replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error('No JSON object in response');
+        return JSON.parse(jsonMatch[0]);
     } catch (err) {
         console.error('[BatchAnalysis] Failed:', err.message);
         return null;
