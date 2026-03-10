@@ -161,6 +161,7 @@ function DashboardInner() {
     const scanUser = activeProject
         ? { ...user, ...activeProject, domain: activeProject.url || activeProject.domain, brandName: activeProject.name || activeProject.brandName, projectId: activeProject.id }
         : user;
+    const contextUser = activeProject ? scanUser : user;
     const scanManager = useScanManager(scanUser);
 
     const fetchProjects = async () => {
@@ -263,8 +264,8 @@ function DashboardInner() {
     }
 
     const renderContent = () => {
-        if (activeTab === 'brand-hub') return <BrandHubPage user={user} authUserId={authUser?.id} />;
-        if (activeTab === 'agent') return <AgentPage user={user} />;
+        if (activeTab === 'brand-hub') return <BrandHubPage user={contextUser} authUserId={authUser?.id} />;
+        if (activeTab === 'agent') return <AgentPage user={contextUser} />;
 
         if (!activeProject) {
             return <EmptyProjectState onAddProject={() => setShowAddProjectOnboarding(true)} />;
@@ -272,23 +273,23 @@ function DashboardInner() {
 
         switch (activeTab) {
             case 'overview':
-                return <OverviewPage domains={projects} activeProject={activeProject} onAddDomain={() => setShowAddProjectOnboarding(true)} onTabChange={setActiveTab} userRole={userRole} user={user} scanManager={scanManager} />;
+                return <OverviewPage domains={projects} activeProject={activeProject} onAddDomain={() => setShowAddProjectOnboarding(true)} onTabChange={setActiveTab} userRole={userRole} user={contextUser} scanManager={scanManager} />;
             case 'topic-discovery':
-                return <TopicDiscoveryPage onTabChange={setActiveTab} user={user} />;
+                return <TopicDiscoveryPage onTabChange={setActiveTab} user={contextUser} />;
             case 'content-studio':
-                return <ContentStudioPage user={user} />;
+                return <ContentStudioPage user={contextUser} />;
             case 'ai-visibility':
-                return <AIVisibilityPage user={user} scanManager={scanManager} />;
+                return <AIVisibilityPage user={contextUser} scanManager={scanManager} />;
             case 'competitive-intel':
-                return <CompetitiveIntelPage user={user} onTabChange={setActiveTab} />;
+                return <CompetitiveIntelPage user={contextUser} onTabChange={setActiveTab} />;
             case 'sentiment-geo':
-                return <SentimentGeoPage user={user} />;
+                return <SentimentGeoPage user={contextUser} />;
             case 'audit-health':
-                return <AuditHealthPage user={user} />;
+                return <AuditHealthPage user={contextUser} activeProject={activeProject} />;
             case 'prompt-intel':
-                return <PromptIntelPage user={user} />;
+                return <PromptIntelPage user={contextUser} />;
             default:
-                return <OverviewPage domains={projects} activeProject={activeProject} onAddDomain={() => setShowAddProjectOnboarding(true)} onTabChange={setActiveTab} userRole={userRole} user={user} scanManager={scanManager} />;
+                return <OverviewPage domains={projects} activeProject={activeProject} onAddDomain={() => setShowAddProjectOnboarding(true)} onTabChange={setActiveTab} userRole={userRole} user={contextUser} scanManager={scanManager} />;
         }
     };
 

@@ -40,6 +40,40 @@ export async function startAuditHandler(req, res) {
     }
 }
 
+export async function getLatestAuditHandler(req, res) {
+    try {
+        const userId = req.user.id;
+        const { url, projectId } = req.query;
+
+        const where = { userId, status: 'completed' };
+        if (projectId) {
+            where.projectId = parseInt(projectId, 10);
+        } else if (url) {
+            let normalizedUrl = url.trim();
+            if (!normalizedUrl.startsWith('http')) normalizedUrl = 'https://' + normalizedUrl;
+            normalizedUrl = normalizedUrl.replace(/\/+$/, '') || normalizedUrl;
+            where.url = { in: [normalizedUrl, normalizedUrl + '/'] };
+        } else {
+            return res.status(400).json({ success: false, message: 'url or projectId is required' });
+        }
+
+        const job = await prisma.auditJob.findFirst({
+            where,
+            orderBy: { created_at: 'desc' },
+        });
+
+        if (!job || !job.results) {
+            return res.json({ success: false, result: null });
+        }
+
+        const result = typeof job.results === 'string' ? JSON.parse(job.results) : job.results;
+        return res.json({ success: true, result });
+    } catch (error) {
+        console.error('Get latest audit error:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+}
+
 export async function getAuditStatusHandler(req, res) {
     try {
         const { id } = req.params;

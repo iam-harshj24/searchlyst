@@ -264,11 +264,23 @@ export default function PromptIntelPage({ user }) {
                                                     </div>
                                                 )}
 
-                                                {data.citations && (
-                                                    <div className="flex items-center gap-2 text-xs">
-                                                        <Globe className="w-3 h-3 text-[var(--text-muted)]" />
-                                                        <span className="text-[var(--text-muted)]">Citations:</span>
-                                                        <span className="text-[var(--text-secondary)]">{data.citations}</span>
+                                                {data.citations != null && (
+                                                    <div className="text-xs">
+                                                        <div className="flex items-center gap-2 text-[var(--text-muted)] mb-1">
+                                                            <Globe className="w-3 h-3 shrink-0" />
+                                                            <span>Citations: {Array.isArray(data.citations) ? data.citations.length : data.citations}</span>
+                                                        </div>
+                                                        {Array.isArray(data.citations) && data.citations.length > 0 && (
+                                                            <ul className="space-y-1 mt-1">
+                                                                {data.citations.map((c, idx) => (
+                                                                    <li key={idx}>
+                                                                        <a href={c.url} target="_blank" rel="noopener noreferrer" className={`text-[10px] truncate block hover:underline ${c.isTargetBrand ? 'text-green-400 font-medium' : 'text-blue-400/80'}`} title={c.url}>
+                                                                            {c.domain || c.url}
+                                                                        </a>
+                                                                    </li>
+                                                                ))}
+                                                            </ul>
+                                                        )}
                                                     </div>
                                                 )}
 

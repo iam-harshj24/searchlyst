@@ -145,11 +145,19 @@ export const apiClient = {
 
   // Audit methods
   audit: {
-    async start(url) {
-      return apiClient.post('/audit/start', { url });
+    async start({ url, projectId }) {
+      return apiClient.post('/audit/start', { url, projectId });
     },
     async getStatus(auditId) {
       return apiClient.get(`/audit/${auditId}/status`);
+    },
+    async getLatest({ url, projectId }) {
+      const params = new URLSearchParams();
+      if (url) params.set('url', url);
+      if (projectId != null) params.set('projectId', projectId);
+      const q = params.toString() ? `?${params}` : '';
+      const res = await apiClient.get(`/audit/latest${q}`);
+      return res?.result ?? null;
     },
   },
 
