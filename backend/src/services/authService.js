@@ -53,6 +53,27 @@ export const authService = {
   },
 
   async login(email, password) {
+    // Dev-only bypass: test@gmail.com / 24112001 (bypasses DB, works when DB is down)
+    if (process.env.NODE_ENV === 'development' && email === 'test@gmail.com' && password === '24112001') {
+      const token = generateToken({
+        id: -1,
+        email: 'test@gmail.com',
+        name: 'Test User',
+        role: 'user',
+      });
+      return {
+        success: true,
+        token,
+        user: {
+          id: -1,
+          email: 'test@gmail.com',
+          name: 'Test User',
+          role: 'user',
+          onboarded: true,
+        },
+      };
+    }
+
     // Check admin first so admin credentials take precedence if email exists in both tables
     let user = await authRepository.findAdminByEmail(email);
     let isAdmin = !!user;
