@@ -1,7 +1,6 @@
+import './loadEnv.js'; // Must be first: loads .env from backend root regardless of cwd
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
-
 import { verifyEmailConfig } from './config/email.js';
 import waitlistRoutes from './routes/waitlist.js';
 import authRoutes from './routes/auth.js';
@@ -12,9 +11,6 @@ import projectRoutes from './routes/projects.js';
 import contentRoutes from './routes/content.js';
 import agentRoutes from './routes/agent.js';
 import './workers/welcomeEmailWorker.js';
-
-// Load environment variables
-dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -79,6 +75,7 @@ app.use((err, req, res, next) => {
 const startServer = async () => {
   try {
     console.log('🚀 Starting Searchlyst Backend...\n');
+    console.log(`✓ GEMINI_API_KEY: ${process.env.GEMINI_API_KEY ? 'configured' : 'NOT SET (AI features will fail)'}`);
 
     // Require JWT_SECRET in production
     const defaultSecret = 'your-secret-key-change-this-in-production';
