@@ -5,10 +5,29 @@ import { generateToken } from '../middleware/auth.js';
 
 export const authService = {
   async createAnonymousUser() {
+    // Dev-only bypass: return fake user without DB (works when DB is down)
+    if (process.env.NODE_ENV === 'development') {
+      const randomId = crypto.randomUUID();
+      const user = {
+        id: -1,
+        email: `anon_${randomId}@anonymous.local`,
+        name: 'Anonymous User',
+        role_type: 'user',
+        onboarded: false,
+      };
+      const token = generateToken({
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: 'user',
+      });
+      return { success: true, user, token };
+    }
+
     const randomId = crypto.randomUUID();
     const email = `anon_${randomId}@anonymous.local`;
     const passwordHash = await bcrypt.hash(randomId, 10);
-    
+
     const user = await authRepository.createUser({
       email,
       password_hash: passwordHash,
@@ -69,7 +88,7 @@ export const authService = {
           email: 'test@gmail.com',
           name: 'Test User',
           role: 'user',
-          onboarded: true,
+          onboarded: false,
         },
       };
     }
