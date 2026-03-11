@@ -1,0 +1,30 @@
+# Render.com Blueprint - Deploy Searchlyst Backend
+# https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: searchlyst-api
+    runtime: node
+    rootDir: backend
+
+    buildCommand: npm install && npx prisma generate
+    startCommand: npm start
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: INFATICA_API_KEY
+        sync: false
+      - key: FIRECRAWL_API_KEY
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: SEND_WELCOME_EMAIL
+        value: "false"
+      - key: ALLOW_ADMIN_SETUP
+        value: "false"
