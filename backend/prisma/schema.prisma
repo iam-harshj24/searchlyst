@@ -10,7 +10,9 @@ datasource db {
 model User {
   id            Int       @id @default(autoincrement())
   email         String    @unique
-  password_hash String    
+  password_hash String?
+  auth_provider String    @default("local")
+  google_id     String?   @unique
   name          String    
   role_type     String?   @default("founder")
   onboarded     Boolean   @default(false)

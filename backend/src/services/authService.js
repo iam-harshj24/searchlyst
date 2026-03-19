@@ -1,7 +1,10 @@
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import { OAuth2Client } from 'google-auth-library';
 import { authRepository } from '../repositories/authRepository.js';
 import { generateToken } from '../middleware/auth.js';
+
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 export const authService = {
   async createAnonymousUser() {
@@ -58,6 +61,7 @@ export const authService = {
     const user = await authRepository.createUser({
       email,
       password_hash: passwordHash,
+      auth_provider: 'local',
       name,
     });
 
@@ -109,6 +113,10 @@ export const authService = {
       return { success: false, invalidCredentials: true };
     }
 
+    if (!user.password_hash) {
+      return { success: false, providerMismatch: true };
+    }
+
     const isValidPassword = await bcrypt.compare(password, user.password_hash);
     if (!isValidPassword) {
       return { success: false, invalidCredentials: true };
@@ -134,6 +142,67 @@ export const authService = {
         name: user.name,
         role: isAdmin ? 'admin' : 'user',
         onboarded: isAdmin ? true : user.onboarded
+      },
+    };
+  },
+
+  async loginWithGoogle(idToken) {
+    if (!process.env.GOOGLE_CLIENT_ID) {
+      throw new Error('Google login is not configured on the server');
+    }
+
+    const ticket = await googleClient.verifyIdToken({
+      idToken,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    const payload = ticket.getPayload();
+
+    if (!payload?.sub || !payload?.email) {
+      return { success: false, invalidGoogleToken: true };
+    }
+    if (!payload.email_verified) {
+      return { success: false, unverifiedGoogleEmail: true };
+    }
+
+    const googleId = payload.sub;
+    const email = payload.email.toLowerCase();
+    const name = payload.name || payload.given_name || email.split('@')[0];
+
+    let user = await authRepository.findUserByGoogleId(googleId);
+    if (!user) {
+      user = await authRepository.findUserByEmail(email);
+      if (user) {
+        user = await authRepository.updateUserAuthProvider(user.id, {
+          auth_provider: 'google',
+          google_id: googleId,
+        });
+      } else {
+        user = await authRepository.createUser({
+          email,
+          name,
+          auth_provider: 'google',
+          google_id: googleId,
+          password_hash: null,
+        });
+      }
+    }
+
+    const token = generateToken({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: 'user',
+    });
+
+    return {
+      success: true,
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: 'user',
+        onboarded: user.onboarded,
       },
     };
   },

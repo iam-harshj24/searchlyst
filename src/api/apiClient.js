@@ -126,6 +126,11 @@ export const apiClient = {
       return response;
     },
 
+    async google(idToken) {
+      const response = await apiClient.post('/auth/google', { idToken });
+      return response;
+    },
+
     async verify() {
       return apiClient.get('/auth/verify');
     },

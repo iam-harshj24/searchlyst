@@ -70,6 +70,12 @@ export const login = async (req, res) => {
         message: 'Invalid credentials',
       });
     }
+    if (result.providerMismatch) {
+      return res.status(400).json({
+        success: false,
+        message: 'This account uses Google sign-in. Please continue with Google.',
+      });
+    }
 
     res.json({
       success: true,
@@ -86,6 +92,40 @@ export const login = async (req, res) => {
     res.status(500).json({
       success: false,
       message,
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
+
+export const loginWithGoogle = async (req, res) => {
+  const { idToken } = req.body;
+
+  try {
+    const result = await authService.loginWithGoogle(idToken);
+
+    if (result.invalidGoogleToken) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid Google token',
+      });
+    }
+    if (result.unverifiedGoogleEmail) {
+      return res.status(400).json({
+        success: false,
+        message: 'Google account email is not verified',
+      });
+    }
+
+    res.json({
+      success: true,
+      token: result.token,
+      user: result.user,
+    });
+  } catch (error) {
+    console.error('Google login error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Google login failed',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }
