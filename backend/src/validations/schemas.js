@@ -22,6 +22,10 @@ export const loginSchema = z.object({
   password: z.string().min(1, 'Password is required'),
 });
 
+export const googleLoginSchema = z.object({
+  idToken: z.string().min(1, 'Google ID token is required'),
+});
+
 export const createAdminSchema = z.object({
   email: z.string().email('Must be a valid email'),
   password: z.string().min(8, 'Password must be at least 8 characters'),

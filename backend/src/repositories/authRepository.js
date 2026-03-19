@@ -17,7 +17,9 @@ export const authRepository = {
     return prisma.user.create({
       data: {
         email: data.email,
-        password_hash: data.password_hash,
+        password_hash: data.password_hash ?? null,
+        auth_provider: data.auth_provider ?? 'local',
+        google_id: data.google_id ?? null,
         name: data.name,
         role_type: 'user',
         onboarded: false
@@ -26,9 +28,36 @@ export const authRepository = {
         id: true,
         email: true,
         name: true,
+        auth_provider: true,
+        google_id: true,
         role_type: true,
         onboarded: true
       },
+    });
+  },
+
+  async updateUserAuthProvider(userId, data) {
+    return prisma.user.update({
+      where: { id: userId },
+      data: {
+        auth_provider: data.auth_provider,
+        google_id: data.google_id ?? undefined,
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        auth_provider: true,
+        google_id: true,
+        role_type: true,
+        onboarded: true,
+      },
+    });
+  },
+
+  async findUserByGoogleId(googleId) {
+    return prisma.user.findUnique({
+      where: { google_id: googleId },
     });
   },
 

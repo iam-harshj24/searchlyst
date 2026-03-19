@@ -97,6 +97,27 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const loginWithGoogle = async (idToken) => {
+    setIsLoadingAuth(true);
+    setAuthError(null);
+    try {
+      const response = await apiClient.auth.google(idToken);
+      localStorage.setItem('authToken', response.token);
+      localStorage.setItem('user', JSON.stringify(response.user));
+      setUser(response.user);
+      setIsAuthenticated(true);
+      return { success: true, user: response.user };
+    } catch (error) {
+      setAuthError({
+        type: 'google_login_failed',
+        message: error.message || 'Google login failed',
+      });
+      return { success: false, error };
+    } finally {
+      setIsLoadingAuth(false);
+    }
+  };
+
   const register = async (email, password, name) => {
     setIsLoadingAuth(true);
     setAuthError(null);
@@ -147,6 +168,7 @@ export const AuthProvider = ({ children }) => {
       appPublicSettings,
       signInAnonymously,
       login,
+      loginWithGoogle,
       register,
       logout,
       navigateToLogin,

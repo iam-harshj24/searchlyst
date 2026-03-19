@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { GoogleLogin } from '@react-oauth/google';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Mail, Lock, Loader2, AlertCircle, User } from 'lucide-react';
+import { Mail, Lock, Loader2, AlertCircle, User, Chrome } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { toast } from 'sonner';
 import { loginSchema, registerSchema } from '@/validations/auth';
@@ -14,7 +15,7 @@ import { loginSchema, registerSchema } from '@/validations/auth';
 export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, register } = useAuth();
+  const { login, register, loginWithGoogle } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [isRegister, setIsRegister] = useState(false);
@@ -61,6 +62,26 @@ export default function Login() {
     setLoading(false);
   };
 
+  const handleGoogleLogin = async (credentialResponse) => {
+    if (!credentialResponse?.credential) {
+      toast.error('Google login failed');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    const result = await loginWithGoogle(credentialResponse.credential);
+    if (result.success) {
+      toast.success('Google login successful!');
+      navigate('/Dashboard');
+    } else {
+      const message = result.error?.message || 'Google login failed.';
+      setError(message);
+      toast.error('Google login failed');
+    }
+    setLoading(false);
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-4">
       <Card className="w-full max-w-md bg-gray-900 border-gray-800">
@@ -80,6 +101,30 @@ export default function Login() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {!isRegister && (
+            <div className="mb-4 space-y-3">
+              {import.meta.env.VITE_GOOGLE_CLIENT_ID ? (
+                <div className="flex justify-center">
+                  <GoogleLogin onSuccess={handleGoogleLogin} onError={() => toast.error('Google login failed')} />
+                </div>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full bg-gray-800 border-gray-700 text-gray-300"
+                  disabled
+                >
+                  <Chrome className="w-4 h-4 mr-2" />
+                  Google login unavailable
+                </Button>
+              )}
+              <div className="relative text-center text-xs uppercase text-gray-500">
+                <span className="bg-gray-900 px-2 relative z-10">or continue with email</span>
+                <div className="absolute left-0 right-0 top-1/2 h-px bg-gray-700 -z-0" />
+              </div>
+            </div>
+          )}
+
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
               {error && (
