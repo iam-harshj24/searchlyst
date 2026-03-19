@@ -46,13 +46,23 @@ export const waitlistRepository = {
     return prisma.waitlist.findUnique({ where: { id } });
   },
 
+  async markWelcomeEmailSent(id) {
+    const updated = await prisma.waitlist.updateMany({
+      where: { id },
+      data: { status: 'welcome_email_sent', updated_at: new Date() },
+    });
+    if (updated.count === 0) return null;
+    return prisma.waitlist.findUnique({ where: { id } });
+  },
+
   async getStats() {
-    const [total, pending, contacted, converted] = await Promise.all([
+    const [total, pending, welcome_email_sent, contacted, converted] = await Promise.all([
       prisma.waitlist.count(),
       prisma.waitlist.count({ where: { status: 'pending' } }),
+      prisma.waitlist.count({ where: { status: 'welcome_email_sent' } }),
       prisma.waitlist.count({ where: { status: 'contacted' } }),
       prisma.waitlist.count({ where: { status: 'converted' } }),
     ]);
-    return { total, pending, contacted, converted };
+    return { total, pending, welcome_email_sent, contacted, converted };
   },
 };

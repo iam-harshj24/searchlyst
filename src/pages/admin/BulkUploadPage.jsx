@@ -1,13 +1,12 @@
 // @ts-nocheck
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { apiClient } from '@/api/apiClient';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Progress } from '@/components/ui/progress';
-import { Upload, FileSpreadsheet, AlertCircle, CheckCircle2, Loader2, Mail } from 'lucide-react';
+import { Upload, FileSpreadsheet, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 function parseFile(file) {
@@ -117,8 +116,6 @@ function rawToEntriesFromObjects(rawRows) {
   return { entries, errors };
 }
 
-const POLL_INTERVAL_MS = 2000;
-
 export default function BulkUploadPage() {
   const queryClient = useQueryClient();
   const [file, setFile] = useState(null);
@@ -126,10 +123,6 @@ export default function BulkUploadPage() {
   const [parseError, setParseError] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState(null);
-  const [sendingEmails, setSendingEmails] = useState(false);
-  const [jobId, setJobId] = useState(null);
-  const [jobStatus, setJobStatus] = useState(null);
-  const pollRef = useRef(null);
 
   const handleFileChange = useCallback((e) => {
     const f = e.target.files?.[0];
@@ -137,8 +130,6 @@ export default function BulkUploadPage() {
     setParsed(null);
     setParseError(null);
     setUploadResult(null);
-    setJobId(null);
-    setJobStatus(null);
     if (!f) return;
 
     parseFile(f)
@@ -192,8 +183,6 @@ export default function BulkUploadPage() {
     }
     setUploading(true);
     setUploadResult(null);
-    setJobId(null);
-    setJobStatus(null);
     try {
       const res = await apiClient.waitlist.bulkCreate(entriesToUpload);
       setUploadResult(res.data);
@@ -201,6 +190,9 @@ export default function BulkUploadPage() {
       toast.success(
         `Upload complete: ${res.data.created} created, ${res.data.skipped} skipped (duplicates), ${res.data.errors} errors`
       );
+      if (res.data.welcomeEmailJobStarted) {
+        toast.success('Welcome emails are being sent automatically for newly created entries');
+      }
     } catch (err) {
       toast.error(err.message || 'Upload failed');
       setUploadResult({ error: err.message });
@@ -208,52 +200,6 @@ export default function BulkUploadPage() {
       setUploading(false);
     }
   };
-
-  const handleSendWelcomeEmails = async () => {
-    const created = uploadResult?.details?.created;
-    if (!created?.length) return;
-    const entryIds = created.map((e) => e.id);
-    setSendingEmails(true);
-    setJobStatus(null);
-    try {
-      const res = await apiClient.waitlist.sendWelcomeBulk(entryIds);
-      setJobId(res.data.jobId);
-      toast.success(`Welcome email job started for ${res.data.total} entries`);
-    } catch (err) {
-      toast.error(err.message || 'Failed to start welcome email job');
-      setSendingEmails(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!jobId) return;
-    setSendingEmails(true);
-    const poll = async () => {
-      try {
-        const res = await apiClient.waitlist.getWelcomeJobStatus(jobId);
-        setJobStatus(res.data);
-        if (res.data.status === 'completed' || res.data.status === 'failed') {
-          setSendingEmails(false);
-          if (pollRef.current) {
-            clearInterval(pollRef.current);
-            pollRef.current = null;
-          }
-          if (res.data.status === 'completed') {
-            toast.success(`Welcome emails sent: ${res.data.sent} sent, ${res.data.failed} failed`);
-          } else {
-            toast.error(res.data.error || 'Job failed');
-          }
-        }
-      } catch (err) {
-        console.error('Poll error:', err);
-      }
-    };
-    poll();
-    pollRef.current = setInterval(poll, POLL_INTERVAL_MS);
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
-  }, [jobId]);
 
   const validCount = parsed?.entries?.length ?? 0;
   const invalidCount = parsed?.errors?.length ?? 0;
@@ -375,68 +321,13 @@ export default function BulkUploadPage() {
               {uploadResult.created} created, {uploadResult.skipped} skipped (duplicates), {uploadResult.errors} errors
             </span>
           </div>
-
-          {uploadResult.details?.created?.length > 0 && (
-            <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 space-y-4">
-              <p className="text-gray-400 text-sm">
-                Send welcome emails to the {uploadResult.details.created.length} newly created entries?
+          {uploadResult.welcomeEmailJobStarted && (
+            <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-xl p-4">
+              <p className="text-cyan-300 text-sm">
+                Welcome emails are being sent automatically to newly created entries. Status updates to
+                <span className="font-medium"> welcome_email_sent </span>
+                after successful delivery.
               </p>
-              <Button
-                onClick={handleSendWelcomeEmails}
-                disabled={sendingEmails || jobStatus?.status === 'completed'}
-                variant="outline"
-                className="border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/10 hover:text-cyan-300 disabled:opacity-70"
-              >
-                {sendingEmails ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Sending emails...
-                  </>
-                ) : jobStatus?.status === 'completed' ? (
-                  <>
-                    <CheckCircle2 className="w-4 h-4 mr-2" />
-                    Emails sent
-                  </>
-                ) : (
-                  <>
-                    <Mail className="w-4 h-4 mr-2" />
-                    Send welcome emails to {uploadResult.details.created.length} entries
-                  </>
-                )}
-              </Button>
-
-              {jobStatus && (
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm text-gray-400">
-                    <span>
-                      {jobStatus.status === 'running'
-                        ? `Sending... ${(jobStatus.sent || 0) + (jobStatus.failed || 0)} of ${jobStatus.total}`
-                        : jobStatus.status === 'completed'
-                          ? `Done: ${jobStatus.sent || 0} sent, ${jobStatus.failed || 0} failed`
-                          : jobStatus.status === 'failed'
-                            ? 'Job failed'
-                            : 'Pending...'}
-                    </span>
-                    {jobStatus.total > 0 && (
-                      <span>{Math.round(((jobStatus.sent || 0) + (jobStatus.failed || 0)) / jobStatus.total * 100)}%</span>
-                    )}
-                  </div>
-                  <Progress
-                    value={jobStatus.total > 0 ? ((jobStatus.sent || 0) + (jobStatus.failed || 0)) / jobStatus.total * 100 : 0}
-                    className="h-2"
-                  />
-                  {jobStatus.errors?.length > 0 && (
-                    <ul className="text-amber-400 text-xs mt-2 space-y-1 max-h-24 overflow-auto">
-                      {jobStatus.errors.slice(0, 5).map((e, i) => (
-                        <li key={i}>{e.email}: {e.message}</li>
-                      ))}
-                      {jobStatus.errors.length > 5 && (
-                        <li>...and {jobStatus.errors.length - 5} more</li>
-                      )}
-                    </ul>
-                  )}
-                </div>
-              )}
             </div>
           )}
         </div>

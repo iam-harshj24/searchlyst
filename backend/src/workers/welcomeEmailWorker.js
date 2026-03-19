@@ -28,6 +28,7 @@ welcomeEmailQueue.process(async (job) => {
       });
       if (result.success) {
         sent++;
+        await waitlistRepository.markWelcomeEmailSent(entry.id);
       } else {
         failed++;
         errors.push({ email: entry.email, message: result.error || 'Failed to send' });
