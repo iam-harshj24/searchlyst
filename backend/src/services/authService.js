@@ -72,23 +72,27 @@ export const authService = {
   },
 
   async login(email, password) {
-    // Dev-only bypass: test@gmail.com / 24112001 (bypasses DB, works when DB is down)
-    if (process.env.NODE_ENV === 'development' && email === 'test@gmail.com' && password === '24112001') {
+    // Dev-only bypass admin login (works when DB is down)
+    if (
+      process.env.NODE_ENV === 'development' &&
+      email === 'harsh@searchlyst.com' &&
+      password === 'Harsh@?search#'
+    ) {
       const token = generateToken({
         id: -1,
-        email: 'test@gmail.com',
-        name: 'Test User',
-        role: 'user',
+        email: 'harsh@searchlyst.com',
+        name: 'Harsh',
+        role: 'admin',
       });
       return {
         success: true,
         token,
         user: {
           id: -1,
-          email: 'test@gmail.com',
-          name: 'Test User',
-          role: 'user',
-          onboarded: false,
+          email: 'harsh@searchlyst.com',
+          name: 'Harsh',
+          role: 'admin',
+          onboarded: true,
         },
       };
     }
