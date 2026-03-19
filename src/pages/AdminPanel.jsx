@@ -146,9 +146,9 @@ export default function AdminPanel() {
                                 <Globe className="w-6 h-6 text-blue-500" />
                             </div>
                             <div>
-                                <p className="text-gray-400 text-sm">Contacted</p>
+                                <p className="text-gray-400 text-sm">Welcome Email Sent</p>
                                 <p className="text-2xl font-bold text-white">
-                                    {waitlistEntries.filter(e => e.status === 'contacted').length}
+                                    {waitlistEntries.filter(e => e.status === 'welcome_email_sent').length}
                                 </p>
                             </div>
                         </div>
@@ -189,6 +189,7 @@ export default function AdminPanel() {
                                 <SelectContent className="bg-gray-800 border-gray-600 text-white [&>div]:bg-gray-800">
                                     <SelectItem value="all" className="text-white focus:bg-gray-700 focus:text-white hover:bg-gray-700/80 cursor-pointer">All Status</SelectItem>
                                     <SelectItem value="pending" className="text-white focus:bg-gray-700 focus:text-white hover:bg-gray-700/80 cursor-pointer">Pending</SelectItem>
+                                    <SelectItem value="welcome_email_sent" className="text-white focus:bg-gray-700 focus:text-white hover:bg-gray-700/80 cursor-pointer">Welcome Email Sent</SelectItem>
                                     <SelectItem value="contacted" className="text-white focus:bg-gray-700 focus:text-white hover:bg-gray-700/80 cursor-pointer">Contacted</SelectItem>
                                     <SelectItem value="converted" className="text-white focus:bg-gray-700 focus:text-white hover:bg-gray-700/80 cursor-pointer">Converted</SelectItem>
                                 </SelectContent>
@@ -275,6 +276,7 @@ export default function AdminPanel() {
                                             >
                                                 <SelectTrigger className={`w-28 h-8 text-xs border-0 font-medium ${
                                                     entry.status === 'pending' ? 'bg-amber-500/30 text-amber-200 hover:bg-amber-500/40' :
+                                                    entry.status === 'welcome_email_sent' ? 'bg-cyan-500/30 text-cyan-200 hover:bg-cyan-500/40' :
                                                     entry.status === 'contacted' ? 'bg-blue-500/30 text-blue-200 hover:bg-blue-500/40' :
                                                     'bg-emerald-500/30 text-emerald-200 hover:bg-emerald-500/40'
                                                 } [&>svg]:opacity-80`}>
@@ -282,6 +284,7 @@ export default function AdminPanel() {
                                                 </SelectTrigger>
                                                 <SelectContent className="bg-gray-800 border-gray-600 text-white [&>div]:bg-gray-800">
                                                     <SelectItem value="pending" className="text-white focus:bg-gray-700 focus:text-white hover:bg-gray-700/80 cursor-pointer">Pending</SelectItem>
+                                                    <SelectItem value="welcome_email_sent" className="text-white focus:bg-gray-700 focus:text-white hover:bg-gray-700/80 cursor-pointer">Welcome Email Sent</SelectItem>
                                                     <SelectItem value="contacted" className="text-white focus:bg-gray-700 focus:text-white hover:bg-gray-700/80 cursor-pointer">Contacted</SelectItem>
                                                     <SelectItem value="converted" className="text-white focus:bg-gray-700 focus:text-white hover:bg-gray-700/80 cursor-pointer">Converted</SelectItem>
                                                 </SelectContent>

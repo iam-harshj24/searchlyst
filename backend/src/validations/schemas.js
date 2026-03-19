@@ -29,7 +29,7 @@ export const createAdminSchema = z.object({
 });
 
 export const updateStatusSchema = z.object({
-  status: z.enum(['pending', 'contacted', 'converted']),
+  status: z.enum(['pending', 'welcome_email_sent', 'contacted', 'converted']),
 });
 
 const bulkWaitlistItemSchema = z.object({

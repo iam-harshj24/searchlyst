@@ -121,6 +121,8 @@ export const bulkCreateEntries = async (req, res) => {
         created: result.created.length,
         skipped: result.skipped.length,
         errors: result.errors.length,
+        welcomeEmailJobStarted: !!result.welcomeEmailJobId,
+        welcomeEmailJobId: result.welcomeEmailJobId ? String(result.welcomeEmailJobId) : null,
         details: {
           created: result.created,
           skipped: result.skipped,

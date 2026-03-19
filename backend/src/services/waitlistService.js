@@ -1,5 +1,6 @@
 import { waitlistRepository } from '../repositories/waitlistRepository.js';
 import { sendWaitlistNotification, sendWelcomeEmail } from './emailService.js';
+import { addWelcomeEmailJob } from '../queues/welcomeEmailQueue.js';
 
 export const waitlistService = {
   async createEntry(data) {
@@ -12,12 +13,19 @@ export const waitlistService = {
 
     // Send welcome email to the user (non-blocking, skip if disabled)
     if (process.env.SEND_WELCOME_EMAIL !== 'false') {
-      sendWelcomeEmail({
-        full_name: data.full_name,
-        email: data.email,
-      }).catch((err) => {
-        console.error('Welcome email failed:', err);
-      });
+      (async () => {
+        try {
+          const emailResult = await sendWelcomeEmail({
+            full_name: data.full_name,
+            email: data.email,
+          });
+          if (emailResult?.success) {
+            await waitlistRepository.markWelcomeEmailSent(newEntry.id);
+          }
+        } catch (err) {
+          console.error('Welcome email failed:', err);
+        }
+      })();
     }
 
     // Send internal notification to admin (non-blocking)
@@ -74,6 +82,12 @@ export const waitlistService = {
       }
     }
 
-    return { created, skipped, errors };
+    let welcomeEmailJobId = null;
+    if (created.length > 0 && process.env.SEND_WELCOME_EMAIL !== 'false') {
+      const createdIds = created.map((entry) => entry.id);
+      welcomeEmailJobId = await addWelcomeEmailJob(createdIds);
+    }
+
+    return { created, skipped, errors, welcomeEmailJobId };
   },
 };
