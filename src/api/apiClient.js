@@ -116,8 +116,13 @@ export const apiClient = {
       return response;
     },
 
-    async register(email, password, name) {
+    async sendOtp(email, password, name) {
       const response = await apiClient.post('/auth/register', { email, password, name });
+      return response;
+    },
+
+    async verifyOtp(email, otp) {
+      const response = await apiClient.post('/auth/verify-otp', { email, otp });
       return response;
     },
 

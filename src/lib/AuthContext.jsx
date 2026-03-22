@@ -118,24 +118,34 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const register = async (email, password, name) => {
-    setIsLoadingAuth(true);
+  const sendOtp = async (email, password, name) => {
     setAuthError(null);
     try {
-      const response = await apiClient.auth.register(email, password, name);
-      localStorage.setItem('authToken', response.token);
-      localStorage.setItem('user', JSON.stringify(response.user));
-      setUser(response.user);
-      setIsAuthenticated(true);
-      return { success: true, user: response.user };
+      const response = await apiClient.auth.sendOtp(email, password, name);
+      return { success: true, otpSent: response.otpSent };
     } catch (error) {
       setAuthError({
         type: 'register_failed',
         message: error.message || 'Registration failed'
       });
       return { success: false, error };
-    } finally {
-      setIsLoadingAuth(false);
+    }
+  };
+
+  const verifyOtp = async (email, otp) => {
+    setAuthError(null);
+    try {
+      const response = await apiClient.auth.verifyOtp(email, otp);
+      localStorage.setItem('authToken', response.token);
+      localStorage.setItem('user', JSON.stringify(response.user));
+      setUser(response.user);
+      setIsAuthenticated(true);
+      return { success: true, user: response.user };
+    } catch (error) {
+      // Preserve the original error message from the server
+      const message = error.message || 'Verification failed';
+      setAuthError({ type: 'otp_failed', message });
+      return { success: false, error, message };
     }
   };
 
@@ -169,7 +179,8 @@ export const AuthProvider = ({ children }) => {
       signInAnonymously,
       login,
       loginWithGoogle,
-      register,
+      sendOtp,
+      verifyOtp,
       logout,
       navigateToLogin,
       checkAppState

@@ -32,6 +32,12 @@ export const createAdminSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters').max(255),
 });
 
+export const verifyOtpSchema = z.object({
+  email: z.string().email('Must be a valid email'),
+  otp: z.string().length(6, 'OTP must be exactly 6 digits').regex(/^\d{6}$/, 'OTP must be 6 digits'),
+});
+
+
 export const updateStatusSchema = z.object({
   status: z.enum(['pending', 'welcome_email_sent', 'contacted', 'converted']),
 });

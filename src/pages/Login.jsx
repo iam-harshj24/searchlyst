@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -7,18 +7,36 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Mail, Lock, Loader2, AlertCircle, User, Chrome } from 'lucide-react';
+import { Mail, Lock, Loader2, AlertCircle, User, Chrome, ShieldCheck, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { toast } from 'sonner';
 import { loginSchema, registerSchema } from '@/validations/auth';
 
+const OTP_LENGTH = 6;
+const RESEND_COOLDOWN_SEC = 60;
+
 export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, register, loginWithGoogle } = useAuth();
+  const searchParams = new URLSearchParams(location.search);
+  const isSignupParam = searchParams.get('signup') === 'true' || searchParams.has('signup');
+  const nameParam = searchParams.get('name') || searchParams.get('fullName') || '';
+  const emailParam = searchParams.get('email') || '';
+
+  const { login, sendOtp, verifyOtp, loginWithGoogle } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [isRegister, setIsRegister] = useState(false);
+  const [isRegister, setIsRegister] = useState(isSignupParam);
+  // 'form' = login/signup form | 'otp' = OTP verification step
+  const [step, setStep] = useState('form');
+  const [pendingEmail, setPendingEmail] = useState('');
+  // OTP digit state
+  const [otpDigits, setOtpDigits] = useState(Array(OTP_LENGTH).fill(''));
+  const otpRefs = useRef([]);
+  // Resend cooldown
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const cooldownRef = useRef(null);
+
   const fromAdmin = location.state?.from === 'admin';
   const fromPath = location.state?.from;
 
@@ -28,36 +46,64 @@ export default function Login() {
     }
   }, [fromAdmin, location.state?.message]);
 
+  // Clean up cooldown interval on unmount
+  useEffect(() => {
+    return () => { if (cooldownRef.current) clearInterval(cooldownRef.current); };
+  }, []);
+
   const form = useForm({
     resolver: zodResolver(isRegister ? registerSchema : loginSchema),
     defaultValues: {
-      name: '',
-      email: '',
+      name: nameParam,
+      email: emailParam,
       password: '',
     },
   });
+
+  const startResendCooldown = () => {
+    setResendCooldown(RESEND_COOLDOWN_SEC);
+    if (cooldownRef.current) clearInterval(cooldownRef.current);
+    cooldownRef.current = setInterval(() => {
+      setResendCooldown((prev) => {
+        if (prev <= 1) {
+          clearInterval(cooldownRef.current);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
 
   const handleSubmit = async (values) => {
     setError('');
     setLoading(true);
 
-    let result;
     if (isRegister) {
-      result = await register(values.email, values.password, values.name);
-    } else {
-      result = await login(values.email, values.password);
-    }
-    
-    if (result.success) {
-      toast.success(isRegister ? 'Account created!' : 'Login successful!');
-      if (result.user?.role === 'admin') {
-        navigate('/AdminPanel');
+      const result = await sendOtp(values.email, values.password, values.name);
+      if (result.success && result.otpSent) {
+        setPendingEmail(values.email);
+        setStep('otp');
+        setOtpDigits(Array(OTP_LENGTH).fill(''));
+        startResendCooldown();
+        toast.success('Verification code sent! Check your inbox.');
       } else {
-        navigate(fromPath && fromPath !== '/Login' ? fromPath : '/Dashboard');
+        const msg = result.error?.message || 'Registration failed. Please try again.';
+        setError(msg);
+        toast.error(msg);
       }
     } else {
-      setError(result.error?.message || (isRegister ? 'Registration failed.' : 'Login failed. Please check your credentials.'));
-      toast.error(isRegister ? 'Registration failed' : 'Login failed');
+      const result = await login(values.email, values.password);
+      if (result.success) {
+        toast.success('Login successful!');
+        if (result.user?.role === 'admin') {
+          navigate('/AdminPanel');
+        } else {
+          navigate(fromPath && fromPath !== '/Login' ? fromPath : '/Dashboard');
+        }
+      } else {
+        setError(result.error?.message || 'Login failed. Please check your credentials.');
+        toast.error('Login failed');
+      }
     }
     setLoading(false);
   };
@@ -82,6 +128,153 @@ export default function Login() {
     setLoading(false);
   };
 
+  // ── OTP digit handlers ───────────────────────────────────────────────────
+  const handleOtpChange = (index, value) => {
+    const digit = value.replace(/\D/, '').slice(-1);
+    const next = [...otpDigits];
+    next[index] = digit;
+    setOtpDigits(next);
+    if (digit && index < OTP_LENGTH - 1) {
+      otpRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleOtpKeyDown = (index, e) => {
+    if (e.key === 'Backspace' && !otpDigits[index] && index > 0) {
+      otpRefs.current[index - 1]?.focus();
+    }
+    if (e.key === 'ArrowLeft' && index > 0) otpRefs.current[index - 1]?.focus();
+    if (e.key === 'ArrowRight' && index < OTP_LENGTH - 1) otpRefs.current[index + 1]?.focus();
+  };
+
+  const handleOtpPaste = (e) => {
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, OTP_LENGTH);
+    if (!pasted) return;
+    const next = Array(OTP_LENGTH).fill('');
+    pasted.split('').forEach((ch, i) => { next[i] = ch; });
+    setOtpDigits(next);
+    const focusIdx = Math.min(pasted.length, OTP_LENGTH - 1);
+    otpRefs.current[focusIdx]?.focus();
+  };
+
+  const handleVerifyOtp = async () => {
+    const otp = otpDigits.join('');
+    if (otp.length < OTP_LENGTH) {
+      setError('Please enter the full 6-digit code.');
+      return;
+    }
+    setError('');
+    setLoading(true);
+    const result = await verifyOtp(pendingEmail, otp);
+    if (result.success) {
+      toast.success('Account created successfully! Welcome to Searchlyst.');
+      navigate(fromPath && fromPath !== '/Login' ? fromPath : '/Dashboard');
+    } else {
+      const msg = result.message || result.error?.message || 'Verification failed.';
+      setError(msg);
+      toast.error(msg);
+    }
+    setLoading(false);
+  };
+
+  const handleResendOtp = async () => {
+    if (resendCooldown > 0 || loading) return;
+    setError('');
+    setLoading(true);
+    const formValues = form.getValues();
+    const result = await sendOtp(formValues.email || pendingEmail, formValues.password, formValues.name);
+    if (result.success && result.otpSent) {
+      setOtpDigits(Array(OTP_LENGTH).fill(''));
+      otpRefs.current[0]?.focus();
+      startResendCooldown();
+      toast.success('A new code has been sent to your email.');
+    } else {
+      const msg = result.error?.message || 'Failed to resend code. Please try again.';
+      setError(msg);
+      toast.error(msg);
+    }
+    setLoading(false);
+  };
+
+  // ── OTP Verification Screen ──────────────────────────────────────────────
+  if (step === 'otp') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-4">
+        <Card className="w-full max-w-md bg-gray-900 border-gray-800">
+          <CardHeader className="space-y-1">
+            <div className="flex justify-center mb-4">
+              <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center">
+                <ShieldCheck className="w-8 h-8 text-white" />
+              </div>
+            </div>
+            <CardTitle className="text-2xl text-center text-white">Verify Your Email</CardTitle>
+            <CardDescription className="text-center text-gray-400">
+              We sent a 6-digit code to <span className="text-white font-medium">{pendingEmail}</span>. It expires in 10 minutes.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {error && (
+              <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            {/* OTP digit inputs */}
+            <div className="flex justify-center gap-3" onPaste={handleOtpPaste}>
+              {otpDigits.map((digit, i) => (
+                <input
+                  key={i}
+                  ref={(el) => { otpRefs.current[i] = el; }}
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={1}
+                  value={digit}
+                  onChange={(e) => handleOtpChange(i, e.target.value)}
+                  onKeyDown={(e) => handleOtpKeyDown(i, e)}
+                  className="w-12 h-14 text-center text-2xl font-bold rounded-lg bg-gray-800 border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all"
+                  disabled={loading}
+                  autoFocus={i === 0}
+                />
+              ))}
+            </div>
+
+            <Button
+              onClick={handleVerifyOtp}
+              className="w-full bg-red-600 hover:bg-red-700 text-white h-11"
+              disabled={loading || otpDigits.join('').length < OTP_LENGTH}
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Verifying...
+                </>
+              ) : 'Verify & Create Account'}
+            </Button>
+
+            <div className="text-center space-y-3">
+              <button
+                onClick={handleResendOtp}
+                disabled={resendCooldown > 0 || loading}
+                className="flex items-center gap-1.5 mx-auto text-sm text-red-400 hover:text-red-300 transition-colors disabled:text-gray-600 disabled:cursor-not-allowed"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : 'Resend code'}
+              </button>
+              <button
+                onClick={() => { setStep('form'); setError(''); setOtpDigits(Array(OTP_LENGTH).fill('')); }}
+                className="block text-sm text-gray-400 hover:text-white transition-colors mx-auto"
+              >
+                ← Back to sign up
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // ── Login / Signup Form ──────────────────────────────────────────────────
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-4">
       <Card className="w-full max-w-md bg-gray-900 border-gray-800">
@@ -212,10 +405,10 @@ export default function Login() {
                 {loading ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    {isRegister ? 'Creating Account...' : 'Logging in...'}
+                    {isRegister ? 'Sending code...' : 'Logging in...'}
                   </>
                 ) : (
-                  isRegister ? 'Sign Up' : 'Login'
+                  isRegister ? 'Continue' : 'Login'
                 )}
               </Button>
             </form>
@@ -226,7 +419,7 @@ export default function Login() {
               onClick={() => {
                 setIsRegister(!isRegister);
                 setError('');
-                form.reset();
+                form.reset({ name: nameParam, email: emailParam, password: '' });
               }}
               className="text-sm text-red-400 hover:text-red-300 transition-colors"
             >
