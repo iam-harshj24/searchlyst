@@ -24,32 +24,90 @@ export const createAnonymous = async (req, res) => {
   }
 };
 
+/**
+ * POST /auth/register
+ * Step 1: Send OTP to the provided email. Does NOT create the user yet.
+ */
 export const registerUser = async (req, res) => {
   const { email, password, name } = req.body;
 
   try {
-    const result = await authService.register(email, password, name);
+    const result = await authService.sendOtp(email, password, name);
 
     if (result.conflict) {
       return res.status(409).json({
         success: false,
-        message: 'User already exists',
+        message: 'An account with this email already exists.',
+      });
+    }
+
+    if (result.emailFailed) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to send verification email. Please try again.',
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      otpSent: true,
+      message: 'Verification code sent to your email. Please check your inbox.',
+    });
+  } catch (error) {
+    console.error('Register (send OTP) error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to initiate registration.',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
+
+/**
+ * POST /auth/verify-otp
+ * Step 2: Verify OTP and create the user account.
+ */
+export const verifyOtp = async (req, res) => {
+  const { email, otp } = req.body;
+
+  try {
+    const result = await authService.verifyOtp(email, otp);
+
+    if (result.notFound) {
+      return res.status(400).json({
+        success: false,
+        message: 'No pending signup found for this email. Please register again.',
+      });
+    }
+
+    if (result.expired) {
+      return res.status(410).json({
+        success: false,
+        message: 'Your verification code has expired. Please register again.',
+        expired: true,
+      });
+    }
+
+    if (result.invalidOtp) {
+      return res.status(401).json({
+        success: false,
+        message: 'Incorrect verification code. Please try again.',
       });
     }
 
     res.status(201).json({
       success: true,
-      message: 'User created successfully',
+      message: 'Account created successfully!',
       token: result.token,
       user: result.user,
     });
   } catch (error) {
-    console.error('Register user error:', error);
+    console.error('Verify OTP error:', error);
     const isDbUnreachable = error?.name === 'PrismaClientInitializationError' ||
       /Can't reach database server|Connection refused|ECONNREFUSED/i.test(error?.message || '');
     const message = isDbUnreachable
       ? 'Database unavailable. Check DATABASE_URL and ensure PostgreSQL is running and reachable.'
-      : 'Failed to create user';
+      : 'Verification failed. Could not create user.';
     res.status(500).json({
       success: false,
       message,

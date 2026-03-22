@@ -3,6 +3,23 @@ import crypto from 'crypto';
 import { OAuth2Client } from 'google-auth-library';
 import { authRepository } from '../repositories/authRepository.js';
 import { generateToken } from '../middleware/auth.js';
+import { sendOtpEmail } from './emailService.js';
+
+// ---------------------------------------------------------------------------
+// In-memory OTP store: { email -> { name, passwordHash, otp, expiresAt } }
+// ---------------------------------------------------------------------------
+const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const otpStore = new Map();
+
+// Purge expired entries every 5 minutes to prevent unbounded growth.
+setInterval(() => {
+  const now = Date.now();
+  for (const [email, entry] of otpStore.entries()) {
+    if (entry.expiresAt <= now) otpStore.delete(email);
+  }
+}, 5 * 60 * 1000);
+
+const generateOtp = () => String(Math.floor(100000 + Math.random() * 900000));
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -41,35 +58,78 @@ export const authService = {
       id: user.id,
       email: user.email,
       name: user.name,
-      role: 'user'
+      role: 'user',
     });
 
     return { success: true, user, token };
   },
 
-  async register(email, password, name) {
+  /**
+   * Step 1 of signup: validate, hash password, generate OTP, send email.
+   * The User record is NOT created here.
+   */
+  async sendOtp(email, password, name) {
     const existingUser = await authRepository.findUserByEmail(email);
     const existingAdmin = await authRepository.findAdminByEmail(email);
-    
+
     if (existingUser || existingAdmin) {
       return { success: false, conflict: true };
     }
 
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
+    const otp = generateOtp();
 
+    otpStore.set(email, {
+      name,
+      passwordHash,
+      otp,
+      expiresAt: Date.now() + OTP_TTL_MS,
+    });
+
+    const emailResult = await sendOtpEmail({ name, email, otp });
+    if (!emailResult.success) {
+      otpStore.delete(email);
+      return { success: false, emailFailed: true };
+    }
+
+    return { success: true, otpSent: true };
+  },
+
+  /**
+   * Step 2 of signup: verify OTP, create user, return token.
+   */
+  async verifyOtp(email, otp) {
+    const entry = otpStore.get(email);
+
+    if (!entry) {
+      return { success: false, notFound: true };
+    }
+
+    if (Date.now() > entry.expiresAt) {
+      otpStore.delete(email);
+      return { success: false, expired: true };
+    }
+
+    if (entry.otp !== otp) {
+      return { success: false, invalidOtp: true };
+    }
+
+    // OTP is valid — create the user now
     const user = await authRepository.createUser({
       email,
-      password_hash: passwordHash,
+      password_hash: entry.passwordHash,
       auth_provider: 'local',
-      name,
+      name: entry.name,
     });
+
+    otpStore.delete(email);
 
     const token = generateToken({
       id: user.id,
       email: user.email,
       name: user.name,
-      role: 'user'
+      role: 'user',
     });
 
     return { success: true, user, token };
@@ -126,7 +186,7 @@ export const authService = {
       id: user.id,
       email: user.email,
       name: user.name,
-      role: isAdmin ? 'admin' : 'user'
+      role: isAdmin ? 'admin' : 'user',
     });
 
     if (isAdmin) {
@@ -141,7 +201,7 @@ export const authService = {
         email: user.email,
         name: user.name,
         role: isAdmin ? 'admin' : 'user',
-        onboarded: isAdmin ? true : user.onboarded
+        onboarded: isAdmin ? true : user.onboarded,
       },
     };
   },
