@@ -328,7 +328,7 @@ export default function AIVisibilityPage({ user, scanManager }) {
                             <Eye className="w-12 h-12 text-purple-400/20 mx-auto mb-3" />
                             <h3 className="text-[var(--text-primary)] font-medium text-lg mb-1">Check Your AI Visibility</h3>
                             <p className="text-[var(--text-secondary)] text-sm max-w-md mx-auto mb-1.5">
-                                Gemini 2.5 Flash generates smart prompts, queries 3 AI platforms, and analyzes brand mentions in real-time.
+                                Our AI Engine generates smart prompts, queries 3 AI platforms, and analyzes brand mentions in real-time.
                             </p>
                             <p className="text-[var(--text-muted)] text-xs mb-5">~45 API calls (15 per platform) • Results update live as each prompt completes</p>
                             <Button onClick={startScan} disabled={!domain} className="bg-purple-600 hover:bg-purple-700 text-[var(--text-primary)] rounded-xl px-8">
@@ -394,22 +394,22 @@ export default function AIVisibilityPage({ user, scanManager }) {
                     {/* Overview Tab */}
                     {tab === 'overview' && (
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                            <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-5 relative">
-                                <h3 className="text-[var(--text-primary)] font-medium text-sm mb-1">AI Visibility Score</h3>
-                                <p className="text-[var(--text-secondary)] text-[10px] mb-4">How often your brand appears in AI responses</p>
-                                <div className="absolute top-5 right-5 text-2xl font-bold text-[var(--text-primary)]">
-                                    {r.score?.overall || 0}%
-                                </div>
-                                <div className="h-48">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart data={trendData}>
-                                            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                                            <XAxis dataKey="date" tick={{ fill: 'var(--chart-text)', fontSize: 10 }} axisLine={false} tickLine={false} />
-                                            <YAxis domain={[0, 100]} tick={{ fill: 'var(--chart-text)', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}%`} />
-                                            <Tooltip contentStyle={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: '8px' }} />
-                                            <Bar dataKey="score" fill="#a855f7" radius={[4, 4, 0, 0]} />
-                                        </BarChart>
-                                    </ResponsiveContainer>
+                            <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-5 overflow-hidden">
+                                <h3 className="text-[var(--text-primary)] font-medium text-sm mb-1">AI Visibility by Platform</h3>
+                                <p className="text-[var(--text-secondary)] text-[10px] mb-6">Your current visibility score across key AI engines</p>
+                                <div className="grid grid-cols-3 gap-2 place-items-center pt-2 pb-4">
+                                    {['perplexity', 'gemini', 'googleAI'].map(eng => {
+                                        const platform = r.platforms?.[eng] || {};
+                                        return (
+                                            <div key={eng} className="flex flex-col items-center">
+                                                <ScoreRing score={platform.score?.overall || 0} size={70} sw={5} />
+                                                <div className="flex items-center gap-1.5 mt-3">
+                                                    <span className="text-sm">{PI[eng]}</span>
+                                                    <span className="text-[11px] font-medium text-[var(--text-primary)]">{EL[eng]}</span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             </div>
 
@@ -461,9 +461,7 @@ export default function AIVisibilityPage({ user, scanManager }) {
                             <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-5">
                                 <h3 className="text-[var(--text-primary)] font-medium text-sm mb-1">Share of Voice</h3>
                                 <p className="text-[var(--text-secondary)] text-[10px] mb-4">Mentions of your brand vs competitors</p>
-                                <div className="absolute top-5 right-5 text-2xl font-bold text-[var(--text-primary)]">
-                                    {sovData[0]?.sov || 0}%
-                                </div>
+
                                 <div className="h-48">
                                     <ResponsiveContainer width="100%" height="100%">
                                         <BarChart data={sovData.slice(0, 5)}>
@@ -802,7 +800,7 @@ export default function AIVisibilityPage({ user, scanManager }) {
                     {tab === 'intelligence' && r.intelligence && (
                         <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-5 space-y-4">
                             <h3 className="text-[var(--text-primary)] font-medium text-sm flex items-center gap-2">
-                                <Lightbulb className="w-4 h-4 text-amber-400" /> AI-Powered Intelligence (Gemini 2.5 Flash)
+                                <Lightbulb className="w-4 h-4 text-amber-400" /> AI-Powered Intelligence
                             </h3>
                             {r.intelligence.overallAssessment && (
                                 <p className="text-[var(--text-secondary)] text-sm leading-relaxed">{r.intelligence.overallAssessment}</p>
@@ -848,7 +846,7 @@ export default function AIVisibilityPage({ user, scanManager }) {
 
                     <p className="text-[var(--text-muted)] text-[10px] text-center">
                         {r.scannedAt ? `Scanned ${new Date(r.scannedAt).toLocaleString()}` : ''} •
-                        {r.config?.totalCalls || '?'} API calls • Parsed with Cheerio • Intelligence by Gemini 2.5 Flash
+                        {r.config?.totalCalls || '?'} API calls • Real-time AI Intelligence
                     </p>
                 </>
             )}

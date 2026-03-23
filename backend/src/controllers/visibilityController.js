@@ -106,7 +106,7 @@ async function executeScan(scanId, brandName, domain, industry, competitors, loc
     try {
         await prisma.visibilityScan.update({
             where: { id: scanId },
-            data: { progress: JSON.stringify({ phase: 'agents_running', detail: '3 parallel agents (Perplexity, Gemini, Google AI) generating prompts & querying Infatica...', completed: 0, total: 0 }) }
+            data: { progress: JSON.stringify({ phase: 'agents_running', detail: '3 parallel agents (Perplexity, Gemini, Google AI) generating prompts & querying AI models...', completed: 0, total: 0 }) }
         });
 
         const agentConfig = { brandName, domain, industry, competitors: expandedCompetitors, location, country, language };

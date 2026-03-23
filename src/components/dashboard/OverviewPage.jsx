@@ -82,61 +82,15 @@ export default function OverviewPage({ domains, activeProject, onAddDomain, onTa
                 </button>
             </div>
 
-            {/* Brand Info Card */}
-            {user && (
-                <div className="bg-gradient-to-br from-red-500/5 to-red-600/5 border border-red-500/10 rounded-2xl p-5">
-                    <div className="flex items-center gap-4 mb-4">
-                        <div className="w-12 h-12 bg-red-600 rounded-xl flex items-center justify-center shadow-lg shadow-red-500/20">
-                            <span className="text-[var(--text-primary)] text-lg font-bold">{(user.brandName || 'S').charAt(0).toUpperCase()}</span>
-                        </div>
-                        <div>
-                            <h2 className="text-[var(--text-primary)] font-semibold text-lg">{user.brandName || 'Your Brand'}</h2>
-                            <p className="text-[var(--text-muted)] text-sm">{user.domain ? `https://${user.domain}` : ''}</p>
-                        </div>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                        {user.industry && (
-                            <div className="flex items-center gap-2 px-3 py-2 bg-[var(--surface-active)] rounded-lg">
-                                <Target className="w-3.5 h-3.5 text-red-400/60" />
-                                <span className="text-[var(--text-secondary)] text-xs">{user.industry}</span>
-                            </div>
-                        )}
-                        {user.companySize && (
-                            <div className="flex items-center gap-2 px-3 py-2 bg-[var(--surface-active)] rounded-lg">
-                                <Building2 className="w-3.5 h-3.5 text-[var(--text-muted)]" />
-                                <span className="text-[var(--text-secondary)] text-xs">{user.companySize}</span>
-                            </div>
-                        )}
-                        {user.location && (
-                            <div className="flex items-center gap-2 px-3 py-2 bg-[var(--surface-active)] rounded-lg">
-                                <MapPin className="w-3.5 h-3.5 text-[var(--text-muted)]" />
-                                <span className="text-[var(--text-secondary)] text-xs">{user.location}</span>
-                            </div>
-                        )}
-                        {user.language && (
-                            <div className="flex items-center gap-2 px-3 py-2 bg-[var(--surface-active)] rounded-lg">
-                                <Globe className="w-3.5 h-3.5 text-[var(--text-muted)]" />
-                                <span className="text-[var(--text-secondary)] text-xs">{user.language}</span>
-                            </div>
-                        )}
-                        {user.reach && (
-                            <div className="flex items-center gap-2 px-3 py-2 bg-[var(--surface-active)] rounded-lg">
-                                <Users className="w-3.5 h-3.5 text-[var(--text-muted)]" />
-                                <span className="text-[var(--text-secondary)] text-xs">{user.reach}</span>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
-
-            {/* KPI Cards */}
+            {/* ROW 1: PRIMARY KPIs (F-Pattern Origin) */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-gradient-to-br from-red-500/10 to-red-600/10 border border-red-500/20 rounded-2xl p-4">
+                {/* AI Visibility */}
+                <div className="bg-gradient-to-br from-red-500/10 to-red-600/10 border border-red-500/20 rounded-2xl p-4 flex flex-col justify-between">
                     <div className="flex items-center justify-between mb-3">
                         <span className="text-[var(--text-muted)] text-xs font-medium">AI Visibility</span>
                         <Eye className="w-4 h-4 text-[var(--text-muted)]" />
                     </div>
-                    <div className="flex items-end justify-between">
+                    <div className="flex items-end justify-between mt-auto">
                         <div>
                             <span className="text-2xl font-bold text-[var(--text-primary)]">{visScore !== null ? visScore : '--'}</span>
                             {visScore !== null && <span className="text-[var(--text-muted)] text-sm ml-0.5">/100</span>}
@@ -151,12 +105,28 @@ export default function OverviewPage({ domains, activeProject, onAddDomain, onTa
                         )}
                     </div>
                 </div>
-                <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-4">
+                {/* Site Health */}
+                <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-4 flex flex-col justify-between">
+                    <div className="flex items-center justify-between mb-3">
+                        <span className="text-[var(--text-muted)] text-xs font-medium">Site Health</span>
+                        <Activity className="w-4 h-4 text-[var(--text-muted)]" />
+                    </div>
+                    <div className="flex items-end justify-between mt-auto">
+                        <div>
+                            <span className="text-2xl font-bold text-[var(--text-primary)]">{auditScore !== null ? auditScore : '--'}</span>
+                            {auditScore !== null && <span className="text-[var(--text-muted)] text-sm ml-0.5">%</span>}
+                        </div>
+                        <button onClick={() => onTabChange?.('audit-health')}
+                            className="text-red-400 text-[10px] font-medium hover:text-red-300">{auditScore !== null ? 'View Audit →' : 'Run Audit →'}</button>
+                    </div>
+                </div>
+                {/* Competitors Tracked */}
+                <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-4 flex flex-col justify-between">
                     <div className="flex items-center justify-between mb-3">
                         <span className="text-[var(--text-muted)] text-xs font-medium">Competitors Tracked</span>
                         <Target className="w-4 h-4 text-[var(--text-muted)]" />
                     </div>
-                    <div className="flex items-end justify-between">
+                    <div className="flex items-end justify-between mt-auto">
                         <span className="text-2xl font-bold text-[var(--text-primary)]">{competitors.length}</span>
                         <div className="flex -space-x-1">
                             {competitors.slice(0, 3).map((c, i) => (
@@ -166,34 +136,26 @@ export default function OverviewPage({ domains, activeProject, onAddDomain, onTa
                         </div>
                     </div>
                 </div>
-                <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-4">
+                {/* Active Project Status */}
+                <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-4 flex flex-col justify-between">
                     <div className="flex items-center justify-between mb-3">
-                        <span className="text-[var(--text-muted)] text-xs font-medium">Site Health</span>
-                        <Activity className="w-4 h-4 text-[var(--text-muted)]" />
+                        <span className="text-[var(--text-muted)] text-xs font-medium">Active Project</span>
+                        <Building2 className="w-4 h-4 text-[var(--text-muted)]" />
                     </div>
-                    <div className="flex items-end justify-between">
-                        <div>
-                            <span className="text-2xl font-bold text-[var(--text-primary)]">{auditScore !== null ? auditScore : '--'}</span>
-                            {auditScore !== null && <span className="text-[var(--text-muted)] text-sm ml-0.5">%</span>}
-                        </div>
-                        <button onClick={() => onTabChange?.('audit-health')}
-                            className="text-red-400 text-[10px] font-medium hover:text-red-300">{auditScore !== null ? 'View Audit →' : 'Run Audit →'}</button>
-                    </div>
-                </div>
-                <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-4">
-                    <div className="flex items-center justify-between mb-3">
-                        <span className="text-[var(--text-muted)] text-xs font-medium">Industry</span>
-                        <TrendingUp className="w-4 h-4 text-[var(--text-muted)]" />
-                    </div>
-                    <div>
-                        <span className="text-lg font-bold text-[var(--text-primary)]">{user?.industry || 'Not set'}</span>
+                    <div className="mt-auto">
+                        <span className="text-lg font-bold text-[var(--text-primary)] truncate block w-full">{activeProject?.name || user?.brandName || 'Not set'}</span>
+                        <p className="text-[var(--text-muted)] text-[10px] flex items-center gap-1.5 mt-1">
+                            <span className="w-2 h-2 rounded-full bg-green-500" />
+                            {activeProject?.status || 'Active'}
+                        </p>
                     </div>
                 </div>
             </div>
 
+            {/* ROW 2: TRENDS & ACTIONS (Middle Screen scanning) */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Visibility Trend */}
-                <div className="lg:col-span-2 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-5">
+                {/* Visibility Trend (2/3 width) */}
+                <div className="lg:col-span-2 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-5 flex flex-col">
                     <div className="flex items-center justify-between mb-4">
                         <div>
                             <h3 className="text-[var(--text-primary)] font-medium text-sm">AI Visibility Trend</h3>
@@ -204,7 +166,7 @@ export default function OverviewPage({ domains, activeProject, onAddDomain, onTa
                             View Full Report <ChevronRight className="w-3 h-3" />
                         </button>
                     </div>
-                    <div className="h-48">
+                    <div className="h-48 flex-1">
                         {visibilityTrend.length > 0 ? (
                             <ResponsiveContainer width="100%" height="100%">
                                 <AreaChart data={visibilityTrend} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
@@ -236,24 +198,109 @@ export default function OverviewPage({ domains, activeProject, onAddDomain, onTa
                     </div>
                 </div>
 
-                {/* Competitors */}
+                {/* Quick Actions (1/3 width, stacked right side) */}
+                <div className="flex flex-col">
+                    <h3 className="text-[var(--text-primary)] font-medium text-sm mb-3">Quick Actions</h3>
+                    <div className="grid grid-cols-2 lg:grid-cols-1 gap-3 flex-1 h-full">
+                        {[
+                            { icon: FileSearch, label: 'Audit My Website', desc: `Check ${user?.domain || 'your site'} health`, tab: 'audit-health' },
+                            { icon: Eye, label: 'AI Visibility Report', desc: `How AI sees ${user?.brandName || 'your brand'}`, tab: 'ai-visibility' },
+                            { icon: PenTool, label: 'Create Content', desc: `Write for ${user?.industry || 'your industry'}`, tab: 'content-studio' },
+                            { icon: Search, label: 'Discover Topics', desc: `Trending in ${user?.industry || 'your space'}`, tab: 'topic-discovery' },
+                        ].map((action, i) => (
+                            <button key={i} onClick={() => onTabChange?.(action.tab)}
+                                className="group p-3 md:p-4 flex items-center gap-4 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl text-left hover:border-red-500/30 hover:shadow-lg hover:shadow-red-500/10 transition-all duration-300 h-full">
+                                <div className="w-10 h-10 bg-[var(--surface-active)] rounded-xl flex items-center justify-center group-hover:bg-red-500/10 transition-colors shrink-0">
+                                    <action.icon className="w-5 h-5 text-[var(--text-muted)] group-hover:text-red-400 transition-colors" />
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="text-[var(--text-primary)] text-sm font-medium truncate">{action.label}</p>
+                                    <p className="text-[var(--text-muted)] text-[10px] md:text-xs mt-0.5 truncate">{action.desc}</p>
+                                </div>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
+
+            {/* ROW 3: METADATA & DRILL-DOWN */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Brand Info & Project Summary (Merged Context 2/3) */}
+                <div className="lg:col-span-2 bg-gradient-to-br from-red-500/5 to-red-600/5 border border-red-500/10 rounded-2xl p-5">
+                    <h3 className="text-[var(--text-primary)] font-medium text-sm mb-4">Brand Information & Context</h3>
+                    {user && (
+                        <div className="flex items-center gap-4 mb-5">
+                            <div className="w-12 h-12 bg-red-600 rounded-xl flex items-center justify-center shadow-lg shadow-red-500/20 shrink-0">
+                                <span className="text-[var(--text-primary)] text-lg font-bold">{(user.brandName || 'S').charAt(0).toUpperCase()}</span>
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <h2 className="text-[var(--text-primary)] font-semibold text-lg truncate w-full">{user.brandName || 'Your Brand'}</h2>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                    <Globe className="w-3.5 h-3.5 text-[var(--text-muted)] shrink-0" />
+                                    <p className="text-[var(--text-muted)] text-xs truncate w-full">{user.domain ? `https://${user.domain}` : 'No domain set'}</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-red-500/10">
+                        {user?.industry && (
+                            <div>
+                                <p className="text-[var(--text-muted)] text-[10px] uppercase tracking-wider flex items-center gap-1.5 mb-1"><Target className="w-3 h-3 text-red-400/60" /> Industry</p>
+                                <p className="text-[var(--text-secondary)] text-xs font-medium truncate">{user.industry}</p>
+                            </div>
+                        )}
+                        {user?.companySize && (
+                            <div>
+                                <p className="text-[var(--text-muted)] text-[10px] uppercase tracking-wider flex items-center gap-1.5 mb-1"><Building2 className="w-3 h-3 text-[var(--text-muted)]" /> Company Size</p>
+                                <p className="text-[var(--text-secondary)] text-xs font-medium truncate">{user.companySize}</p>
+                            </div>
+                        )}
+                        {user?.location && (
+                            <div>
+                                <p className="text-[var(--text-muted)] text-[10px] uppercase tracking-wider flex items-center gap-1.5 mb-1"><MapPin className="w-3 h-3 text-[var(--text-muted)]" /> Location</p>
+                                <p className="text-[var(--text-secondary)] text-xs font-medium truncate">{user.location}</p>
+                            </div>
+                        )}
+                        {user?.language && (
+                            <div>
+                                <p className="text-[var(--text-muted)] text-[10px] uppercase tracking-wider flex items-center gap-1.5 mb-1"><Globe className="w-3 h-3 text-[var(--text-muted)]" /> Language</p>
+                                <p className="text-[var(--text-secondary)] text-xs font-medium truncate">{user.language}</p>
+                            </div>
+                        )}
+                        {user?.reach && (
+                            <div>
+                                <p className="text-[var(--text-muted)] text-[10px] uppercase tracking-wider flex items-center gap-1.5 mb-1"><Users className="w-3 h-3 text-[var(--text-muted)]" /> Reach</p>
+                                <p className="text-[var(--text-secondary)] text-xs font-medium truncate">{user.reach}</p>
+                            </div>
+                        )}
+                        {activeProject?.created_at && (
+                            <div>
+                                <p className="text-[var(--text-muted)] text-[10px] uppercase tracking-wider flex items-center gap-1.5 mb-1"><Zap className="w-3 h-3 text-[var(--text-muted)]" /> Project Created</p>
+                                <p className="text-[var(--text-secondary)] text-xs font-medium truncate">{new Date(activeProject.created_at).toLocaleDateString()}</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Competitors List (1/3 Width Right Sidebar) */}
                 <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-5">
                     <h3 className="text-[var(--text-primary)] font-medium text-sm mb-4">Your Competitors</h3>
                     {allCompetitors.length > 0 ? (
-                        <div className="space-y-2.5">
-                            {allCompetitors.slice(0, 6).map((comp, i) => {
+                        <div className="space-y-2.5 max-h-[180px] overflow-y-auto pr-2">
+                            {allCompetitors.map((comp, i) => {
                                 const domain = comp.domain || comp;
                                 const name = comp.name || domain;
                                 return (
                                     <div key={i} className="flex items-center gap-3 p-2 rounded-lg hover:bg-[var(--surface-hover)] transition-colors">
                                         <img src={`https://www.google.com/s2/favicons?domain=${domain}&sz=32`}
-                                            alt="" className="w-6 h-6 rounded bg-[var(--surface-active)]" />
+                                            alt="" className="w-6 h-6 rounded bg-[var(--surface-active)] shrink-0" />
                                         <div className="flex-1 min-w-0">
                                             <p className="text-[var(--text-primary)] text-xs font-medium truncate">{name}</p>
                                             <p className="text-[var(--text-muted)] text-[10px] truncate">{domain}</p>
                                         </div>
                                         <a href={`https://${domain}`} target="_blank" rel="noopener noreferrer"
-                                            className="text-[var(--text-muted)] hover:text-[var(--text-secondary)]">
+                                            className="text-[var(--text-muted)] hover:text-[var(--text-secondary)] p-1">
                                             <ExternalLink className="w-3 h-3" />
                                         </a>
                                     </div>
@@ -261,68 +308,13 @@ export default function OverviewPage({ domains, activeProject, onAddDomain, onTa
                             })}
                         </div>
                     ) : (
-                        <div className="text-center py-6">
+                        <div className="text-center py-6 h-[180px] flex flex-col items-center justify-center">
                             <Users className="w-6 h-6 text-[var(--text-muted)] mx-auto mb-2" />
                             <p className="text-[var(--text-muted)] text-xs">No competitors tracked yet</p>
                         </div>
                     )}
                 </div>
             </div>
-
-            {/* Quick Actions */}
-            <div>
-                <h3 className="text-[var(--text-primary)] font-medium text-sm mb-3">Quick Actions</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    {[
-                        { icon: FileSearch, label: 'Audit My Website', desc: `Check ${user?.domain || 'your site'} health`, tab: 'audit-health' },
-                        { icon: Eye, label: 'AI Visibility Report', desc: `How AI sees ${user?.brandName || 'your brand'}`, tab: 'ai-visibility' },
-                        { icon: PenTool, label: 'Create Content', desc: `Write for ${user?.industry || 'your industry'}`, tab: 'content-studio' },
-                        { icon: Search, label: 'Discover Topics', desc: `Trending in ${user?.industry || 'your space'}`, tab: 'topic-discovery' },
-                    ].map((action, i) => (
-                        <button key={i} onClick={() => onTabChange?.(action.tab)}
-                            className="group p-4 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl text-left hover:border-red-500/30 hover:shadow-lg hover:shadow-red-500/10 transition-all duration-300">
-                            <div className="w-10 h-10 bg-[var(--surface-active)] rounded-xl flex items-center justify-center mb-3 group-hover:bg-red-500/10 transition-colors">
-                                <action.icon className="w-5 h-5 text-[var(--text-muted)] group-hover:text-red-400 transition-colors" />
-                            </div>
-                            <p className="text-[var(--text-primary)] text-sm font-medium">{action.label}</p>
-                            <p className="text-[var(--text-muted)] text-xs mt-0.5">{action.desc}</p>
-                        </button>
-                    ))}
-                </div>
-            </div>
-
-            {/* Active Project Summary */}
-            {activeProject && (
-                <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-5">
-                    <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-[var(--text-primary)] font-medium text-sm">Project Status</h3>
-                        <span className="text-[var(--text-muted)] text-xs">{activeProject.name}</span>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div>
-                            <p className="text-[var(--text-muted)] text-[10px] uppercase tracking-wider">Domain</p>
-                            <p className="text-[var(--text-primary)] text-sm font-medium mt-1 truncate">{user?.domain || activeProject.url}</p>
-                        </div>
-                        <div>
-                            <p className="text-[var(--text-muted)] text-[10px] uppercase tracking-wider">Status</p>
-                            <p className="text-[var(--text-primary)] text-sm font-medium mt-1 flex items-center gap-1.5">
-                                <span className="w-2 h-2 rounded-full bg-green-500" />
-                                {activeProject.status || 'Active'}
-                            </p>
-                        </div>
-                        <div>
-                            <p className="text-[var(--text-muted)] text-[10px] uppercase tracking-wider">Created</p>
-                            <p className="text-[var(--text-primary)] text-sm font-medium mt-1">
-                                {activeProject.created_at ? new Date(activeProject.created_at).toLocaleDateString() : 'Today'}
-                            </p>
-                        </div>
-                        <div>
-                            <p className="text-[var(--text-muted)] text-[10px] uppercase tracking-wider">Competitors</p>
-                            <p className="text-[var(--text-primary)] text-sm font-medium mt-1">{competitors.length} tracked</p>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }

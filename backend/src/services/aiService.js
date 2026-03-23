@@ -111,7 +111,7 @@ function parseCompetitorResponse(text, competitorNames, domain) {
         }));
 }
 
-// Agent Chat — powered by Gemini
+// Agent Chat
 export async function chatWithAgent({ messages, brandContext }) {
     const client = getClient();
     const model = client.getGenerativeModel({ model: 'gemini-2.5-flash' });
