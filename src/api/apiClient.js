@@ -140,6 +140,16 @@ export const apiClient = {
       return apiClient.get('/auth/verify');
     },
 
+    async forgotPassword(email) {
+      const response = await apiClient.post('/auth/forgot-password', { email });
+      return response;
+    },
+
+    async resetPassword(email, otp, newPassword) {
+      const response = await apiClient.post('/auth/reset-password', { email, otp, newPassword });
+      return response;
+    },
+
     logout() {
       localStorage.removeItem('authToken');
       localStorage.removeItem('user');

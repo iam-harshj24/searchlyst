@@ -149,6 +149,34 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const forgotPassword = async (email) => {
+    setAuthError(null);
+    try {
+      const response = await apiClient.auth.forgotPassword(email);
+      return { success: true, message: response.message };
+    } catch (error) {
+      setAuthError({
+        type: 'forgot_password_failed',
+        message: error.message || 'Failed to request password reset'
+      });
+      return { success: false, error };
+    }
+  };
+
+  const resetPassword = async (email, otp, newPassword) => {
+    setAuthError(null);
+    try {
+      const response = await apiClient.auth.resetPassword(email, otp, newPassword);
+      return { success: true, message: response.message };
+    } catch (error) {
+      setAuthError({
+        type: 'reset_password_failed',
+        message: error.message || 'Failed to reset password'
+      });
+      return { success: false, error };
+    }
+  };
+
   const logout = () => {
     apiClient.auth.logout();
     // Clear visibility/scan cache only; keep searchlyst_user_* so returning users retain profile/onboarding state
@@ -181,6 +209,8 @@ export const AuthProvider = ({ children }) => {
       loginWithGoogle,
       sendOtp,
       verifyOtp,
+      forgotPassword,
+      resetPassword,
       logout,
       navigateToLogin,
       checkAppState

@@ -89,4 +89,18 @@ export const authRepository = {
       data: { last_login: new Date() },
     });
   },
+
+  async updateUserPassword(email, password_hash) {
+    return prisma.user.update({
+      where: { email },
+      data: { password_hash },
+    });
+  },
+
+  async updateAdminPassword(email, password_hash) {
+    return prisma.adminUser.update({
+      where: { email },
+      data: { password_hash },
+    });
+  },
 };

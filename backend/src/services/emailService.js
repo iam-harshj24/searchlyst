@@ -304,3 +304,97 @@ www.searchlyst.com`;
   }
 };
 
+/**
+ * Sends a 6-digit OTP for resetting a user's password.
+ */
+export const sendPasswordResetOtpEmail = async ({ name, email, otp }) => {
+  const firstName = name?.trim().split(/\s+/)[0] || 'there';
+
+  const htmlContent = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reset Your Password – Searchlyst</title>
+</head>
+<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background-color:#0a0a0a;color:#ffffff;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#0a0a0a;">
+    <tr>
+      <td align="center" style="padding:40px 20px;">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px;">
+          <!-- Header -->
+          <tr>
+            <td style="padding-bottom:32px;border-bottom:1px solid rgba(255,255,255,0.1);">
+              <h1 style="margin:0;font-size:24px;font-weight:600;color:#ffffff;">Searchlyst</h1>
+            </td>
+          </tr>
+          <!-- Greeting -->
+          <tr>
+            <td style="padding-top:40px;">
+              <p style="margin:0 0 16px;font-size:18px;line-height:1.6;color:#ffffff;">Hi ${firstName},</p>
+              <p style="margin:0 0 32px;font-size:16px;line-height:1.7;color:#a3a3a3;">
+                We received a request to reset the password for your Searchlyst account. Use the code below to set a new password. This code expires in <strong style="color:#ffffff;">10 minutes</strong>.
+              </p>
+            </td>
+          </tr>
+          <!-- OTP Box -->
+          <tr>
+            <td style="padding-bottom:32px;">
+              <div style="background-color:#171717;border:1px solid rgba(220,38,38,0.4);border-radius:12px;padding:32px;text-align:center;">
+                <p style="margin:0 0 8px;font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:#737373;">Your password reset code</p>
+                <p style="margin:0;font-size:48px;font-weight:700;letter-spacing:0.15em;color:#dc2626;font-family:'Courier New',Courier,monospace;">${otp}</p>
+              </div>
+            </td>
+          </tr>
+          <!-- Warning -->
+          <tr>
+            <td style="padding-bottom:40px;">
+              <p style="margin:0;font-size:14px;line-height:1.6;color:#525252;">
+                If you didn't request a password reset, you can safely ignore this email — your password will remain unchanged.
+              </p>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style="padding-top:24px;border-top:1px solid rgba(255,255,255,0.1);">
+              <p style="margin:0 0 8px;font-size:14px;color:#737373;">— Team Searchlyst</p>
+              <p style="margin:0;font-size:13px;color:#525252;">www.searchlyst.com</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`.trim();
+
+  const textContent = `Hi ${firstName},
+
+Your Searchlyst password reset code is: ${otp}
+
+This code expires in 10 minutes.
+
+If you didn't request a password reset, you can safely ignore this email — your password will remain unchanged.
+
+— Team Searchlyst
+www.searchlyst.com`;
+
+  try {
+    const info = await transporter.sendMail({
+      from: `"Team Searchlyst" <${process.env.SMTP_USER}>`,
+      to: email,
+      replyTo: process.env.REPLY_TO_EMAIL || process.env.SMTP_USER,
+      subject: `${otp} is your Searchlyst password reset code`,
+      text: textContent,
+      html: htmlContent,
+      headers: { 'X-Entity-Ref-ID': 'otp-reset' },
+    });
+
+    console.log('✓ Password reset OTP email sent to:', email, info.messageId);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error('✗ Error sending password reset OTP email:', error);
+    return { success: false, error: error.message };
+  }
+};
