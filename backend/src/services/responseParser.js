@@ -258,7 +258,7 @@ export function fastParse(html, brandName, domain, competitors, engine) {
     };
 }
 
-export async function batchDeepAnalysis(allResults, brandName, domain, competitors) {
+export async function batchDeepAnalysis(allResults, brandName, domain, competitors, location) {
     const compNames = competitors.map(c => typeof c === 'string' ? c : c.name).filter(Boolean);
 
     const summary = allResults.map(r => {
@@ -267,7 +267,7 @@ export async function batchDeepAnalysis(allResults, brandName, domain, competito
         return `Query: "${r.query}" | Engine: ${r.engine} | Brand mentioned: ${r.brandMentioned} | Entities: [${entNames}] | Citations: [${citDomains}]`;
     }).join('\n');
 
-    const prompt = `You are an AI Visibility strategist. You will receive structured scan data for "${brandName}" (${domain}).
+    const prompt = `You are an AI Visibility strategist. You will receive structured scan data for "${brandName}" (${domain})${location ? ` targeting the "${location}" market` : ''}.
 Competitors: ${compNames.join(', ')}
 
 Scan results summary:
@@ -276,6 +276,7 @@ ${summary}
 Produce an executive brief with EXACTLY this JSON format:
 {
   "overallAssessment": "1-2 sentence overall assessment of brand's AI visibility",
+  "geoSpecificInsights": "1-2 sentence assessment of how the brand performs specifically within the ${location || 'target'} market based on the data",
   "strengthAreas": ["Evidence-backed strength 1", "Evidence-backed strength 2", "Evidence-backed strength 3"],
   "weaknessAreas": ["Evidence-backed vulnerability 1", "Evidence-backed vulnerability 2", "Evidence-backed vulnerability 3"],
   "topOpportunities": [

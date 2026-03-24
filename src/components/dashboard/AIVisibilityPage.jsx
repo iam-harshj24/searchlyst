@@ -805,6 +805,12 @@ export default function AIVisibilityPage({ user, scanManager }) {
                             {r.intelligence.overallAssessment && (
                                 <p className="text-[var(--text-secondary)] text-sm leading-relaxed">{r.intelligence.overallAssessment}</p>
                             )}
+                            {r.intelligence.geoSpecificInsights && (
+                                <div className="p-3 bg-blue-500/5 border border-blue-500/10 rounded-xl mt-2 mb-3">
+                                    <h4 className="text-blue-400 text-xs font-medium mb-1 flex items-center gap-1.5"><Globe className="w-3 h-3" /> Regional Insights</h4>
+                                    <p className="text-[var(--text-secondary)] text-[13px] leading-relaxed">{r.intelligence.geoSpecificInsights}</p>
+                                </div>
+                            )}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 {r.intelligence.strengthAreas?.length > 0 && (
                                     <div className="p-3 bg-green-500/5 border border-green-500/10 rounded-xl">

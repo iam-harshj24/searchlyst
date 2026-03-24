@@ -131,7 +131,7 @@ async function executeScan(scanId, brandName, domain, industry, competitors, loc
 
         let intelligence = null;
         try {
-            intelligence = await batchDeepAnalysis(allRuns, brandName, domain, expandedCompetitors);
+            intelligence = await batchDeepAnalysis(allRuns, brandName, domain, expandedCompetitors, location);
         } catch (err) { console.error('[Scan] Deep analysis failed:', err.message); }
 
         const overview = buildOverviewFromPlatforms(platformResults, allRuns, brandName, domain, industry, expandedCompetitors);

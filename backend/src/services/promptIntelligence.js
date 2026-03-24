@@ -43,7 +43,7 @@ const PLATFORM_PROFILES = {
     },
     gemini: {
         name: 'Gemini',
-        context: `Google Gemini users (via gemini.google.com) tend to:\n- Ask in a chat interface similar to ChatGPT\n- Use conversational, direct questions (8-18 words)\n- Mix casual language with specific intent\n- Often include "best", "top", "recommend" keywords\n- May add location or context ("in 2025", "for startups")`,
+        context: `Google Gemini users (via gemini.google.com) tend to:\n- Ask in a chat interface similar to ChatGPT\n- Use conversational, direct questions (8-18 words)\n- Mix casual language with specific intent\n- Often include "best", "top", "recommend" keywords\n- May add location or context ("in ${new Date().getFullYear()}", "for startups")`,
         queryStyle: 'direct, chat-style, mix of casual and specific',
     },
     googleAI: {
@@ -87,6 +87,12 @@ BRAND CONTEXT:
 - Location: ${location || 'Global'}
 - Language: ${language || 'English'}
 - Known Competitors: ${compContext}
+
+GEO-TARGETING RULES:
+Because you are generating 15 queries, you must distribute the geographic scope realistically:
+- If Location is "Worldwide", "Global", or empty: Target different major continents or sub-continents (e.g., "in Europe", "in Latin America", "in Southeast Asia") in at least half of the queries.
+- If Location is a specific Country (e.g., "US", "UK", "India"): Target major states, provinces, or top cities within that country (e.g., "in California", "in London", "in Mumbai") in at least half of the queries.
+- If Location is already a specific city/state: Use that exact location or its major surrounding areas.
 
 TASK:
 Generate exactly 15 search queries — 3 per category below.
@@ -163,6 +169,12 @@ BRAND CONTEXT:
 - Location: ${location || 'Global'}
 - Language: ${language || 'English'}
 - Known Competitors: ${compContext}
+
+GEO-TARGETING RULES:
+Because you are generating 15 queries, you must distribute the geographic scope realistically:
+- If Location is "Worldwide", "Global", or empty: Target different major continents or sub-continents (e.g., "in Europe", "in Latin America", "in Southeast Asia") in at least half of the queries.
+- If Location is a specific Country (e.g., "US", "UK", "India"): Target major states, provinces, or top cities within that country (e.g., "in California", "in London", "in Mumbai") in at least half of the queries.
+- If Location is already a specific city/state: Use that exact location or its major surrounding areas.
 
 TASK:
 Generate exactly 15 search queries — exactly 3 per category below.

@@ -29,7 +29,7 @@ SEARCH SOURCES TO CHECK:
 - Crunchbase company categories
 - Reddit threads: site:reddit.com "${industry}" alternatives OR competitors
 - Recent blog posts titled "best ${industry} tools" or "${industry} alternatives"
-- Google: "${industry} software comparison" published after January 2024
+- Google: "${industry} software comparison" published after January ${new Date().getFullYear() - 1}
 
 WHAT YOU ARE LOOKING FOR:
 Companies that:
