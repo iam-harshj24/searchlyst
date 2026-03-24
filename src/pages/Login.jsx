@@ -23,13 +23,14 @@ export default function Login() {
   const nameParam = searchParams.get('name') || searchParams.get('fullName') || '';
   const emailParam = searchParams.get('email') || '';
 
-  const { login, sendOtp, verifyOtp, loginWithGoogle } = useAuth();
+  const { login, sendOtp, verifyOtp, loginWithGoogle, forgotPassword, resetPassword } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [isRegister, setIsRegister] = useState(isSignupParam);
-  // 'form' = login/signup form | 'otp' = OTP verification step
+  // 'form' = login/signup form | 'otp' = OTP verification step | 'forgot-password' | 'reset-password'
   const [step, setStep] = useState('form');
   const [pendingEmail, setPendingEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
   // OTP digit state
   const [otpDigits, setOtpDigits] = useState(Array(OTP_LENGTH).fill(''));
   const otpRefs = useRef([]);
@@ -196,6 +197,52 @@ export default function Login() {
     setLoading(false);
   };
 
+  const handleForgotPassword = async (e) => {
+    if (e) e.preventDefault();
+    const email = form.getValues('email') || pendingEmail;
+    if (!email) {
+      setError('Please enter your email address to reset your password.');
+      return;
+    }
+    setError('');
+    setLoading(true);
+    const result = await forgotPassword(email);
+    if (result.success) {
+      setPendingEmail(email);
+      setStep('reset-password');
+      setOtpDigits(Array(OTP_LENGTH).fill(''));
+      setNewPassword('');
+      toast.success(result.message || 'Reset code sent to your email.');
+    } else {
+      setError(result.error?.message || 'Failed to send reset code.');
+    }
+    setLoading(false);
+  };
+
+  const handleResetPassword = async () => {
+    const otp = otpDigits.join('');
+    if (otp.length < OTP_LENGTH) {
+      setError('Please enter the full 6-digit code.');
+      return;
+    }
+    if (newPassword.length < 8) {
+      setError('New password must be at least 8 characters.');
+      return;
+    }
+    setError('');
+    setLoading(true);
+    const result = await resetPassword(pendingEmail, otp, newPassword);
+    if (result.success) {
+      toast.success('Password reset successfully! Please log in.');
+      setStep('form');
+      setIsRegister(false);
+      form.setValue('password', '');
+    } else {
+      setError(result.error?.message || 'Password reset failed.');
+    }
+    setLoading(false);
+  };
+
   // ── OTP Verification Screen ──────────────────────────────────────────────
   if (step === 'otp') {
     return (
@@ -266,6 +313,172 @@ export default function Login() {
                 className="block text-sm text-gray-400 hover:text-white transition-colors mx-auto"
               >
                 ← Back to sign up
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // ── Forgot Password Screen ───────────────────────────────────────────────
+  if (step === 'forgot-password') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-4">
+        <Card className="w-full max-w-md bg-gray-900 border-gray-800">
+          <CardHeader className="space-y-1">
+            <div className="flex justify-center mb-4">
+              <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center">
+                <Lock className="w-8 h-8 text-white" />
+              </div>
+            </div>
+            <CardTitle className="text-2xl text-center text-white">Reset Password</CardTitle>
+            <CardDescription className="text-center text-gray-400">
+              Enter your email address and we'll send a 6-digit code to reset your password.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {error && (
+              <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+            <Form {...form}>
+              <form onSubmit={handleForgotPassword} className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-gray-300">Email</FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                          <Input
+                            type="email"
+                            placeholder="user@example.com"
+                            className="pl-10 bg-gray-800 border-gray-700 text-white placeholder:text-gray-500"
+                            disabled={loading}
+                            {...field}
+                          />
+                        </div>
+                      </FormControl>
+                      <FormMessage className="text-red-400" />
+                    </FormItem>
+                  )}
+                />
+
+                <Button
+                  type="submit"
+                  className="w-full bg-red-600 hover:bg-red-700 text-white h-11"
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Sending code...
+                    </>
+                  ) : 'Send Reset Code'}
+                </Button>
+              </form>
+            </Form>
+
+            <div className="text-center space-y-3">
+              <button
+                onClick={() => { setStep('form'); setError(''); }}
+                className="block text-sm text-gray-400 hover:text-white transition-colors mx-auto"
+              >
+                ← Back to login
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // ── Reset Password OTP + New Password Screen ─────────────────────────────
+  if (step === 'reset-password') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-4">
+        <Card className="w-full max-w-md bg-gray-900 border-gray-800">
+          <CardHeader className="space-y-1">
+            <div className="flex justify-center mb-4">
+              <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center">
+                <ShieldCheck className="w-8 h-8 text-white" />
+              </div>
+            </div>
+            <CardTitle className="text-2xl text-center text-white">Create New Password</CardTitle>
+            <CardDescription className="text-center text-gray-400">
+              Enter the 6-digit code sent to <span className="text-white font-medium">{pendingEmail}</span> along with your new password.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {error && (
+              <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-300">Reset Code</label>
+                <div className="flex justify-center gap-3" onPaste={handleOtpPaste}>
+                  {otpDigits.map((digit, i) => (
+                    <input
+                      key={i}
+                      ref={(el) => { otpRefs.current[i] = el; }}
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={1}
+                      value={digit}
+                      onChange={(e) => handleOtpChange(i, e.target.value)}
+                      onKeyDown={(e) => handleOtpKeyDown(i, e)}
+                      className="w-12 h-14 text-center text-2xl font-bold rounded-lg bg-gray-800 border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all"
+                      disabled={loading}
+                      autoFocus={i === 0}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-300">New Password</label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                  <Input
+                    type="password"
+                    placeholder="••••••••"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="pl-10 bg-gray-800 border-gray-700 text-white placeholder:text-gray-500"
+                    disabled={loading}
+                  />
+                </div>
+              </div>
+
+              <Button
+                onClick={handleResetPassword}
+                className="w-full bg-red-600 hover:bg-red-700 text-white h-11"
+                disabled={loading || otpDigits.join('').length < OTP_LENGTH || newPassword.length < 8}
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Resetting...
+                  </>
+                ) : 'Reset Password'}
+              </Button>
+            </div>
+
+            <div className="text-center space-y-3">
+              <button
+                onClick={() => { setStep('form'); setError(''); setOtpDigits(Array(OTP_LENGTH).fill('')); setNewPassword(''); }}
+                className="block text-sm text-gray-400 hover:text-white transition-colors mx-auto"
+              >
+                ← Back to login
               </button>
             </div>
           </CardContent>
@@ -413,6 +626,18 @@ export default function Login() {
               </Button>
             </form>
           </Form>
+
+          {!isRegister && (
+            <div className="mt-4 text-center">
+              <button
+                type="button"
+                onClick={() => { setStep('forgot-password'); setError(''); }}
+                className="text-sm text-gray-400 hover:text-white transition-colors"
+              >
+                Forgot your password?
+              </button>
+            </div>
+          )}
 
           <div className="mt-6 text-center space-y-4">
             <button

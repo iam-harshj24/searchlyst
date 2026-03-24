@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { OAuth2Client } from 'google-auth-library';
 import { authRepository } from '../repositories/authRepository.js';
 import { generateToken } from '../middleware/auth.js';
-import { sendOtpEmail } from './emailService.js';
+import { sendOtpEmail, sendPasswordResetOtpEmail } from './emailService.js';
 
 // ---------------------------------------------------------------------------
 // In-memory OTP store: { email -> { name, passwordHash, otp, expiresAt } }
@@ -102,7 +102,8 @@ export const authService = {
   async verifyOtp(email, otp) {
     const entry = otpStore.get(email);
 
-    if (!entry) {
+    // Ensure we are processing a signup OTP, not a reset OTP
+    if (!entry || entry.type === 'reset') {
       return { success: false, notFound: true };
     }
 
@@ -133,6 +134,33 @@ export const authService = {
     });
 
     return { success: true, user, token };
+  },
+
+  async sendPasswordResetOtp(email) {
+    const existingUser = await authRepository.findUserByEmail(email);
+    const existingAdmin = await authRepository.findAdminByEmail(email);
+
+    if (!existingUser && !existingAdmin) {
+      return { success: false, notFound: true };
+    }
+
+    const name = existingAdmin ? existingAdmin.name : existingUser.name;
+    const otp = generateOtp();
+
+    otpStore.set(email, {
+      type: 'reset',
+      name,
+      otp,
+      expiresAt: Date.now() + OTP_TTL_MS,
+    });
+
+    const emailResult = await sendPasswordResetOtpEmail({ name, email, otp });
+    if (!emailResult.success) {
+      otpStore.delete(email);
+      return { success: false, emailFailed: true };
+    }
+
+    return { success: true, otpSent: true };
   },
 
   async login(email, password) {
@@ -265,6 +293,37 @@ export const authService = {
         onboarded: user.onboarded,
       },
     };
+  },
+
+  async resetPassword(email, otp, newPassword) {
+    const entry = otpStore.get(email);
+
+    if (!entry || entry.type !== 'reset') {
+      return { success: false, notFound: true };
+    }
+
+    if (Date.now() > entry.expiresAt) {
+      otpStore.delete(email);
+      return { success: false, expired: true };
+    }
+
+    if (entry.otp !== otp) {
+      return { success: false, invalidOtp: true };
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(newPassword, salt);
+
+    const existingAdmin = await authRepository.findAdminByEmail(email);
+    if (existingAdmin) {
+      await authRepository.updateAdminPassword(email, passwordHash);
+    } else {
+      await authRepository.updateUserPassword(email, passwordHash);
+    }
+
+    otpStore.delete(email);
+
+    return { success: true };
   },
 
   async createAdmin(email, password, name) {

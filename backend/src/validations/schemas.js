@@ -67,3 +67,13 @@ export const bulkWaitlistSchema = z.object({
 export const sendWelcomeBulkSchema = z.object({
   entryIds: z.array(z.number().int().positive()).min(1, 'At least one entry ID required').max(500, 'Maximum 500 entries per job'),
 });
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().email('Must be a valid email'),
+});
+
+export const resetPasswordSchema = z.object({
+  email: z.string().email('Must be a valid email'),
+  otp: z.string().length(6, 'OTP must be exactly 6 digits').regex(/^\d{6}$/, 'OTP must be 6 digits'),
+  newPassword: z.string().min(8, 'Password must be at least 8 characters'),
+});

@@ -223,3 +223,72 @@ export const createAdmin = async (req, res) => {
     });
   }
 };
+
+export const requestPasswordReset = async (req, res) => {
+  const { email } = req.body;
+
+  try {
+    const result = await authService.sendPasswordResetOtp(email);
+
+    if (result.notFound) {
+      // Prevent email enumeration
+      return res.status(200).json({
+        success: true,
+        message: 'If your email is registered, you will receive a reset code shortly.',
+      });
+    }
+
+    if (result.emailFailed) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to send password reset email. Please try again.',
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Password reset code sent to your email. Please check your inbox.',
+    });
+  } catch (error) {
+    console.error('Password reset request error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to initiate password reset.',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
+
+export const resetPassword = async (req, res) => {
+  const { email, otp, newPassword } = req.body;
+
+  try {
+    const result = await authService.resetPassword(email, otp, newPassword);
+
+    if (result.notFound || result.invalidOtp) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid or expired reset code.',
+      });
+    }
+
+    if (result.expired) {
+      return res.status(410).json({
+        success: false,
+        message: 'Your reset code has expired. Please request a new one.',
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Password reset successfully! You can now log in with your new password.',
+    });
+  } catch (error) {
+    console.error('Password reset error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to reset password.',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
