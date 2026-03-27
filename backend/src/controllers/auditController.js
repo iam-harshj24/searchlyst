@@ -167,3 +167,48 @@ export async function getAuditStatusHandler(req, res) {
         res.status(500).json({ success: false, message: error.message });
     }
 }
+
+export async function getAuditHistoryHandler(req, res) {
+    try {
+        const userId = req.user.id;
+        const { url, projectId } = req.query;
+
+        const where = { userId, status: 'completed' };
+        if (projectId) {
+            where.projectId = parseInt(projectId, 10);
+        } else if (url) {
+            let normalizedUrl = url.trim();
+            if (!normalizedUrl.startsWith('http')) normalizedUrl = 'https://' + normalizedUrl;
+            normalizedUrl = normalizedUrl.replace(/\/+$/, '') || normalizedUrl;
+            where.url = { in: [normalizedUrl, normalizedUrl + '/'] };
+        }
+
+        const jobs = await prisma.auditJob.findMany({
+            where,
+            orderBy: { created_at: 'desc' },
+            take: 20,
+            select: { id: true, url: true, created_at: true, results: true },
+        });
+
+        const history = jobs.map(job => {
+            try {
+                const result = typeof job.results === 'string' ? JSON.parse(job.results) : job.results;
+                return {
+                    id: job.id,
+                    url: job.url,
+                    scannedAt: job.created_at,
+                    scores: result?.scores || {},
+                    summary: result?.summary || {},
+                    crawledPages: result?.crawledPages || 0,
+                };
+            } catch {
+                return { id: job.id, url: job.url, scannedAt: job.created_at, scores: {}, summary: {}, crawledPages: 0 };
+            }
+        });
+
+        return res.json({ success: true, history });
+    } catch (error) {
+        console.error('Audit history error:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+}

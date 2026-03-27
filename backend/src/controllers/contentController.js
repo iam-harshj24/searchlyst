@@ -141,3 +141,59 @@ Return a JSON object:
         res.status(500).json({ success: false, message: error.message });
     }
 }
+
+export async function suggestTopics(req, res) {
+    try {
+        const { brandName, industry, location, domain, context } = req.body;
+        
+        const model = getModel();
+        const prompt = `ROLE: You are an expert SEO content strategist.
+TASK: Suggest 8 high-performing content topics for a company.
+CONTEXT:
+- Brand: ${brandName || 'Unknown'}
+- Domain: ${domain || 'Unknown'}
+- Industry: ${industry || 'General'}
+- Location: ${location || 'Dubai'}
+${context ? `- Additional Context: ${context}` : ''}
+
+REQUIREMENTS:
+Return EXACTLY 8 topics as a JSON array of strings. Do not include any other text or markdown.
+Make them relevant to the core offerings and highly clickable.
+Combine a mix of "How-to", "Guides", and "Why..." formats.
+
+Example:
+["Top real estate developers in Dubai 2026", "Buying a family villa in Dubai — where to start"]`;
+
+        const result = await model.generateContent(prompt);
+        const text = result.response.text().trim();
+        
+        let topics = [];
+        try {
+            const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+            const jsonMatch = cleaned.match(/\[[\s\S]*\]/);
+            const toParse = jsonMatch ? jsonMatch[0] : cleaned;
+            topics = JSON.parse(toParse);
+        } catch {
+            topics = [
+                `Top ${industry} trends in ${location}`,
+                `Why ${brandName} is leading the market`,
+                `Essential guide to ${industry}`,
+                `How to choose the best ${industry} company`,
+                `Future of ${industry} in ${location}`,
+                `What makes ${brandName} different from competitors`,
+                `Insider tips for ${industry}`,
+                `The definitive ${brandName} handbook`
+            ];
+        }
+
+        const mappedTopics = topics.slice(0, 8).map((t, i) => ({
+            type: i < 3 ? 'VISIBILITY' : (i < 6 ? 'BRAND' : 'COMPETITOR'),
+            text: t
+        }));
+
+        res.json({ success: true, topics: mappedTopics });
+    } catch (error) {
+        console.error('Topic suggestion error:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+}

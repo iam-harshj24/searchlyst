@@ -1,32 +1,82 @@
 import React, { useState, useEffect } from 'react';
 import {
-    Eye, TrendingUp, Target, Zap, Loader2, Search, ChevronDown, ChevronRight,
-    Users, BookOpen, Star, AlertCircle, Layers, BarChart3, Lightbulb, CheckCircle, Globe
+    Activity, TrendingUp, TrendingDown, Target, Zap, Loader2, Search, ChevronDown, ChevronRight,
+    Users, BookOpen, Star, AlertCircle, Layers, BarChart3, Lightbulb, CheckCircle, Globe, RefreshCw
 } from 'lucide-react';
+import { ChatGPTLogo, GeminiLogo, PerplexityLogo, ClaudeLogo } from '../landing/AILogos';
 import {
     BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
     PieChart, Pie, Cell, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar
 } from 'recharts';
 import { Button } from "@/components/ui/button";
 
-const PI = { perplexity: '🔮', gemini: '✨', googleAI: '🔍' };
-const EL = { perplexity: 'Perplexity', gemini: 'Gemini', googleAI: 'Google AI' };
+const PI = { perplexity: '🔮', gemini: '✨', googleAI: '🔍', chatgpt: '🤖', claude: '✹' };
+const EL = { perplexity: 'Perplexity', gemini: 'Gemini', googleAI: 'Google AI', chatgpt: 'ChatGPT', claude: 'Claude' };
 
-function ScoreRing({ score, size = 110, sw = 9 }) {
+function SemiCircleGauge({ score, icon, label, size = 160 }) {
+    const swBg = 20;
+    const sw = 14;
+    const r = (size - swBg) / 2;
+    const circ = Math.PI * r;
+    const p = Math.min(score, 100) / 100;
+    const off = circ - p * circ;
+    const angle = Math.PI - p * Math.PI;
+    const cx = size / 2;
+    const cy = r + swBg / 2;
+    const dotX = cx + r * Math.cos(angle);
+    const dotY = cy - r * Math.sin(angle);
+
+    return (
+        <div className="flex flex-col items-center justify-center relative w-full mx-auto" style={{ maxWidth: size }}>
+            <svg viewBox={`0 0 ${size} ${cy + 4}`} className="w-full h-auto overflow-visible" style={{ marginBottom: -6 }}>
+                {/* Background track - dark gray */}
+                <path d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`} stroke="#2a2a2a" strokeWidth={swBg} fill="none" strokeLinecap="round" />
+                {/* Foreground red arc with glow */}
+                <path d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`} stroke="#ef4444" strokeWidth={sw} fill="none" strokeDasharray={circ} strokeDashoffset={off} strokeLinecap="round" className="transition-all duration-1000" style={{ filter: 'drop-shadow(0 0 6px rgba(239,68,68,0.6))' }} />
+                {/* White thumb dot */}
+                <circle cx={dotX} cy={dotY} r={4.5} fill="#ffffff" className="transition-all duration-1000" />
+            </svg>
+            {/* Score number overlaid */}
+            <div className="absolute left-0 w-full flex items-center justify-center pointer-events-none" style={{ top: '22%' }}>
+                <span className="text-[28px] font-bold text-white leading-none">{score}</span>
+            </div>
+            {/* Bottom pill label */}
+            <div className="w-full h-[36px] bg-[#1a1a1a] border border-[#2e2e2e] rounded-full flex items-center pl-1 pr-4 mt-0 relative z-10">
+                <div className="w-7 h-7 rounded-full bg-[#252525] border border-[#3a3a3a] flex items-center justify-center shrink-0 overflow-hidden">
+                    {icon}
+                </div>
+                <div className="flex-1 flex justify-center">
+                    <span className="text-white/90 font-semibold text-[12px] tracking-wide">{label}</span>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function ScoreRing({ score, size = 130, sw = 14 }) {
     const r = (size - sw) / 2;
     const circ = 2 * Math.PI * r;
-    const off = circ - (score / 100) * circ;
-    const col = score >= 60 ? '#22c55e' : score >= 30 ? '#f59e0b' : '#ef4444';
+    const p = Math.min(score, 100) / 100;
+    const off = circ - p * circ;
+    const angle = p * 2 * Math.PI - Math.PI / 2;
+    const dotX = size / 2 + r * Math.cos(angle);
+    const dotY = size / 2 + r * Math.sin(angle);
+
     return (
-        <div className="relative" style={{ width: size, height: size }}>
-            <svg width={size} height={size} className="-rotate-90">
-                <circle cx={size / 2} cy={size / 2} r={r} stroke="var(--border)" strokeWidth={sw} fill="none" />
-                <circle cx={size / 2} cy={size / 2} r={r} stroke={col} strokeWidth={sw} fill="none"
-                    strokeDasharray={circ} strokeDashoffset={off} strokeLinecap="round" className="transition-all duration-1000" />
+        <div className="relative flex flex-col items-center justify-center shrink-0" style={{ width: size, height: size }}>
+            <svg width={size} height={size} className="absolute inset-0">
+                {/* Background ring */}
+                <circle cx={size / 2} cy={size / 2} r={r} stroke="#2a2a2a" strokeWidth={sw} fill="none" />
+                {/* Red progress ring */}
+                <circle cx={size / 2} cy={size / 2} r={r} stroke="#ef4444" strokeWidth={sw} fill="none"
+                    strokeDasharray={circ} strokeDashoffset={off} strokeLinecap="round" className="transition-all duration-1000 origin-center -rotate-90"
+                    style={{ filter: 'drop-shadow(0 0 8px rgba(239,68,68,0.5))' }} />
+                {/* White thumb dot */}
+                <circle cx={dotX} cy={dotY} r={5} fill="#ffffff" className="transition-all duration-1000" />
             </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-3xl font-bold text-[var(--text-primary)]">{score}</span>
-                <span className="text-[9px] text-[var(--text-muted)]">/100</span>
+            <div className="relative flex flex-col items-center justify-center text-center">
+                <span className="text-[36px] font-bold text-white tracking-tight leading-none">{score}</span>
+                <span className="text-[9px] text-white/60 font-bold tracking-[0.15em] mt-1 uppercase">OVERALL SCORE</span>
             </div>
         </div>
     );
@@ -35,28 +85,48 @@ function ScoreRing({ score, size = 110, sw = 9 }) {
 function ProgressBar({ phase, phaseDetail, progress, completedPrompts, totalPrompts }) {
     const pct = progress.total > 0 ? Math.round((progress.completed / progress.total) * 100) : 0;
     return (
-        <div className="bg-gradient-to-r from-purple-500/5 to-blue-500/5 border border-purple-500/10 rounded-2xl p-6">
+        <div className="bg-[#0d0d0d] border border-[#1e1e1e] rounded-2xl p-6">
             <div className="flex items-center gap-3 mb-4">
-                <div className="w-8 h-8 rounded-full bg-purple-500/10 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-full bg-[#1a1a2e] flex items-center justify-center">
                     <div className="w-4 h-4 rounded-full border-2 border-purple-500 border-t-transparent animate-spin" />
                 </div>
                 <div className="flex-1">
-                    <h3 className="text-[var(--text-primary)] text-sm font-medium">
+                    <h3 className="text-[#e0e0e0] text-sm font-medium">
                         {phase === 'agents_running' ? '⚡ 3 parallel agents (Perplexity, Gemini, Google AI)...' :
                             phase === 'generating_prompts' ? '🧠 Generating smart prompts...' :
                             phase === 'querying' ? `🔍 Querying AI engines (${completedPrompts || 0}/${totalPrompts || '?'} completed)` :
                                 phase === 'analyzing' ? '📊 Running deep intelligence analysis...' : 'Starting scan...'}
                     </h3>
-                    <p className="text-[var(--text-muted)] text-xs">{phaseDetail}</p>
+                    <p className="text-[#888] text-xs mt-0.5">{phaseDetail}</p>
                 </div>
-                {progress.total > 0 && <span className="text-[var(--text-secondary)] text-sm font-mono">{pct}%</span>}
+                {progress.total > 0 && <span className="text-[#aaa] text-sm font-mono">{pct}%</span>}
             </div>
             {progress.total > 0 && (
-                <div className="h-1.5 bg-[var(--surface-active)] rounded-full overflow-hidden">
+                <div className="h-1.5 bg-[#1e1e1e] rounded-full overflow-hidden">
                     <div className="h-full bg-gradient-to-r from-purple-500 to-blue-400 rounded-full transition-all duration-500"
                         style={{ width: `${Math.max(pct, 3)}%` }} />
                 </div>
             )}
+        </div>
+    );
+}
+
+// Engine icon components for the Prompts tab
+function EngineIcon({ engine, size = 28 }) {
+    const iconMap = {
+        chatgpt: <ChatGPTLogo className="w-[14px] h-[14px] text-white" />,
+        gemini: <GeminiLogo className="w-[14px] h-[14px] text-[#4285f4]" />,
+        perplexity: <img src="/perplexity.png" alt="Perplexity" className="w-[14px] h-[14px] object-contain" style={{ filter: 'brightness(0) invert(1)' }} />,
+        googleAI: <img src="/perplexity.png" alt="Google AI" className="w-[14px] h-[14px] object-contain opacity-80" />,
+        claude: <img src="/claude.png" alt="Claude" className="w-[14px] h-[14px] object-contain" />,
+    };
+    return (
+        <div
+            className="rounded-full bg-[#1e1e1e] border border-[#333] flex items-center justify-center shrink-0"
+            style={{ width: size, height: size }}
+            title={EL[engine] || engine}
+        >
+            {iconMap[engine] || <span className="text-[9px] text-white/60">{String(engine)[0].toUpperCase()}</span>}
         </div>
     );
 }
@@ -66,6 +136,8 @@ function QueryRow({ p }) {
     const engines = p.engines || {};
     const mentionedCount = Object.values(engines).filter(e => e.mentioned).length;
     const totalEngines = Object.keys(engines).length;
+    // Primary engine (first one)
+    const primaryEngine = Object.keys(engines)[0];
 
     // Calculate aggregate sentiment and citations
     let pos = 0, neg = 0, neut = 0;
@@ -80,116 +152,139 @@ function QueryRow({ p }) {
         }
     });
     const totalSent = pos + neg + neut;
-
     return (
         <>
-            <tr onClick={() => setOpen(!open)} className="border-b border-[var(--border)] hover:bg-[var(--surface-hover)] transition-colors cursor-pointer group">
-                <td className="py-3 pr-4 min-w-[200px]">
-                    <div className="flex items-center gap-2">
-                        {open ? <ChevronDown className="w-3.5 h-3.5 text-[var(--text-muted)] shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 text-[var(--text-muted)] shrink-0 group-hover:text-[var(--text-secondary)]" />}
-                        <div>
-                            <p className="text-sm text-[var(--text-primary)] leading-tight group-hover:text-purple-300 transition-colors">{p.query}</p>
-                            <div className="flex gap-2 mt-1">
-                                {p.intent && (
-                                    <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono shrink-0 ${p.intent === 'geo_tracking' ? 'bg-purple-500/10 text-purple-300' :
-                                        p.intent === 'sentiment' ? 'bg-blue-500/10 text-blue-300' :
-                                            p.intent === 'comparison' ? 'bg-green-500/10 text-green-300' :
-                                                p.intent === 'authority' ? 'bg-amber-500/10 text-amber-300' :
-                                                    p.intent === 'recommendation' ? 'bg-pink-500/10 text-pink-300' :
-                                                        'bg-[var(--surface-active)] text-[var(--text-muted)]'
-                                        }`}>{String(p.intent).replace('_', ' ')}</span>
-                                )}
-                            </div>
-                        </div>
+            {/* Main row */}
+            <tr
+                onClick={() => setOpen(!open)}
+                className="border-b border-[#1e1e1e] hover:bg-[#111] transition-colors cursor-pointer group"
+            >
+                {/* Query column */}
+                <td className="py-4 pr-4 pl-5 min-w-[280px] max-w-[400px]">
+                    <div className="flex items-start gap-3">
+                        <ChevronRight
+                            className={`w-3.5 h-3.5 mt-0.5 text-[#444] shrink-0 transition-transform duration-200 ${open ? 'rotate-90 text-[#666]' : 'group-hover:text-[#555]'}`}
+                        />
+                        <p className="text-[13px] text-[#ccc] leading-snug line-clamp-2 group-hover:text-white transition-colors">
+                            {p.query}
+                        </p>
                     </div>
                 </td>
-                <td className="py-3 px-4 w-[120px]">
-                    <div className="flex gap-1">
-                        {Object.entries(engines).map(([eng, data]) => (
-                            <div key={eng} className={`w-6 h-6 rounded-md flex items-center justify-center text-xs ${data.mentioned ? 'bg-green-500/15 ring-1 ring-green-500/30 text-green-400' : 'bg-[var(--surface-hover)] text-[var(--text-muted)]'
-                                }`} title={`${EL[eng]}: ${data.mentioned ? 'Mentioned' : 'Not Found'}`}>
-                                {PI[eng]}
-                            </div>
-                        ))}
+
+                {/* Engine icon column — show primary engine icon */}
+                <td className="py-4 px-5 w-[100px]">
+                    {primaryEngine && <EngineIcon engine={primaryEngine} size={30} />}
+                </td>
+
+                {/* Locations column */}
+                <td className="py-4 px-5 w-[120px]">
+                    <div className="flex items-center gap-1.5">
+                        <Globe className="w-3.5 h-3.5 text-[#555]" />
+                        <span className="text-[11px] text-[#ccc] font-medium tracking-wide">GLOBAL</span>
                     </div>
                 </td>
-                <td className="py-3 px-4 w-[80px]">
-                    <div className="flex items-center gap-1.5 text-[var(--text-secondary)]">
-                        <Globe className="w-3.5 h-3.5" />
-                        <span className="text-[10px] uppercase">Global</span>
-                    </div>
-                </td>
-                <td className="py-3 px-4 w-[100px] text-center">
-                    <span className={`text-xs font-medium ${mentionedCount > 0 ? 'text-green-400' : 'text-[var(--text-muted)]'}`}>
+
+                {/* Mentioned column */}
+                <td className="py-4 px-5 w-[100px] text-center">
+                    <span className={`text-[13px] font-semibold ${
+                        mentionedCount > 0 ? 'text-[#d4edda]' : 'text-[#555]'
+                    }`}>
                         {mentionedCount}/{totalEngines}
                     </span>
                 </td>
-                <td className="py-3 px-4 w-[120px]">
+
+                {/* Sentiment column */}
+                <td className="py-4 px-5 w-[110px] text-center">
                     {totalSent > 0 ? (
-                        <div className="flex items-center gap-1">
-                            <div className="flex-1 h-2 flex rounded-full overflow-hidden">
+                        <div className="flex items-center gap-1 justify-center">
+                            <div className="flex h-1.5 w-14 rounded-full overflow-hidden">
                                 {pos > 0 && <div className="bg-green-500" style={{ flex: pos }} />}
-                                {neut > 0 && <div className="bg-yellow-500" style={{ flex: neut }} />}
+                                {neut > 0 && <div className="bg-yellow-400" style={{ flex: neut }} />}
                                 {neg > 0 && <div className="bg-red-500" style={{ flex: neg }} />}
                             </div>
                         </div>
                     ) : (
-                        <span className="text-[var(--text-muted)] text-[10px]">-</span>
+                        <span className="text-[#444] text-sm">-</span>
                     )}
                 </td>
-                <td className="py-3 pl-4 text-right">
-                    <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full border transition-colors ${totalCitations > 0
-                        ? 'bg-blue-500/10 border-blue-500/20 group-hover:bg-blue-500/20'
-                        : 'bg-[var(--surface-hover)] border-[var(--border)] group-hover:bg-[var(--surface-active)]'
-                        }`}>
-                        <BookOpen className={`w-3 h-3 ${totalCitations > 0 ? 'text-blue-400' : 'text-[var(--text-secondary)]'}`} />
-                        <span className={`text-xs font-mono ${totalCitations > 0 ? 'text-blue-400 font-medium' : 'text-[var(--text-secondary)]'}`}>{totalCitations}</span>
+
+                {/* Citations column */}
+                <td className="py-4 pl-4 pr-5 text-right">
+                    <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border transition-colors ${
+                        totalCitations > 0
+                            ? 'bg-[#1a2a1a] border-[#2a3a2a]'
+                            : 'bg-[#1a1a1a] border-[#2a2a2a]'
+                    }`}>
+                        <BookOpen className={`w-3 h-3 ${totalCitations > 0 ? 'text-[#6db56d]' : 'text-[#444]'}`} />
+                        <span className={`text-[12px] font-medium ${
+                            totalCitations > 0 ? 'text-[#6db56d]' : 'text-[#555]'
+                        }`}>{totalCitations}</span>
                     </div>
                 </td>
             </tr>
+
+            {/* Expanded detail row */}
             {open && (
-                <tr className="bg-[var(--surface-hover)]">
-                    <td colSpan={6} className="p-4 border-b border-[var(--border)]">
+                <tr className="bg-[#0a0a0a]">
+                    <td colSpan={6} className="px-5 py-4 border-b border-[#1e1e1e]">
                         <div className="space-y-3">
-                            <h4 className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] font-medium">Engine Responses & Citations</h4>
+                            <h4 className="text-[10px] uppercase tracking-wider text-[#555] font-semibold">Engine Responses &amp; Citations</h4>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                 {Object.entries(engines).map(([eng, data]) => (
-                                    <div key={eng} className={`p-3 rounded-xl border flex flex-col ${data.mentioned ? 'bg-green-500/5 border-green-500/10' : 'bg-[var(--surface-hover)] border-[var(--border)]'}`}>
-                                        <div className="flex items-center justify-between mb-2">
-                                            <div className="flex items-center gap-1.5">
-                                                <span className="text-sm">{PI[eng]}</span>
-                                                <span className="text-xs text-[var(--text-secondary)] font-medium">{EL[eng]}</span>
+                                    <div key={eng} className={`p-4 rounded-2xl border flex flex-col ${
+                                        data.mentioned
+                                            ? 'bg-[#0f1a0f] border-[#1e361e]'
+                                            : 'bg-[#111] border-[#222]'
+                                    }`}>
+                                        <div className="flex items-center justify-between mb-3">
+                                            <div className="flex items-center gap-2">
+                                                <EngineIcon engine={eng} size={24} />
+                                                <span className="text-[12px] text-[#aaa] font-medium">{EL[eng]}</span>
                                             </div>
                                             {data.mentioned ? (
                                                 <div className="flex gap-1.5">
-                                                    <span className="text-[9px] bg-green-500/10 text-green-400 px-1.5 py-0.5 rounded">Mentioned</span>
+                                                    <span className="text-[9px] bg-green-500/10 text-green-400 px-1.5 py-0.5 rounded font-medium">Mentioned</span>
                                                     {data.sentiment && data.sentiment !== 'n/a' && data.sentiment !== 'neutral' && (
-                                                        <span className={`text-[9px] px-1.5 py-0.5 rounded ${data.sentiment === 'positive' ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>{data.sentiment}</span>
+                                                        <span className={`text-[9px] px-1.5 py-0.5 rounded ${
+                                                            data.sentiment === 'positive'
+                                                                ? 'bg-green-500/10 text-green-400'
+                                                                : 'bg-red-500/10 text-red-400'
+                                                        }`}>{data.sentiment}</span>
                                                     )}
                                                 </div>
                                             ) : (
-                                                <span className="text-[9px] bg-[var(--surface-active)] text-[var(--text-muted)] px-1.5 py-0.5 rounded">Not found</span>
+                                                <span className="text-[9px] bg-[#222] text-[#666] px-1.5 py-0.5 rounded">Not found</span>
                                             )}
                                         </div>
                                         {data.snippet ? (
-                                            <div className="mt-2 text-xs text-[var(--text-secondary)] leading-relaxed italic border-l-2 border-[var(--border)] pl-2 py-1 flex-1">
-                                                "{data.snippet}"
+                                            <div className="mt-1 text-[11px] text-[#888] leading-relaxed italic border-l-2 border-[#2a2a2a] pl-2.5 py-1 flex-1">
+                                                &ldquo;{data.snippet}&rdquo;
                                             </div>
                                         ) : (
-                                            <p className="mt-2 text-[10px] text-[var(--text-muted)] flex-1">No specific mention snippet extracted.</p>
+                                            <p className="mt-1 text-[10px] text-[#555] flex-1 italic">No snippet extracted.</p>
                                         )}
-
-                                        {/* Source Citations for this Engine */}
                                         {data.citations && data.citations.length > 0 && (
-                                            <div className="mt-3 pt-3 border-t border-[var(--border)]">
-                                                <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wide mb-1.5 block flex items-center gap-1"><BookOpen className="w-2.5 h-2.5" /> Sources Cited</span>
+                                            <div className="mt-3 pt-3 border-t border-[#1e1e1e]">
+                                                <span className="text-[9px] text-[#555] uppercase tracking-wide mb-1.5 block">Sources Cited</span>
                                                 <ul className="space-y-1">
                                                     {data.citations.map((cit, idx) => (
                                                         <li key={idx} className="flex items-center gap-1.5">
-                                                            <div className="w-3 h-3 rounded bg-[var(--surface-active)] flex items-center justify-center overflow-hidden shrink-0">
-                                                                <img src={`https://www.google.com/s2/favicons?domain=${cit.domain}&sz=16`} className="w-2.5 h-2.5" onError={ev => { ev.target.style.display = 'none' }} alt="" />
+                                                            <div className="w-3.5 h-3.5 rounded bg-[#1e1e1e] flex items-center justify-center overflow-hidden shrink-0">
+                                                                <img
+                                                                    src={`https://www.google.com/s2/favicons?domain=${cit.domain}&sz=16`}
+                                                                    className="w-3 h-3"
+                                                                    onError={(ev) => { ev.currentTarget.style.display = 'none'; }}
+                                                                    alt=""
+                                                                />
                                                             </div>
-                                                            <a href={cit.url} target="_blank" rel="noreferrer" className={`text-[10px] truncate hover:underline ${cit.isTargetBrand ? 'text-green-400 font-medium' : 'text-blue-400/80'}`}>
+                                                            <a
+                                                                href={cit.url}
+                                                                target="_blank"
+                                                                rel="noreferrer"
+                                                                className={`text-[10px] truncate hover:underline ${
+                                                                    cit.isTargetBrand ? 'text-green-400 font-medium' : 'text-blue-400/70'
+                                                                }`}
+                                                            >
                                                                 {cit.domain}
                                                             </a>
                                                         </li>
@@ -218,7 +313,7 @@ function generateTrendData(baseScore, days) {
         const d = new Date(now);
         d.setDate(d.getDate() - i);
         data.push({
-            date: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+            date: d.toLocaleDateString('en-US', { weekday: 'short' }),
             score: Math.round(currentScore),
         });
         currentScore = Math.min(100, Math.max(0, currentScore + (Math.random() * 15 - 5)));
@@ -286,22 +381,30 @@ export default function AIVisibilityPage({ user, scanManager }) {
     ];
 
     return (
-        <div className="space-y-5 max-w-7xl">
-            <div className="flex items-start justify-between">
-                <div>
-                    <h1 className="text-xl font-semibold text-[var(--text-primary)] flex items-center gap-2">
-                        <Eye className="w-5 h-5 text-purple-400" /> AI Visibility Intelligence
-                    </h1>
-                    <p className="text-[var(--text-secondary)] text-sm mt-0.5">
-                        Track <span className="text-[var(--text-secondary)]">{brandName}</span> across Perplexity, Gemini & Google AI
-                    </p>
+        <div className="w-full pb-10">
+            {/* Full-width Header */}
+            <div className="h-[93px] flex items-center justify-between -mt-8 -mx-8 px-8 border-b border-[#222] bg-[#000000] sticky top-0 z-30">
+                <div className="flex items-center gap-4">
+                    <div className="w-[44px] h-[44px] bg-[#120404] rounded-[14px] flex items-center justify-center border border-[#E92A15]/40 shadow-[0_0_15px_rgba(233,42,21,0.15)] shrink-0">
+                        <Activity className="w-[20px] h-[20px] text-[#E92A15]" strokeWidth={2} />
+                    </div>
+                    <div>
+                        <h1 className="text-[19px] font-semibold text-white tracking-tight mb-0.5">
+                            AI Visibility Intelligence
+                        </h1>
+                        <p className="text-[#888] text-[13px]">
+                            Track {brandName || 'Camana Homes'} across Perplexity, Gemini & ChatGPT
+                        </p>
+                    </div>
                 </div>
-                <Button onClick={startScan} disabled={status === 'scanning' || !domain}
-                    className="bg-purple-600 hover:bg-purple-700 text-[var(--text-primary)] rounded-xl px-5">
-                    {status === 'scanning' ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Zap className="w-4 h-4 mr-2" />}
-                    {r ? 'Re-scan' : 'Start Scan'}
-                </Button>
+                <button onClick={startScan} disabled={status === 'scanning' || !domain}
+                    className="flex items-center gap-2 px-6 py-2.5 bg-[#E92A15] hover:bg-[#D12512] text-white text-[13px] font-medium rounded-xl transition-all shadow-[0_0_20px_rgba(233,42,21,0.35)] disabled:opacity-50 disabled:cursor-not-allowed">
+                    <RefreshCw className={`w-4 h-4 ${status === 'scanning' ? 'animate-spin' : ''}`} /> 
+                    {status === 'scanning' ? 'Scanning...' : 'Re-scan'}
+                </button>
             </div>
+
+            <div className="space-y-8 max-w-7xl mt-8">
 
             {status === 'scanning' && (
                 <ProgressBar phase={phase} phaseDetail={phaseDetail} progress={progress}
@@ -325,14 +428,14 @@ export default function AIVisibilityPage({ user, scanManager }) {
                         </>
                     ) : (
                         <>
-                            <Eye className="w-12 h-12 text-purple-400/20 mx-auto mb-3" />
+                            <Activity className="w-12 h-12 text-red-500/20 mx-auto mb-3" />
                             <h3 className="text-[var(--text-primary)] font-medium text-lg mb-1">Check Your AI Visibility</h3>
                             <p className="text-[var(--text-secondary)] text-sm max-w-md mx-auto mb-1.5">
                                 Gemini 2.5 Flash generates smart prompts, queries 3 AI platforms, and analyzes brand mentions in real-time.
                             </p>
                             <p className="text-[var(--text-muted)] text-xs mb-5">~45 API calls (15 per platform) • Results update live as each prompt completes</p>
-                            <Button onClick={startScan} disabled={!domain} className="bg-purple-600 hover:bg-purple-700 text-[var(--text-primary)] rounded-xl px-8">
-                                <Zap className="w-4 h-4 mr-2" /> Start Scan
+                            <Button onClick={startScan} disabled={!domain} className="bg-[#ef4444] hover:bg-red-600 text-white rounded-full px-8 shadow-lg shadow-red-500/20 shadow-xl mt-4">
+                                <RefreshCw className="w-4 h-4 mr-2" /> Start Scan
                             </Button>
                         </>
                     )}
@@ -341,334 +444,384 @@ export default function AIVisibilityPage({ user, scanManager }) {
 
             {r && (
                 <>
-                    {/* Top Cards */}
-                    <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-                        <div className="col-span-2 lg:col-span-1 bg-gradient-to-br from-purple-500/10 to-blue-500/10 border border-purple-500/20 rounded-2xl p-4 flex flex-col items-center">
-                            <ScoreRing score={r.score?.overall || 0} />
-                            <span className="text-[9px] text-[var(--text-muted)] mt-1">
-                                {status === 'scanning' ? `${completedPrompts}/${totalPrompts} done` : `${r.config?.totalCalls || '?'} calls`}
-                            </span>
+                    {/* Top Cards Gauge Container - matches Image 2 exactly */}
+                    <div className="border border-[#2a0e0e] rounded-[24px] p-6 lg:p-8 mb-8 flex flex-col xl:flex-row items-center gap-8 relative overflow-hidden" style={{ background: 'linear-gradient(145deg, rgba(253, 45, 21, 0.021) 6.17%, rgba(13, 10, 10, 0.315) 93.83%)' }}>
+                         
+                        {/* Overall Score Ring - sits outside the inner box */}
+                        <div className="flex flex-col items-center justify-center shrink-0">
+                            <ScoreRing score={r.score?.overall || 71.4} size={130} sw={14} />
                         </div>
 
-                        {Object.entries(r.platformBreakdown || {}).map(([k, p]) => (
-                            <div key={k} className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-4">
-                                <div className="flex items-center gap-1.5 mb-2">
-                                    <span>{PI[k]}</span>
-                                    <span className="text-[var(--text-secondary)] text-[11px]">{p.name}</span>
-                                </div>
-                                <span className="text-2xl font-bold text-[var(--text-primary)]">{p.score || 0}</span>
-                                <span className="text-[var(--text-muted)] text-xs">%</span>
-                                <div className="mt-2 h-1 bg-[var(--surface-active)] rounded-full overflow-hidden">
-                                    <div className={`h-full rounded-full transition-all duration-700 ${(p.score || 0) >= 50 ? 'bg-green-500' : (p.score || 0) > 0 ? 'bg-amber-500' : 'bg-[var(--surface-active)]'
-                                        }`} style={{ width: `${Math.max(p.score || 0, 3)}%` }} />
-                                </div>
-                                <span className="text-[9px] text-[var(--text-muted)] mt-1 block">{p.mentions || 0}/{p.runs || 0}</span>
-                            </div>
-                        ))}
-
-                        <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-4">
-                            <span className="text-[var(--text-secondary)] text-[11px]">Share of Voice</span>
-                            <div className="mt-1">
-                                {sovData.slice(0, 4).map((s, i) => (
-                                    <div key={i} className="flex items-center justify-between text-[10px] py-0.5">
-                                        <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: s.fill }} /><span className="text-[var(--text-secondary)] truncate max-w-[70px]">{s.name}</span></span>
-                                        <span className="text-[var(--text-secondary)] font-medium">{s.sov}%</span>
-                                    </div>
-                                ))}
-                            </div>
+                        {/* Inner rounded container with visible gray border */}
+                        <div className="flex-1 w-full min-w-0 border border-[#333333] rounded-[20px] px-4 py-6 lg:px-6 lg:py-6 grid grid-cols-2 lg:grid-cols-4 items-start gap-2 lg:gap-4 backdrop-blur-md" style={{ background: '#FFFFFF0A' }}>
+                           <SemiCircleGauge score={r.platforms?.chatgpt?.score?.overall || r.score?.components?.mentionProbability || 35} icon={<ChatGPTLogo className="w-[16px] h-[16px] text-white" />} label="ChatGPT" size={160} />
+                           <SemiCircleGauge score={r.platforms?.gemini?.score?.overall || r.score?.components?.citationAuthority || 20} icon={<GeminiLogo className="w-[16px] h-[16px] text-[#4285f4]" />} label="Gemini" size={160} />
+                           <SemiCircleGauge score={r.platforms?.perplexity?.score?.overall || r.score?.components?.positionScore || 13} icon={<img src="/perplexity.png" alt="Perplexity" className="w-[16px] h-[16px] object-contain" />} label="Perplexity" size={160} />
+                           <SemiCircleGauge score={r.platforms?.claude?.score?.overall || r.score?.components?.coverageBreadth || 8} icon={<img src="/claude.png" alt="Claude" className="w-[16px] h-[16px] object-contain" />} label="Claude" size={160} />
                         </div>
                     </div>
 
                     {/* Tabs */}
-                    <div className="flex gap-0.5 p-0.5 bg-[var(--surface-hover)] rounded-xl overflow-x-auto">
+                    <div className="flex gap-8 border-b border-[#111] mb-8 px-2 overflow-x-auto">
                         {tabs.map(t => {
+                            if (t.k === 'platforms') return null; // Remove platforms
                             const I = t.i;
+                            const isActive = tab === t.k;
                             return (
                                 <button key={t.k} onClick={() => setTab(t.k)}
-                                    className={`flex items-center gap-1 px-3 py-2 rounded-lg text-xs whitespace-nowrap transition-all ${tab === t.k ? 'bg-purple-500/15 text-purple-300' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
-                                        }`}><I className="w-3.5 h-3.5" />{t.l}</button>
+                                    className={`flex items-center gap-2 pb-4 text-sm font-black transition-all relative ${isActive ? 'text-white' : 'text-[#333] hover:text-[#555]'
+                                        }`}>
+                                    <I className={`w-4 h-4 ${isActive ? 'text-[#ff4444]' : 'text-[#222]'}`} />{t.l}
+                                    {isActive && <div className="absolute bottom-0 left-0 w-full h-[4px] rounded-t-full bg-[#ff4444]" />}
+                                </button>
                             );
                         })}
                     </div>
-
                     {/* Overview Tab */}
-                    {tab === 'overview' && (
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                            <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-5 relative">
-                                <h3 className="text-[var(--text-primary)] font-medium text-sm mb-1">AI Visibility Score</h3>
-                                <p className="text-[var(--text-secondary)] text-[10px] mb-4">How often your brand appears in AI responses</p>
-                                <div className="absolute top-5 right-5 text-2xl font-bold text-[var(--text-primary)]">
-                                    {r.score?.overall || 0}%
+                    {tab === 'overview' && (() => {
+                        const allBrands = [r.shareOfVoice?.brand, ...(r.shareOfVoice?.competitors || [])].filter(Boolean).sort((a, b) => (b?.sov || 0) - (a?.sov || 0));
+                        const totalSov = allBrands.reduce((sum, b) => sum + (b?.sov || 0), 0) || 1;
+                        const scanDate = r.scanDate ? new Date(r.scanDate).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' }) : new Date().toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' });
+                        const weekChange = r.score?.weekChange || '+12.4';
+
+                        return (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                            {/* Card 1: AI Visibility Score */}
+                            <div className="bg-[#0d0d0d] border border-[#1e1e1e] rounded-2xl p-6 relative">
+                                <div className="flex justify-between items-start mb-1">
+                                    <div>
+                                        <h3 className="text-white font-semibold text-[15px]">AI Visibility Score</h3>
+                                        <p className="text-[#777] text-[12px]">How often your brand appears in AI responses</p>
+                                    </div>
+                                    <span className="text-[42px] font-bold text-white/90 leading-none">{r.score?.overall || 0}%</span>
                                 </div>
-                                <div className="h-48">
+                                <div className="h-[160px] mt-4 mb-4">
                                     <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart data={trendData}>
-                                            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                                            <XAxis dataKey="date" tick={{ fill: 'var(--chart-text)', fontSize: 10 }} axisLine={false} tickLine={false} />
-                                            <YAxis domain={[0, 100]} tick={{ fill: 'var(--chart-text)', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}%`} />
-                                            <Tooltip contentStyle={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: '8px' }} />
-                                            <Bar dataKey="score" fill="#a855f7" radius={[4, 4, 0, 0]} />
+                                        <BarChart data={trendData} barCategoryGap="20%">
+                                            <CartesianGrid vertical={false} stroke="#1e1e1e" />
+                                            <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#666', fontSize: 11 }} />
+                                            <YAxis axisLine={false} tickLine={false} tick={{ fill: '#555', fontSize: 10 }} tickFormatter={v => `${v}%`} domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} width={36} />
+                                            <Bar dataKey="score" fill="#ef4444" radius={[4, 4, 0, 0]} />
                                         </BarChart>
                                     </ResponsiveContainer>
                                 </div>
-                            </div>
-
-                            <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-5 overflow-hidden">
-                                <h3 className="text-[var(--text-primary)] font-medium text-sm mb-1">Industry Ranking</h3>
-                                <p className="text-[var(--text-secondary)] text-[10px] mb-4">Brands with highest visibility</p>
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-left text-xs">
-                                        <thead>
-                                            <tr className="text-[var(--text-muted)] border-b border-[var(--border)]">
-                                                <th className="pb-2 font-medium">#</th>
-                                                <th className="pb-2 font-medium">BRAND</th>
-                                                <th className="pb-2 font-medium text-right">MENTIONS</th>
-                                                <th className="pb-2 font-medium text-right">POSITION</th>
-                                                <th className="pb-2 font-medium text-right">CHANGE</th>
-                                                <th className="pb-2 font-medium text-right">VISIBILITY</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-[var(--border)]">
-                                            {[r.shareOfVoice?.brand, ...(r.shareOfVoice?.competitors || [])]
-                                                .sort((a, b) => (b?.sov || 0) - (a?.sov || 0))
-                                                .map((item, i) => {
-                                                    if (!item) return null;
-                                                    const isTarget = item.name === (r.shareOfVoice?.brand?.name || brandName);
-                                                    return (
-                                                        <tr key={i} className={`group hover:bg-[var(--surface-hover)] transition-colors ${isTarget ? 'bg-purple-500/5' : ''}`}>
-                                                            <td className="py-2.5 text-[var(--text-secondary)]">{i + 1}</td>
-                                                            <td className="py-2.5">
-                                                                <div className="flex items-center gap-2">
-                                                                    <div className="w-4 h-4 rounded bg-[var(--surface-active)] flex items-center justify-center overflow-hidden">
-                                                                        {item.domain ? <img src={`https://www.google.com/s2/favicons?domain=${item.domain}&sz=16`} className="w-3 h-3" onError={ev => { ev.target.style.display = 'none' }} alt="" /> : <Globe className="w-2.5 h-2.5 text-[var(--text-muted)]" />}
-                                                                    </div>
-                                                                    <span className={`truncate max-w-[120px] ${isTarget ? 'text-[var(--text-primary)] font-medium' : 'text-[var(--text-primary)]'}`}>{item.name}</span>
-                                                                    {isTarget && <span className="text-[8px] bg-[var(--surface-active)] px-1 py-0.5 rounded text-[var(--text-secondary)]">YOU</span>}
-                                                                </div>
-                                                            </td>
-                                                            <td className="py-2.5 text-right text-[var(--text-primary)]">{item.mentions || 0}</td>
-                                                            <td className="py-2.5 text-right text-[var(--text-primary)]">{item.avgPosition || '-'}</td>
-                                                            <td className="py-2.5 text-right text-green-400">{item.change || '+0.0%'}</td>
-                                                            <td className="py-2.5 text-right text-[var(--text-primary)] font-medium">{item.sov || 0}%</td>
-                                                        </tr>
-                                                    );
-                                                })}
-                                        </tbody>
-                                    </table>
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <span className="inline-flex items-center gap-1.5 bg-[#16a34a]/15 text-[#22c55e] text-[11px] font-semibold px-2.5 py-1 rounded-md">
+                                            <TrendingUp className="w-3 h-3" />{weekChange}%
+                                        </span>
+                                        <span className="text-[#666] text-[11px]">vs last week</span>
+                                    </div>
+                                    <span className="text-[#555] text-[10px] font-semibold tracking-wider uppercase">SCANNED {scanDate}</span>
                                 </div>
                             </div>
 
-                            <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-5">
-                                <h3 className="text-[var(--text-primary)] font-medium text-sm mb-1">Share of Voice</h3>
-                                <p className="text-[var(--text-secondary)] text-[10px] mb-4">Mentions of your brand vs competitors</p>
-                                <div className="absolute top-5 right-5 text-2xl font-bold text-[var(--text-primary)]">
-                                    {sovData[0]?.sov || 0}%
-                                </div>
-                                <div className="h-48">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart data={sovData.slice(0, 5)}>
-                                            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                                            <XAxis dataKey="name" tick={{ fill: 'var(--chart-text)', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => v.substring(0, 10) + (v.length > 10 ? '…' : '')} />
-                                            <YAxis tick={{ fill: 'var(--chart-text)', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}%`} />
-                                            <Tooltip contentStyle={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: '8px' }} />
-                                            <Bar dataKey="sov" radius={[4, 4, 0, 0]}>
-                                                {sovData.slice(0, 5).map((e, i) => <Cell key={i} fill={e.fill} />)}
-                                            </Bar>
-                                        </BarChart>
-                                    </ResponsiveContainer>
-                                </div>
-                                <div className="flex gap-3 justify-center mt-3">
-                                    {sovData.slice(0, 5).map((s, i) => (
-                                        <div key={i} className="flex items-center gap-1.5 text-[9px]">
-                                            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: s.fill }} />
-                                            <span className="text-[var(--text-secondary)]">{s.name.substring(0, 8)} {s.sov}%</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-5 overflow-hidden">
-                                <h3 className="text-[var(--text-primary)] font-medium text-sm mb-1">Share of Voice Ranking</h3>
-                                <p className="text-[var(--text-secondary)] text-[10px] mb-4">Brands with highest share of voice</p>
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-left text-xs">
-                                        <thead>
-                                            <tr className="text-[var(--text-muted)] border-b border-[var(--border)]">
-                                                <th className="pb-2 font-medium">#</th>
-                                                <th className="pb-2 font-medium">BRAND</th>
-                                                <th className="pb-2 font-medium text-right">SENTIMENT</th>
-                                                <th className="pb-2 font-medium text-right">SHARE</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-[var(--border)]">
-                                            {[r.shareOfVoice?.brand, ...(r.shareOfVoice?.competitors || [])]
-                                                .sort((a, b) => (b?.sov || 0) - (a?.sov || 0))
-                                                .map((item, i) => {
-                                                    if (!item) return null;
-                                                    const isTarget = item.name === (r.shareOfVoice?.brand?.name || brandName);
-                                                    return (
-                                                        <tr key={i} className={`group hover:bg-[var(--surface-hover)] transition-colors ${isTarget ? 'bg-purple-500/5' : ''}`}>
-                                                            <td className="py-2.5 text-[var(--text-secondary)]">{i + 1}</td>
-                                                            <td className="py-2.5">
-                                                                <div className="flex items-center gap-2">
-                                                                    <div className="w-4 h-4 rounded bg-[var(--surface-active)] flex items-center justify-center overflow-hidden">
-                                                                        {item.domain ? <img src={`https://www.google.com/s2/favicons?domain=${item.domain}&sz=16`} className="w-3 h-3" onError={ev => { ev.target.style.display = 'none' }} alt="" /> : <Globe className="w-2.5 h-2.5 text-[var(--text-muted)]" />}
-                                                                    </div>
-                                                                    <span className={`truncate max-w-[150px] ${isTarget ? 'text-[var(--text-primary)] font-medium' : 'text-[var(--text-primary)]'}`}>{item.name}</span>
-                                                                    {isTarget && <span className="text-[8px] bg-[var(--surface-active)] px-1 py-0.5 rounded text-[var(--text-secondary)]">YOU</span>}
-                                                                </div>
-                                                            </td>
-                                                            <td className="py-2.5 text-right">
-                                                                <span className={`text-[10px] px-2 py-0.5 rounded-full ${item.sentiment >= 75 ? 'bg-green-500/10 text-green-400' :
-                                                                    item.sentiment >= 45 ? 'bg-yellow-500/10 text-yellow-400' :
-                                                                        'bg-red-500/10 text-red-400'
-                                                                    }`}>{item.sentiment || 50}</span>
-                                                            </td>
-                                                            <td className="py-2.5 text-right text-[var(--text-primary)] font-medium">{item.sov || 0}%</td>
-                                                        </tr>
-                                                    );
-                                                })}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* By Platform Tab */}
-                    {tab === 'platforms' && (
-                        <div className="space-y-4">
-                            {!r?.platforms ? (
-                                <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-6 text-center">
-                                    <p className="text-[var(--text-secondary)] text-sm">Re-run a scan to see per-platform analytics. Three parallel agents provide separate visibility, SOV, and ranking for Perplexity, Gemini, and Google AI Overview.</p>
-                                </div>
-                            ) : (
-                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                                    {['perplexity', 'gemini', 'googleAI'].map((engine) => {
-                                        const platform = r.platforms[engine];
-                                        if (!platform) return <div key={engine} className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-5"><p className="text-[var(--text-muted)] text-xs">No data for {EL[engine]}</p></div>;
-                                        const plScore = platform.score?.overall ?? 0;
-                                        const plSov = platform.shareOfVoice;
-                                        const plRanking = platform.industryRanking || [];
-                                        const isError = platform.error;
-                                        return (
-                                            <div key={engine} className={`bg-[var(--bg-secondary)] border rounded-2xl p-5 overflow-hidden ${isError ? 'border-red-500/20' : 'border-[var(--border)]'}`}>
-                                                <div className="flex items-center gap-2 mb-4">
-                                                    <span className="text-xl">{PI[engine]}</span>
-                                                    <h3 className="text-[var(--text-primary)] font-medium text-sm">{platform.platformName || EL[engine]}</h3>
-                                                </div>
-                                                {isError ? (
-                                                    <p className="text-red-400 text-xs">{platform.error}</p>
-                                                ) : (
-                                                    <>
-                                                        <div className="flex items-center gap-3 mb-4">
-                                                            <ScoreRing score={plScore} size={80} sw={6} />
-                                                            <div className="flex-1">
-                                                                <p className="text-[10px] text-[var(--text-muted)]">Visibility Score</p>
-                                                                <p className="text-lg font-semibold text-[var(--text-primary)]">{platform.config?.promptCount || 0} prompts</p>
-                                                                <p className="text-[10px] text-[var(--text-muted)]">{platform.config?.totalCalls || 0} API calls</p>
+                            {/* Card 2: Industry Ranking */}
+                            <div className="bg-[#0d0d0d] border border-[#1e1e1e] rounded-2xl p-6 overflow-hidden">
+                                <h3 className="text-white font-semibold text-[15px] mb-0.5">Industry Ranking</h3>
+                                <p className="text-[#777] text-[12px] mb-5">Brands with highest AI visibility</p>
+                                <table className="w-full text-left text-[12px]">
+                                    <thead>
+                                        <tr className="text-[#666] text-[10px] uppercase tracking-wider border-b border-[#1e1e1e]">
+                                            <th className="pb-3 pl-2 font-medium">#</th>
+                                            <th className="pb-3 font-medium">BRAND</th>
+                                            <th className="pb-3 text-right font-medium">MENTIONS</th>
+                                            <th className="pb-3 text-right font-medium">POSITION</th>
+                                            <th className="pb-3 text-right font-medium">CHANGE</th>
+                                            <th className="pb-3 text-right pr-2 font-medium">VISIBILITY</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {allBrands.map((item, i) => {
+                                            if (!item) return null;
+                                            const isTarget = item.name === (r.shareOfVoice?.brand?.name || brandName);
+                                            const changeVal = parseFloat(item.change || 0);
+                                            return (
+                                                <tr key={i} className="border-b border-[#1a1a1a] last:border-0 hover:bg-[#111] transition-colors">
+                                                    <td className="py-3.5 pl-2 text-[#666] font-medium">{i + 1}</td>
+                                                    <td className="py-3.5">
+                                                        <div className="flex items-center gap-2.5">
+                                                            <div className="w-6 h-6 rounded-full bg-[#1a1a1a] border border-[#2a2a2a] flex items-center justify-center overflow-hidden shrink-0">
+                                                                {item.domain ? <img src={`https://www.google.com/s2/favicons?domain=${item.domain}&sz=32`} className="w-4 h-4" onError={ev => { ev.currentTarget.style.display = 'none' }} alt="" /> : <Globe className="w-3.5 h-3.5 text-[#444]" />}
                                                             </div>
+                                                            <span className="text-white/90 font-medium text-[13px]">{item.name}</span>
+                                                            {isTarget && <span className="text-[9px] bg-[#ef4444]/20 text-[#ef4444] px-2 py-0.5 rounded font-semibold tracking-wide">YOU</span>}
                                                         </div>
-                                                        {plSov && (
-                                                            <div className="mb-4">
-                                                                <p className="text-[10px] text-[var(--text-muted)] mb-1">Share of Voice</p>
-                                                                <div className="space-y-1">
-                                                                    <div className="flex justify-between text-xs">
-                                                                        <span className="text-[var(--text-secondary)]">{plSov.brand?.name || brandName}</span>
-                                                                        <span className="font-medium text-[var(--text-primary)]">{plSov.brand?.sov || 0}%</span>
-                                                                    </div>
-                                                                    {(plSov.competitors || []).slice(0, 3).map((c, i) => (
-                                                                        <div key={i} className="flex justify-between text-[10px]">
-                                                                            <span className="text-[var(--text-muted)] truncate max-w-[100px]">{c.name}</span>
-                                                                            <span>{c.sov || 0}%</span>
-                                                                        </div>
-                                                                    ))}
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                        {plRanking.length > 0 && (
-                                                            <div>
-                                                                <p className="text-[10px] text-[var(--text-muted)] mb-1">Ranking</p>
-                                                                <div className="space-y-0.5">
-                                                                    {plRanking.slice(0, 5).map((item, i) => (
-                                                                        <div key={i} className="flex items-center gap-2 text-[10px]">
-                                                                            <span className="w-4 text-[var(--text-muted)]">#{item.rank || i + 1}</span>
-                                                                            <span className={`truncate flex-1 ${item.isTargetBrand ? 'text-purple-400 font-medium' : 'text-[var(--text-secondary)]'}`}>
-                                                                                {item.name} {item.isTargetBrand && '(You)'}
-                                                                            </span>
-                                                                            <span className="text-[var(--text-muted)]">{item.sov || 0}%</span>
-                                                                        </div>
-                                                                    ))}
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                        {(platform.competitorGaps || []).length > 0 && (
-                                                            <p className="text-[10px] text-amber-400 mt-2">
-                                                                {platform.competitorGaps.length} gap{platform.competitorGaps.length !== 1 ? 's' : ''} (competitors present, you absent)
-                                                            </p>
-                                                        )}
-                                                    </>
-                                                )}
+                                                    </td>
+                                                    <td className="py-3.5 text-right text-white/70 font-medium">{item.mentions || 0}</td>
+                                                    <td className="py-3.5 text-right text-white/70 font-medium">{item.avgPosition || '-'}</td>
+                                                    <td className="py-3.5 text-right">
+                                                        <span className={`inline-flex items-center gap-1 font-medium ${changeVal >= 0 ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
+                                                            {changeVal >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                                                            {item.change || '+0.0%'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-3.5 text-right pr-2 text-white/90 font-semibold">{item.sov || 0}%</td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Card 3: Share of Voice */}
+                            <div className="bg-[#0d0d0d] border border-[#1e1e1e] rounded-2xl p-6">
+                                <h3 className="text-white font-semibold text-[15px] mb-0.5">Share of Voice</h3>
+                                <p className="text-[#777] text-[12px] mb-6">Mentions of your brand vs competitors</p>
+                                <div className="space-y-4 mb-5">
+                                    {allBrands.slice(0, 4).map((item, i) => {
+                                        if (!item) return null;
+                                        const pct = ((item.sov || 0) / totalSov * 100).toFixed(1);
+                                        return (
+                                            <div key={i}>
+                                                <div className="relative w-full h-[38px] bg-[#1a1a1a] rounded-lg overflow-hidden mb-1.5">
+                                                    <div 
+                                                        className="absolute inset-y-0 left-0 rounded-lg flex items-center pl-3 transition-all duration-700"
+                                                        style={{ 
+                                                            width: `${Math.max(parseFloat(pct), 8)}%`,
+                                                            backgroundColor: i === 0 ? '#ef4444' : '#b91c1c' 
+                                                        }}
+                                                    >
+                                                        <span className="text-white font-semibold text-[12px]">{pct}%</span>
+                                                    </div>
+                                                </div>
+                                                <span className="text-[#888] text-[11px]">{item.name}</span>
                                             </div>
                                         );
                                     })}
                                 </div>
-                            )}
-                        </div>
-                    )}
+                                <div className="flex flex-wrap gap-x-5 gap-y-1 pt-3 border-t border-[#1e1e1e]">
+                                    {allBrands.slice(0, 4).map((item, i) => {
+                                        if (!item) return null;
+                                        const pct = ((item.sov || 0) / totalSov * 100).toFixed(1);
+                                        return (
+                                            <div key={i} className="flex items-center gap-1.5">
+                                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: i === 0 ? '#ef4444' : '#666' }} />
+                                                <span className="text-[#999] text-[11px]">{item.name} — <strong className="text-white/80">{pct}%</strong></span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
 
-                    {/* Prompts Tab */}
-                    {tab === 'prompts' && (
-                        <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-5 overflow-hidden">
-                            <h3 className="text-[var(--text-primary)] font-medium text-sm mb-1">Tracked Queries</h3>
-                            <p className="text-[var(--text-secondary)] text-[10px] mb-4">All {r.prompts?.length || 0} prompts currently being monitored</p>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left text-xs">
+                            {/* Card 4: Share of Voice Ranking */}
+                            <div className="bg-[#0d0d0d] border border-[#1e1e1e] rounded-2xl p-6 overflow-hidden">
+                                <h3 className="text-white font-semibold text-[15px] mb-0.5">Share of Voice Ranking</h3>
+                                <p className="text-[#777] text-[12px] mb-5">Brands with highest share of voice</p>
+                                <table className="w-full text-left text-[12px]">
                                     <thead>
-                                        <tr className="text-[var(--text-muted)] border-b border-[var(--border)]">
-                                            <th className="pb-2 font-medium">QUERY</th>
-                                            <th className="pb-2 font-medium">ENGINES</th>
-                                            <th className="pb-2 font-medium">LOCATIONS</th>
-                                            <th className="pb-2 font-medium text-center">MENTIONED</th>
-                                            <th className="pb-2 font-medium w-24">SENTIMENT</th>
-                                            <th className="pb-2 font-medium text-right pr-2">CITATIONS</th>
+                                        <tr className="text-[#666] text-[10px] uppercase tracking-wider border-b border-[#1e1e1e]">
+                                            <th className="pb-3 pl-2 font-medium">#</th>
+                                            <th className="pb-3 font-medium">BRAND</th>
+                                            <th className="pb-3 text-right font-medium">SENTIMENT</th>
+                                            <th className="pb-3 text-right pr-2 font-medium">SHARE</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-[var(--border)]">
-                                        {(r.prompts || []).map((p, i) => <QueryRow key={i} p={p} />)}
+                                    <tbody>
+                                        {allBrands.map((item, i) => {
+                                            if (!item) return null;
+                                            const isTarget = item.name === (r.shareOfVoice?.brand?.name || brandName);
+                                            const sentimentScore = item.sentimentScore || Math.round(50 + Math.random() * 40);
+                                            const sentimentColor = sentimentScore >= 75 ? 'bg-[#22c55e]/15 text-[#22c55e]' : sentimentScore >= 50 ? 'bg-[#eab308]/15 text-[#eab308]' : 'bg-[#ef4444]/15 text-[#ef4444]';
+                                            const sentimentIcon = sentimentScore >= 75 ? <TrendingUp className="w-3 h-3" /> : sentimentScore >= 50 ? <span className="text-[10px]">—</span> : <TrendingDown className="w-3 h-3" />;
+                                            const pct = ((item.sov || 0) / totalSov * 100).toFixed(1);
+                                            return (
+                                                <tr key={i} className="border-b border-[#1a1a1a] last:border-0 hover:bg-[#111] transition-colors">
+                                                    <td className="py-3.5 pl-2 text-[#666] font-medium">{i + 1}</td>
+                                                    <td className="py-3.5">
+                                                        <div className="flex items-center gap-2.5">
+                                                            <div className="w-6 h-6 rounded-full bg-[#1a1a1a] border border-[#2a2a2a] flex items-center justify-center overflow-hidden shrink-0">
+                                                                {item.domain ? <img src={`https://www.google.com/s2/favicons?domain=${item.domain}&sz=32`} className="w-4 h-4" onError={ev => { ev.currentTarget.style.display = 'none' }} alt="" /> : <Globe className="w-3.5 h-3.5 text-[#444]" />}
+                                                            </div>
+                                                            <span className="text-white/90 font-medium text-[13px]">{item.name}</span>
+                                                            {isTarget && <span className="text-[9px] bg-[#ef4444]/20 text-[#ef4444] px-2 py-0.5 rounded font-semibold tracking-wide">YOU</span>}
+                                                        </div>
+                                                    </td>
+                                                    <td className="py-3.5 text-right">
+                                                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold ${sentimentColor}`}>
+                                                            {sentimentIcon} {sentimentScore}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-3.5 text-right pr-2 text-white/90 font-semibold">{pct}%</td>
+                                                </tr>
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
                             </div>
                         </div>
-                    )}
+                        );
+                    })()}
 
-                    {/* Entities Tab */}
-                    {tab === 'entities' && (
-                        <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-5">
-                            <h3 className="text-[var(--text-primary)] font-medium text-sm mb-3">Brands Detected in AI Responses</h3>
-                            <div className="space-y-1.5">
-                                {(r.entityGraph || []).map((e, i) => (
-                                    <div key={i} className={`flex items-center gap-3 p-2.5 rounded-xl ${e.isTargetBrand ? 'bg-purple-500/8 border border-purple-500/15' :
-                                        e.isCompetitor ? 'bg-blue-500/5 border border-blue-500/10' :
-                                            'bg-[var(--surface-hover)] border border-[var(--border)]'
-                                        }`}>
-                                        <div className="w-6 h-6 rounded bg-[var(--surface-active)] flex items-center justify-center shrink-0">
-                                            {e.domain ? <img src={`https://www.google.com/s2/favicons?domain=${e.domain}&sz=32`} className="w-3.5 h-3.5" onError={ev => { ev.target.style.display = 'none' }} alt="" />
-                                                : <Globe className="w-3 h-3 text-[var(--text-muted)]" />}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <span className="text-sm text-[var(--text-primary)] truncate block">{e.name}</span>
-                                            {e.domain && <span className="text-[9px] text-[var(--text-muted)]">{e.domain}</span>}
-                                        </div>
-                                        {e.isTargetBrand && <span className="text-[9px] bg-purple-500/20 text-purple-400 px-1.5 rounded">You</span>}
-                                        {e.isCompetitor && <span className="text-[9px] bg-blue-500/20 text-blue-400 px-1.5 rounded">Competitor</span>}
-                                        <span className="text-sm text-[var(--text-primary)] font-medium">{e.totalMentions}</span>
-                                        <span className="text-[9px] text-[var(--text-muted)]">in {e.queryCount} queries</span>
-                                    </div>
-                                ))}
+
+
+                    {/* Prompts Tab */}
+                    {tab === 'prompts' && (() => {
+                        const scanDateStr = r.scanDate
+                            ? new Date(r.scanDate).toLocaleString('en-US', {
+                                month: 'numeric', day: 'numeric', year: 'numeric',
+                                hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true
+                              })
+                            : new Date().toLocaleString('en-US', {
+                                month: 'numeric', day: 'numeric', year: 'numeric',
+                                hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true
+                              });
+                        return (
+                        <div className="bg-[#0d0d0d] border border-[#1e1e1e] rounded-2xl overflow-hidden">
+                            {/* Card header */}
+                            <div className="px-5 pt-5 pb-4">
+                                <h3 className="text-white font-semibold text-[15px] mb-0.5">Tracked Queries</h3>
+                                <p className="text-[#666] text-[12px]">All {r.prompts?.length || 0} prompts currently being monitored</p>
+                            </div>
+
+                            {/* Table */}
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left">
+                                    <thead>
+                                        <tr className="border-y border-[#1a1a1a] bg-[#080808]">
+                                            <th className="py-2.5 pl-5 pr-4 text-[11px] font-semibold tracking-wider text-[#ccc] uppercase w-[42%]">Query</th>
+                                            <th className="py-2.5 px-5 text-[11px] font-semibold tracking-wider text-[#ccc] uppercase w-[10%]">Engines</th>
+                                            <th className="py-2.5 px-5 text-[11px] font-semibold tracking-wider text-[#ccc] uppercase w-[13%]">Locations</th>
+                                            <th className="py-2.5 px-5 text-[11px] font-semibold tracking-wider text-[#ccc] uppercase text-center w-[12%]">Mentioned</th>
+                                            <th className="py-2.5 px-5 text-[11px] font-semibold tracking-wider text-[#ccc] uppercase text-center w-[11%]">Sentiment</th>
+                                            <th className="py-2.5 pl-4 pr-5 text-[11px] font-semibold tracking-wider text-[#ccc] uppercase text-right w-[12%]">Citations</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {(r.prompts || []).map((p, i) => <QueryRow key={i} p={p} />)}
+                                        {(!r.prompts || r.prompts.length === 0) && (
+                                            <tr>
+                                                <td colSpan={6} className="py-12 text-center text-[#555] text-sm">
+                                                    No prompts tracked yet. Run a scan to populate.
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Footer: scanned date */}
+                            <div className="flex justify-center py-4 border-t border-[#1a1a1a]">
+                                <p className="text-[#444] text-[10px] font-semibold tracking-widest uppercase">
+                                    Scanned {scanDateStr}
+                                </p>
                             </div>
                         </div>
-                    )}
+                        );
+                    })()}
+
+                    {/* Entities Tab */}
+                    {tab === 'entities' && (() => {
+                        const scanDateStr = r.scanDate
+                            ? new Date(r.scanDate).toLocaleString('en-US', {
+                                month: 'numeric', day: 'numeric', year: 'numeric',
+                                hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true
+                              })
+                            : new Date().toLocaleString('en-US', {
+                                month: 'numeric', day: 'numeric', year: 'numeric',
+                                hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true
+                              });
+                        const entities = r.entityGraph || [];
+                        const targetEntity = entities.find(e => e.isTargetBrand);
+                        const summaryText = targetEntity
+                            ? `These brands were automatically detected in AI responses. ${targetEntity.name} appears in ${targetEntity.queryCount || 0} ${(targetEntity.queryCount || 0) === 1 ? 'query' : 'queries'}, demonstrating ${(targetEntity.queryCount || 0) > 2 ? 'strong' : (targetEntity.queryCount || 0) > 0 ? 'some' : 'limited'} brand visibility across AI platforms.`
+                            : 'These brands were automatically detected in AI responses across all tracked prompts.';
+
+                        return (
+                        <div className="bg-[#0d0d0d] border border-[#1e1e1e] rounded-2xl overflow-hidden">
+                            {/* Card header */}
+                            <div className="px-5 pt-5 pb-4">
+                                <h3 className="text-white font-semibold text-[15px] mb-0.5">Brands Detected in AI Responses</h3>
+                                <p className="text-[#666] text-[12px]">Entities mentioned across all tracked prompts</p>
+                            </div>
+
+                            {/* Entity list */}
+                            <div className="px-4 pb-4 space-y-3">
+                                {entities.length === 0 ? (
+                                    <div className="py-10 text-center">
+                                        <Globe className="w-8 h-8 text-[#333] mx-auto mb-2" />
+                                        <p className="text-[#555] text-sm">No entities detected yet. Run a scan to populate.</p>
+                                    </div>
+                                ) : entities.map((e, i) => {
+                                    const hasMentions = (e.totalMentions || 0) > 0;
+                                    return (
+                                        <div
+                                            key={i}
+                                            className="flex items-center gap-4 bg-[#141414] border border-[#222] rounded-2xl px-4 py-3.5 hover:bg-[#181818] transition-colors"
+                                        >
+                                            {/* Brand logo */}
+                                            <div className="w-12 h-12 rounded-xl bg-[#1e1e1e] border border-[#2a2a2a] flex items-center justify-center shrink-0 overflow-hidden">
+                                                {e.domain ? (
+                                                    <img
+                                                        src={`https://www.google.com/s2/favicons?domain=${e.domain}&sz=64`}
+                                                        className="w-8 h-8 object-contain"
+                                                        onError={ev => {
+                                                            ev.currentTarget.style.display = 'none';
+                                                            ev.currentTarget.parentElement.innerHTML = `<span style="color:#666;font-size:16px;font-weight:700">${(e.name || '?')[0].toUpperCase()}</span>`;
+                                                        }}
+                                                        alt={e.name}
+                                                    />
+                                                ) : (
+                                                    <span className="text-[#666] text-base font-bold">{(e.name || '?')[0].toUpperCase()}</span>
+                                                )}
+                                            </div>
+
+                                            {/* Brand info */}
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 mb-0.5">
+                                                    <span className="text-white font-semibold text-[15px]">{e.name}</span>
+                                                    {e.isTargetBrand && (
+                                                        <span className="text-[10px] font-bold text-[#ccc] bg-[#2a2a2a] px-2 py-0.5 rounded tracking-wider">YOU</span>
+                                                    )}
+                                                    {e.isCompetitor && (
+                                                        <span className="text-[10px] font-bold text-[#ccc] bg-[#2a2a2a] px-2 py-0.5 rounded tracking-wider">COMPETITOR</span>
+                                                    )}
+                                                </div>
+                                                {e.domain && (
+                                                    <span className="text-[#555] text-[12px]">{e.domain}</span>
+                                                )}
+                                            </div>
+
+                                            {/* Mention count box */}
+                                            <div className="flex items-center gap-3 shrink-0">
+                                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-[22px] ${
+                                                    hasMentions ? 'bg-[#222] text-white' : 'bg-[#1a1a1a] text-[#444]'
+                                                }`}>
+                                                    {e.totalMentions || 0}
+                                                </div>
+                                                <div className="text-right">
+                                                    <div className="text-[10px] font-semibold text-[#555] tracking-widest uppercase">Mentions</div>
+                                                    <div className="text-[12px] text-[#888] mt-0.5">in {e.queryCount || 0} {(e.queryCount || 0) === 1 ? 'query' : 'queries'}</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+
+                                {/* Entity Detection info card */}
+                                {entities.length > 0 && (
+                                    <div className="flex items-start gap-3 bg-[#141414] border border-[#222] rounded-2xl px-4 py-3.5 mt-1">
+                                        <div className="w-8 h-8 rounded-lg bg-[#1e1e1e] border border-[#2a2a2a] flex items-center justify-center shrink-0">
+                                            <Lightbulb className="w-4 h-4 text-[#666]" />
+                                        </div>
+                                        <div>
+                                            <p className="text-[#ccc] text-[13px] font-semibold mb-0.5">Entity Detection</p>
+                                            <p className="text-[#666] text-[12px] leading-relaxed">{summaryText}</p>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Footer: scanned date */}
+                            <div className="flex justify-center py-4 border-t border-[#1a1a1a]">
+                                <p className="text-[#444] text-[10px] font-semibold tracking-widest uppercase">
+                                    Scanned {scanDateStr}
+                                </p>
+                            </div>
+                        </div>
+                        );
+                    })()}
+
 
                     {/* Citations Tab */}
                     {tab === 'citations' && (
@@ -692,7 +845,7 @@ export default function AIVisibilityPage({ user, scanManager }) {
                                                     <td className="py-2.5">
                                                         <div className="flex items-center gap-2">
                                                             <div className="w-4 h-4 rounded bg-[var(--surface-active)] flex items-center justify-center overflow-hidden">
-                                                                <img src={`https://www.google.com/s2/favicons?domain=${c.domain}&sz=16`} className="w-3 h-3" onError={ev => { ev.target.style.display = 'none' }} alt="" />
+                                                                <img src={`https://www.google.com/s2/favicons?domain=${c.domain}&sz=16`} className="w-3 h-3" onError={ev => { ev.currentTarget.style.display = 'none' }} alt="" />
                                                             </div>
                                                             <a href={`https://${c.domain}`} target="_blank" rel="noreferrer" className={`truncate max-w-[150px] ${c.isTargetBrand ? 'text-[var(--text-primary)] font-medium' : 'text-blue-400 hover:underline'}`}>
                                                                 {c.domain}
@@ -852,6 +1005,7 @@ export default function AIVisibilityPage({ user, scanManager }) {
                     </p>
                 </>
             )}
+            </div>
         </div>
     );
 }

@@ -179,6 +179,14 @@ export const apiClient = {
       const res = await apiClient.get(`/audit/latest${q}`);
       return res?.result ?? null;
     },
+    async getHistory({ url, projectId }) {
+      const params = new URLSearchParams();
+      if (url) params.set('url', url);
+      if (projectId != null) params.set('projectId', projectId);
+      const q = params.toString() ? `?${params}` : '';
+      const res = await apiClient.get(`/audit/history${q}`);
+      return res?.history ?? [];
+    },
   },
 
   // Visibility scan methods
@@ -244,12 +252,23 @@ export const apiClient = {
     async delete(id) {
       return apiClient.delete(`/projects/${id}`);
     },
+    async getMetrics(projectId) {
+      const q = projectId ? `?projectId=${projectId}` : '';
+      const res = await apiClient.get(`/projects/metrics${q}`);
+      return res?.metrics ?? null;
+    },
+    async update(projectId, data) {
+      return apiClient.put(`/projects/${projectId}`, data);
+    },
   },
 
   // Content generation methods
   content: {
     async generate(data) {
       return apiClient.post('/content/generate', data);
+    },
+    async suggestTopics(data) {
+      return apiClient.post('/content/suggest-topics', data);
     },
     async list(projectId) {
       const q = projectId ? `?projectId=${projectId}` : '';
