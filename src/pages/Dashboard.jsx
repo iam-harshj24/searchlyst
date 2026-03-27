@@ -9,6 +9,7 @@ import AuditHealthPage from '@/components/dashboard/AuditHealthPage';
 import SentimentGeoPage from '@/components/dashboard/SentimentGeoPage';
 import CompetitiveIntelPage from '@/components/dashboard/CompetitiveIntelPage';
 import PromptIntelPage from '@/components/dashboard/PromptIntelPage';
+import ActionsPage from '@/components/dashboard/ActionsPage';
 import AgentPage from '@/components/dashboard/AgentPage';
 import Sidebar from '@/components/dashboard/Sidebar';
 import OnboardingFlow from '@/components/dashboard/OnboardingFlow';
@@ -333,7 +334,7 @@ function DashboardInner() {
 
         switch (activeTab) {
             case 'overview':
-                return <OverviewPage domains={projects} activeProject={activeProject} onAddDomain={() => setShowAddProjectOnboarding(true)} onTabChange={setActiveTab} userRole={userRole} user={contextUser} scanManager={scanManager} />;
+                return <OverviewPage domains={projects} projects={projects} activeProject={activeProject} onAddDomain={() => setShowAddProjectOnboarding(true)} onTabChange={setActiveTab} userRole={userRole} user={contextUser} scanManager={scanManager} />;
             case 'topic-discovery':
                 return <TopicDiscoveryPage onTabChange={setActiveTab} user={contextUser} />;
             case 'content-studio':
@@ -348,8 +349,10 @@ function DashboardInner() {
                 return <AuditHealthPage user={contextUser} activeProject={activeProject} />;
             case 'prompt-intel':
                 return <PromptIntelPage user={contextUser} />;
+            case 'actions':
+                return <ActionsPage user={contextUser} onTabChange={setActiveTab} />;
             default:
-                return <OverviewPage domains={projects} activeProject={activeProject} onAddDomain={() => setShowAddProjectOnboarding(true)} onTabChange={setActiveTab} userRole={userRole} user={contextUser} scanManager={scanManager} />;
+                return <OverviewPage domains={projects} projects={projects} activeProject={activeProject} onAddDomain={() => setShowAddProjectOnboarding(true)} onTabChange={setActiveTab} userRole={userRole} user={contextUser} scanManager={scanManager} />;
         }
     };
 
@@ -368,24 +371,8 @@ function DashboardInner() {
                 onLogout={handleLogout}
                 scanActive={scanManager.scanStatus === 'scanning'}
             />
-            <div className="flex-1 min-h-0 overflow-auto">
-                {activeProject && activeTab !== 'brand-hub' && activeTab !== 'agent' && (
-                    <div className="border-b border-[var(--border)] px-6 py-3 flex items-center gap-3">
-                        <div className="w-6 h-6 bg-red-600/20 rounded-md flex items-center justify-center">
-                            <span className="text-red-400 text-[10px] font-bold">{activeProject.name?.charAt(0)?.toUpperCase()}</span>
-                        </div>
-                        <span className="text-[var(--text-primary)] text-sm font-medium">{activeProject.name}</span>
-                        <span className="text-[var(--text-muted)] text-xs">&middot;</span>
-                        <span className="text-[var(--text-muted)] text-xs">{activeProject.url}</span>
-                        {scanManager.scanStatus === 'scanning' && (
-                            <div className="ml-auto flex items-center gap-2 text-xs text-purple-400 animate-pulse">
-                                <div className="w-2 h-2 rounded-full bg-purple-500 scan-pulse" />
-                                Scanning...
-                            </div>
-                        )}
-                    </div>
-                )}
-                <div className="p-6 page-transition">
+            <div className="flex-1 min-h-0 overflow-auto bg-[#000000]">
+                <div className="p-8 page-transition">
                     {renderContent()}
                 </div>
             </div>

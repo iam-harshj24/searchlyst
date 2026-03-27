@@ -64,6 +64,11 @@ model Project {
   language        String?
   reach           String?
   competitors     String?
+  target_audience String?
+  social_linkedin String?
+  social_instagram String?
+  social_substack String?
+  social_reddit   String?
   created_at      DateTime?       @default(now())
   updated_at      DateTime?       @default(now())
   user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
