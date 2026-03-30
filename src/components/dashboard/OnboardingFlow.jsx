@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { apiClient } from '@/api/apiClient';
 import { setDashboardUser } from '@/pages/Dashboard';
+import { useAuth } from '@/lib/AuthContext';
 
 const companySizes = [
     { id: '1-10', label: '1-10', icon: '👤' },
@@ -74,6 +75,7 @@ const stepMeta = [
 ];
 
 export default function OnboardingFlow({ userId, onComplete, mode = 'firstTime' }) {
+    const { signInAnonymously, isAuthenticated } = useAuth();
     const isAddProject = mode === 'addProject';
     const [step, setStep] = useState(1);
     const [testimonialIndex, setTestimonialIndex] = useState(0);
@@ -184,6 +186,10 @@ export default function OnboardingFlow({ userId, onComplete, mode = 'firstTime' 
             source, onboarded: true,
             createdAt: new Date().toISOString()
         };
+
+        if (!isAuthenticated && !userId) {
+            await signInAnonymously();
+        }
 
         const triggerAutoScan = async (ud) => {
             try {

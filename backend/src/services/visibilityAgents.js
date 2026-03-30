@@ -12,7 +12,7 @@
 
 import { queryPerplexity, queryGemini, queryGoogleAI } from './infaticaService.js';
 import { generatePromptMatrixForPlatform, generateFallbackPrompts } from './promptIntelligence.js';
-import { fastParse } from './responseParser.js';
+import { parseResponse } from './responseParser.js';
 import {
     computeVisibilityScore,
     computeShareOfVoice,
@@ -31,16 +31,16 @@ async function queryWithTimeout(engine, query, country, timeoutMs = 60000) {
             (async () => {
                 switch (engine) {
                     case 'perplexity': return await queryPerplexity(query);
-                    case 'gemini': return await queryGemini(query);
-                    case 'googleAI': return await queryGoogleAI(query, country);
-                    default: return null;
+                    case 'gemini':     return await queryGemini(query);
+                    case 'googleAI':   return await queryGoogleAI(query, country);
+                    default:           return null;
                 }
             })(),
             new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), timeoutMs)),
         ]);
     } catch (err) {
         console.warn(`[${engine}] Query failed: ${err.message}`);
-        return null;
+        return null;  // null signals failed/timeout
     }
 }
 
@@ -67,20 +67,28 @@ export async function runPlatformAgent(agentConfig) {
     const allRuns = [];
 
     const fetchPromises = prompts.map(async (prompt) => {
-        const html = await queryWithTimeout(engine, prompt.core, country, 60000);
+        // infaticaResult is { text, sources, html } or null on failure
+        const infaticaResult = await queryWithTimeout(engine, prompt.core, country, 60000);
 
-        const runData = html
-            ? fastParse(html, brandName, domain, competitors, engine)
-            : { brandMentioned: false, brandEntity: null, entities: [], citations: [], textLength: 0 };
+        let runData;
+        if (infaticaResult) {
+            runData = parseResponse(infaticaResult, brandName, domain, competitors, engine);
+        } else {
+            runData = {
+                brandMentioned: false, brandEntity: null, entities: [],
+                citations: [], citationStats: { total: 0, byCategory: {}, brandCited: false, competitorsCited: [] },
+                textLength: 0, rawText: null,
+            };
+        }
 
         const run = {
-            promptId: prompt.id,
+            promptId: prompt.id,   // use id directly e.g. "P01"
             query: prompt.core,
             engine,
-            promptWeight: prompt.weight,
+            promptWeight: prompt.weight ?? 1.0,
             category: prompt.category,
             intent: prompt.intent,
-            strategicValue: prompt.strategicValue,
+            strategicValue: prompt.strategicValue ?? 10,
             ...runData,
         };
 
@@ -101,16 +109,34 @@ export async function runPlatformAgent(agentConfig) {
 
     const promptMap = {};
     for (const run of allRuns) {
-        const key = run.promptId ?? run.query;
+        const key = run.promptId;  // guaranteed to be 'P01'–'P20'
         if (!promptMap[key]) {
-            promptMap[key] = { promptId: run.promptId, query: run.query, category: run.category, intent: run.intent, engines: {} };
+            promptMap[key] = {
+                promptId: run.promptId,
+                query: run.query,
+                category: run.category,
+                intent: run.intent,
+                engines: {},
+            };
         }
+        const hasResponse = !!(run.rawText && run.rawText.trim().length > 0);
         promptMap[key].engines[engine] = {
             mentioned: run.brandMentioned,
             snippet: run.brandEntity?.snippet || null,
-            sentiment: run.brandEntity?.sentiment || 'n/a',
+            sentiment: run.brandEntity?.sentiment || 'neutral',
             positionRank: run.brandEntity?.positionRank || null,
-            citations: run.citations?.slice(0, 3).map(c => ({ domain: c.domain, url: c.url, isTargetBrand: c.isTargetBrand })) || [],
+            citations: (run.citations || []).slice(0, 10).map(c => ({
+                domain: c.domain,
+                url: c.url,
+                title: c.title || '',
+                category: c.category || 'other',
+                citationPosition: c.citationPosition,
+                isTargetBrand: c.isTargetBrand,
+                isCompetitor: c.isCompetitor,
+            })),
+            rawText: run.rawText || null,
+            citationCount: (run.citations || []).length,
+            status: hasResponse ? '✓ Response received' : '⚠ No response',
         };
     }
 
