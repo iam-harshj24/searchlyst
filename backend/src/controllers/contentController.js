@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { prisma } from '../lib/prisma.js';
+import { getPromptForPlatform } from '../services/contentPrompts.js';
 
 let genAI = null;
 function getModel() {
@@ -60,41 +61,7 @@ export async function generateArticle(req, res) {
         const userId = req.user.id;
 
         const model = getModel();
-        const prompt = `ROLE: You are an expert content strategist who creates articles that AI search engines love to cite.
-
-TASK: Write a comprehensive, authoritative article about: "${topic}"
-
-CONTEXT:
-- Brand: ${brandName || 'N/A'} (${domain || 'N/A'})
-- Industry: ${industry || 'General'}
-- Target Platform: ${platform || 'Blog'}
-${keywords ? `- Target Keywords: ${keywords}` : ''}
-
-ARTICLE REQUIREMENTS:
-1. Write 800-1200 words of high-quality, factual content
-2. Include specific data points, statistics, and examples (with realistic source attributions)
-3. Structure with clear H2 and H3 headings for scanability
-4. Include a "Key Takeaways" section at the top (3-5 bullet points)
-5. Add inline citations in [Source: Name] format throughout
-6. Include a "Sources & References" section at the bottom with 5-8 credible sources
-7. Use natural language that AI engines prefer to cite
-8. Include FAQ section (3-4 questions) at the end — this is critical for AI search visibility
-9. Mention "${brandName || 'the brand'}" naturally 2-3 times where relevant
-10. Optimize for E-E-A-T (Experience, Expertise, Authoritativeness, Trustworthiness)
-
-OUTPUT FORMAT:
-Return a JSON object:
-{
-    "title": "Article Title",
-    "metaDescription": "SEO meta description (150-160 chars)",
-    "keyTakeaways": ["point1", "point2", "point3"],
-    "content": "Full markdown article content with ## headings, inline [Source: X] citations",
-    "faq": [{"q": "Question?", "a": "Answer"}],
-    "sources": [{"name": "Source Name", "url": "https://example.com", "description": "What this source covers"}],
-    "suggestedKeywords": ["keyword1", "keyword2"],
-    "wordCount": 1000,
-    "readingTime": "5 min"
-}`;
+        const prompt = getPromptForPlatform({ platform, topic, brandName, industry, domain, keywords });
 
         const result = await model.generateContent(prompt);
         const text = result.response.text().trim();

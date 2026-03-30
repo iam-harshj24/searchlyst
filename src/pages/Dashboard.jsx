@@ -184,6 +184,7 @@ function useScanManager(user) {
         setScanPhase('initializing'); setScanPhaseDetail('Starting...');
         setScanProgress({ completed: 0, total: 0 }); setCompletedPrompts(0); setTotalPrompts(0);
         localStorage.removeItem(storageKey);
+        localStorage.removeItem(`searchlyst_visibility_${user?.domain || 'default'}`); // Also clear legacy key
         try {
             const comps = (user?.competitors || []).map(c => typeof c === 'string' ? { name: c, domain: c } : c);
             const res = await apiClient.visibility.startScan({
