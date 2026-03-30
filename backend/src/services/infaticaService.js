@@ -97,7 +97,8 @@ export async function queryPerplexity(query) {
     const res = await fetch(`${INFATICA_BASE}/perplexity`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-API-Key': getApiKey() },
-        body: JSON.stringify({ query }),
+        body: JSON.stringify({ query, nocache: true }),
+        cache: 'no-store',
     });
 
     if (!res.ok) {
@@ -114,7 +115,8 @@ export async function queryGemini(query) {
     const res = await fetch(`${INFATICA_BASE}/gemini`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-API-Key': getApiKey() },
-        body: JSON.stringify({ query }),
+        body: JSON.stringify({ query, nocache: true }),
+        cache: 'no-store',
     });
 
     if (!res.ok) {
@@ -136,8 +138,10 @@ export async function queryGoogleAI(query, country) {
             url,
             mode: 'render',
             results: 10,
+            nocache: true,
             ...(country && { country }),
         }),
+        cache: 'no-store',
     });
 
     if (!res.ok) {

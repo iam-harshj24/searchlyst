@@ -44,6 +44,61 @@ const SUBCAT_META = {
     'Links': { icon: Link, key: 'content' },
 };
 
+// Parameters that are evaluated for each category
+const SUBCAT_CHECKS = {
+    'Technical SEO': [
+        'HTTPS Security & Mixed Content',
+        'XML Sitemaps Presence & Coverage',
+        'Robots Meta noindex Directives',
+        'Canonical Tags',
+        'Viewport & Mobile Usability',
+        'Hreflang Tags (Multilingual Targeting)',
+        'URL Structure & Context',
+        'Schema.org Presence'
+    ],
+    'On-Page SEO': [
+        'Title Tags (Missing, Duplicate, Length)',
+        'Meta Descriptions (Missing, Duplicate, Length)',
+        'H1 Tags & Heading Level Hierarchy',
+        'Image Alt Text Accessibility',
+        'Internal Linking Density',
+        'Open Graph & Twitter Cards',
+        'Thin Content Detection',
+        'Duplicate & Near-Duplicate Content'
+    ],
+    'GEO Signals': [
+        'Entity Definition (Organization/Person Schema)',
+        'About Page Depth & Presence',
+        'Author Bios & Signals on Content',
+        'E-E-A-T Trust Signals (Contact, Terms, Privacy)',
+        'Brand Schema Integration'
+    ],
+    'Schema & Structure': [
+        'BreadcrumbList Navigation',
+        'Structured Data Validation',
+        'Organization & LocalBusiness Schema',
+        'Person Schema'
+    ],
+    'FAQs & Q&A': [
+        'FAQPage Schema',
+        'Q&A Topic Depth'
+    ],
+    'Content Quality': [
+        'Content Uniqueness',
+        'Readability & Word Count',
+        'Actionable formatting (Lists, Tables)'
+    ],
+    'Performance': [
+        'Resource size indicators',
+        'Render-blocking checks inferred from meta tags'
+    ],
+    'Links': [
+        'Internal Link Distribution',
+        'Outbound (External) Links Count',
+        'Orphan Pages (0 Inbound Links)'
+    ]
+};
+
 const SEVERITY = {
     critical: { label: 'CRITICAL', badge: 'bg-[#1a0505] text-red-400 border border-red-500/30', icon: XCircle, iconColor: 'text-red-400' },
     high: { label: 'HIGH', badge: 'bg-[#1a0d00] text-orange-400 border border-orange-500/30', icon: AlertTriangle, iconColor: 'text-orange-400' },
@@ -586,6 +641,30 @@ export default function AuditHealthPage({ user, activeProject }) {
                                             );
                                         })()}
                                     </div>
+
+                                    {/* Evaluated Checks Expandable */}
+                                    {(() => {
+                                        const checks = SUBCAT_CHECKS[selectedSubcat] || [];
+                                        if (checks.length === 0) return null;
+                                        return (
+                                            <div className="mt-4 pt-4 border-t border-[#1a1a1a]">
+                                                <details className="group">
+                                                    <summary className="flex items-center gap-2 cursor-pointer list-none text-[12px] font-medium text-[#777] hover:text-[#aaa] transition-colors">
+                                                        <ChevronRight className="w-4 h-4 transition-transform group-open:rotate-90" />
+                                                        What parameters are evaluated? ({checks.length} checks)
+                                                    </summary>
+                                                    <div className="mt-3 pl-6 pr-4 space-y-1.5 pb-2">
+                                                        {checks.map((check, idx) => (
+                                                            <div key={idx} className="flex items-start gap-2">
+                                                                <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 text-[#22c55e]/50 shrink-0" />
+                                                                <span className="text-[11px] text-[#888]">{check}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </details>
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
 
                                 {/* Issue rows */}
