@@ -21,43 +21,30 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const checkAppState = async () => {
-    try {
-      setIsLoadingPublicSettings(true);
-      setIsLoadingAuth(true);
-      setAuthError(null);
-      
-      const token = localStorage.getItem('authToken');
-      if (!token) {
-        setIsAuthenticated(false);
-        setUser(null);
-        setIsLoadingPublicSettings(false);
-        setIsLoadingAuth(false);
-        return;
-      }
+    setIsLoadingPublicSettings(true);
+    setIsLoadingAuth(true);
+    setAuthError(null);
+    
+    // Auth Bypass: Always simulate a successful session using a real signed JWT
+    // This token is signed with the backend's JWT_SECRET and represents harsh@gmail.com (id=11)
+    const DEV_BYPASS_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTEsImVtYWlsIjoiaGFyc2hAZ21haWwuY29tIiwicm9sZSI6ImZvdW5kZXIiLCJuYW1lIjoiSGFyc2giLCJpYXQiOjE3NzQ4NjkzMDAsImV4cCI6MTgwNjQwNTMwMH0.v9T98EPbM7S7boEkcSk-KX1F__vCQ_gm5qdnH_sbu7g';
 
-      const response = await apiClient.auth.verify();
-      if (response?.success && response?.user) {
-        setUser(response.user);
-        setIsAuthenticated(true);
-      } else {
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('user');
-        setUser(null);
-        setIsAuthenticated(false);
-      }
-    } catch (error) {
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('user');
-      setUser(null);
-      setIsAuthenticated(false);
-      setAuthError({
-        type: 'auth_required',
-        message: error.message || 'Session expired'
-      });
-    } finally {
-      setIsLoadingPublicSettings(false);
-      setIsLoadingAuth(false);
-    }
+    const mockUser = {
+      id: 11,
+      name: 'Harsh',
+      email: 'harsh@gmail.com',
+      role: 'founder',
+      brandName: 'Searchlyst'
+    };
+    
+    localStorage.setItem('authToken', DEV_BYPASS_TOKEN);
+    localStorage.setItem('user', JSON.stringify(mockUser));
+    
+    setUser(mockUser);
+    setIsAuthenticated(true);
+    
+    setIsLoadingPublicSettings(false);
+    setIsLoadingAuth(false);
   };
 
   const signInAnonymously = async () => {

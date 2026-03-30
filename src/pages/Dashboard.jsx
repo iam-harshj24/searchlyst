@@ -251,7 +251,19 @@ function DashboardInner() {
         const loadInitialData = async () => {
             const userData = getDashboardUser(authUser?.id);
             const loadedProjects = await fetchProjects();
-            const isOnboarded = loadedProjects.length > 0 || userData?.onboarded;
+            
+            // Check localStorage for any previously completed onboarding as a fallback
+            // This handles the case where API is unavailable or token is being set up
+            const localOnboarded = userData?.onboarded === true;
+            const localHasProjects = (() => {
+                try {
+                    const saved = localStorage.getItem('searchlyst_projects');
+                    const parsed = saved ? JSON.parse(saved) : [];
+                    return Array.isArray(parsed) && parsed.length > 0;
+                } catch { return false; }
+            })();
+
+            const isOnboarded = loadedProjects.length > 0 || localOnboarded || localHasProjects;
 
             if (!isOnboarded) {
                 setShowOnboarding(true);
@@ -269,6 +281,12 @@ function DashboardInner() {
 
             if (loadedProjects.length > 0) {
                 setActiveProject(loadedProjects[0]);
+            } else if (localHasProjects) {
+                // Hydrate from localStorage projects as fallback
+                try {
+                    const saved = JSON.parse(localStorage.getItem('searchlyst_projects'));
+                    if (saved?.length > 0) setActiveProject(saved[0]);
+                } catch {}
             }
 
             setLoading(false);

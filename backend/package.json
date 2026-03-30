@@ -25,9 +25,11 @@
   "license": "ISC",
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
+    "@prisma/adapter-better-sqlite3": "^7.6.0",
     "@prisma/adapter-pg": "^7.4.0",
     "@prisma/client": "^5.22.0",
     "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^12.8.0",
     "bull": "^4.16.5",
     "cheerio": "^1.2.0",
     "cors": "^2.8.5",

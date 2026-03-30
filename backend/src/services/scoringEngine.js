@@ -178,11 +178,11 @@ export function computeShareOfVoice(allRunResults, brandName, competitors) {
         name: e.name,
         sov: totalWeight > 0 ? Math.round((e.weightedScore / totalWeight) * 1000) / 10 : 0,
         mentions: e.mentions,
-        avgPosition: e.positionCount > 0 
-            ? (Math.round((e.totalPosition / e.positionCount) * 10) / 10).toFixed(1) 
+        avgPosition: e.positionCount > 0
+            ? (Math.round((e.totalPosition / e.positionCount) * 10) / 10).toFixed(1)
             : '-',
         sentiment: e.mentions > 0 ? Math.round((e.sentimentSum / e.mentions) * 100) : 50,
-        change: `+${(Math.random() * 15).toFixed(1)}%`, // Mock for now
+        change: null, // Computed from real historical data when available
     });
 
     const brandData = entityScores[brandName] 
