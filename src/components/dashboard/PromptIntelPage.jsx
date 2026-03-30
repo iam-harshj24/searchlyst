@@ -18,9 +18,24 @@ function getVisibilityData(domain, projectId) {
     } catch { return null; }
 }
 
+// Use promptsWithEngines (new 4-engine data) falling back to prompts
+function getPromptsFromScan(scanData) {
+    if (!scanData) return [];
+    // promptsWithEngines is the new field from the multi-engine backend
+    if (Array.isArray(scanData.promptsWithEngines) && scanData.promptsWithEngines.length > 0) {
+        return scanData.promptsWithEngines;
+    }
+    // Fallback to old prompts field
+    if (Array.isArray(scanData.prompts) && scanData.prompts.length > 0) {
+        return scanData.prompts;
+    }
+    return [];
+}
+
 const ENGINE_CONFIG = {
     perplexity: {
         label: 'Perplexity',
+        color: '#a78bfa',
         icon: ({ size = 18 }) => (
             <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
                 <path d="M12 2L4 7v10l8 5 8-5V7L12 2z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
@@ -31,6 +46,7 @@ const ENGINE_CONFIG = {
     },
     gemini: {
         label: 'Gemini',
+        color: '#60a5fa',
         icon: ({ size = 18 }) => (
             <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
                 <path d="M12 2v20M2 12h20" stroke="currentColor" strokeWidth="1.5" />
@@ -40,9 +56,19 @@ const ENGINE_CONFIG = {
     },
     chatgpt: {
         label: 'ChatGPT',
+        color: '#34d399',
         icon: ({ size = 18 }) => (
             <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
                 <path d="M22.28 9.28a5.76 5.76 0 00-.62-4.73 5.84 5.84 0 00-6.29-2.8A5.77 5.77 0 0011.07 0a5.84 5.84 0 00-5.57 4.05 5.78 5.78 0 00-3.86 2.8 5.84 5.84 0 00.72 6.85 5.76 5.76 0 00.62 4.73 5.84 5.84 0 006.29 2.8A5.77 5.77 0 0012.93 24a5.84 5.84 0 005.58-4.05 5.78 5.78 0 003.85-2.8 5.84 5.84 0 00-.72-6.85l.64-.02zM12.93 22.5l-2.79-1.01 4.63-2.67v-6.52l1.96 1.13v5.4z" />
+            </svg>
+        ),
+    },
+    googleAI: {
+        label: 'Google AI',
+        color: '#fb923c',
+        icon: ({ size = 18 }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 11h8.533C20.84 14.843 17.3 18 12 18c-3.315 0-6-2.685-6-6s2.685-6 6-6c1.59 0 3.042.624 4.12 1.64L17.88 5.88C16.307 4.406 14.261 3.5 12 3.5 7.305 3.5 3.5 7.305 3.5 12S7.305 20.5 12 20.5c5.796 0 9.5-4.082 9.5-9.5 0-.548-.05-1.082-.144-1.6H12v1.6z" />
             </svg>
         ),
     },
@@ -50,10 +76,11 @@ const ENGINE_CONFIG = {
 
 function getEngineConfig(eng) {
     return ENGINE_CONFIG[eng] || {
-        label: eng.charAt(0).toUpperCase() + eng.slice(1),
+        label: eng === 'googleAI' ? 'Google AI' : (eng.charAt(0).toUpperCase() + eng.slice(1)),
+        color: '#aaa',
         icon: ({ size = 18 }) => (
             <div style={{ width: size, height: size }} className="flex items-center justify-center text-[10px] font-bold">
-                {eng.slice(0, 2).toUpperCase()}
+                {eng === 'googleAI' ? 'G' : eng.slice(0, 2).toUpperCase()}
             </div>
         ),
     };
@@ -557,7 +584,7 @@ const ExpandedPromptCard = ({ prompt, brandName }) => {
 const PLATFORM_COLORS = {
     perplexity: { bg: '#1e1230', border: '#6d28d9', text: '#a78bfa', dot: '#8b5cf6' },
     gemini:     { bg: '#101824', border: '#1d4ed8', text: '#60a5fa', dot: '#3b82f6' },
-    googleAI:   { bg: '#0d1f17', border: '#059669', text: '#34d399', dot: '#10b981' },
+    googleAI:   { bg: '#1a1008', border: '#b45309', text: '#fb923c', dot: '#f97316' },
     chatgpt:    { bg: '#0d1f17', border: '#059669', text: '#34d399', dot: '#10b981' },
 };
 
@@ -814,7 +841,15 @@ export default function PromptIntelPage({ user }) {
     const [searchQuery, setSearchQuery] = useState('');
 
     const scanData = useMemo(() => getVisibilityData(user?.domain, user?.projectId), [user?.domain, user?.projectId]);
-    const promptsData = useMemo(() => scanData?.prompts?.length ? scanData.prompts : [], [scanData]);
+    const promptsData = useMemo(() => getPromptsFromScan(scanData), [scanData]);
+
+    // Count unique engines across all prompts
+    const allEngines = useMemo(() => {
+        if (!promptsData.length) return [];
+        const engineSet = new Set();
+        promptsData.forEach(p => Object.keys(p.engines || {}).forEach(e => engineSet.add(e)));
+        return Array.from(engineSet);
+    }, [promptsData]);
 
     const filteredPrompts = promptsData.filter(p => !searchQuery || p.query?.toLowerCase().includes(searchQuery.toLowerCase()));
 
@@ -888,10 +923,11 @@ export default function PromptIntelPage({ user }) {
                 ) : viewTab === 'prompts' ? (
                     <div className="space-y-5 animate-in fade-in slide-in-from-bottom-2 duration-500">
                         {/* ── KPI Cards ── */}
-                        <div className="grid grid-cols-3 gap-4">
+                        <div className="grid grid-cols-4 gap-4">
                             <div className="bg-[#0B0B0B] border border-[#1e1e1e] rounded-2xl p-5">
                                 <p className="text-[#555] text-[10px] font-bold uppercase tracking-[0.14em] mb-3">TOTAL PROMPTS</p>
                                 <p className="text-white text-[38px] font-bold tracking-tight leading-none">{totalPrompts}</p>
+                                <p className="text-[#444] text-[11px] mt-1.5">× {allEngines.length} engines = {totalPrompts * allEngines.length} total calls</p>
                             </div>
                             <div className="bg-[#0B0B0B] border border-[#1e1e1e] rounded-2xl p-5">
                                 <p className="text-[#555] text-[10px] font-bold uppercase tracking-[0.14em] mb-3">BRAND VISIBLE IN</p>
@@ -899,10 +935,27 @@ export default function PromptIntelPage({ user }) {
                                     <span className="text-[#22c55e]">{mentionedCount}</span>
                                     <span className="text-[#555] text-[18px] ml-1">/ {totalPrompts}</span>
                                 </p>
+                                <p className="text-[#444] text-[11px] mt-1.5">prompts across all engines</p>
                             </div>
                             <div className="bg-[#0B0B0B] border border-[#1e1e1e] rounded-2xl p-5">
                                 <p className="text-[#555] text-[10px] font-bold uppercase tracking-[0.14em] mb-3">TOTAL SOURCES</p>
                                 <p className="text-white text-[38px] font-bold tracking-tight leading-none">{totalSources}</p>
+                                <p className="text-[#444] text-[11px] mt-1.5">citations captured</p>
+                            </div>
+                            <div className="bg-[#0B0B0B] border border-[#1e1e1e] rounded-2xl p-5">
+                                <p className="text-[#555] text-[10px] font-bold uppercase tracking-[0.14em] mb-3">AI ENGINES</p>
+                                <div className="flex items-center gap-2 mt-1">
+                                    {allEngines.map(eng => {
+                                        const cfg = getEngineConfig(eng);
+                                        const Icon = cfg.icon;
+                                        return (
+                                            <div key={eng} className="w-8 h-8 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a] flex items-center justify-center shrink-0" title={cfg.label} style={{ color: cfg.color }}>
+                                                <Icon size={14} />
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                                <p className="text-[#444] text-[11px] mt-2">{allEngines.length} active LLMs tracked</p>
                             </div>
                         </div>
 

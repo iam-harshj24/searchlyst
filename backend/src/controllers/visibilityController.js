@@ -39,18 +39,27 @@ function buildOverviewFromPlatforms(platformResults, allRuns, brandName, domain,
     const industryRanking = computeIndustryRanking(allRuns, brandName, competitors);
     const competitorGaps = computeCompetitorGap(allRuns, brandName, competitors);
 
+    // Build prompt map grouped by promptId — all engines under one entry
     const promptMap = {};
     for (const run of allRuns) {
-        const key = `${run.promptId}-${run.engine}`;
+        const key = run.promptId;
         if (!promptMap[key]) {
             promptMap[key] = { promptId: run.promptId, query: run.query, category: run.category, intent: run.intent, engines: {} };
         }
+        const hasResponse = !!(run.rawText?.trim?.().length > 0);
         promptMap[key].engines[run.engine] = {
-            mentioned: run.brandMentioned,
-            snippet: run.brandEntity?.snippet || null,
-            sentiment: run.brandEntity?.sentiment || 'n/a',
-            positionRank: run.brandEntity?.positionRank || null,
-            citations: (run.citations || []).slice(0, 3).map(c => ({ domain: c?.domain, url: c?.url, isTargetBrand: c?.isTargetBrand })) || [],
+            mentioned:      run.brandMentioned,
+            snippet:        run.brandEntity?.snippet || null,
+            sentiment:      run.brandEntity?.sentiment || 'neutral',
+            positionRank:   run.brandEntity?.positionRank || null,
+            rawText:        run.rawText || null,
+            citationCount:  (run.citations || []).length,
+            status:         hasResponse ? '✓ Response received' : '⚠ No response',
+            citations: (run.citations || []).slice(0, 10).map(c => ({
+                domain: c?.domain, url: c?.url, title: c?.title || '',
+                category: c?.category || 'other',
+                isTargetBrand: c?.isTargetBrand, isCompetitor: c?.isCompetitor,
+            })),
         };
     }
     const prompts = Object.values(promptMap);
@@ -77,9 +86,10 @@ function buildOverviewFromPlatforms(platformResults, allRuns, brandName, domain,
         industryRanking,
         perEngine,
         platformBreakdown: {
-            perplexity: { name: 'Perplexity', ...(perEngine.perplexity || { score: 0, runs: 0, mentions: 0 }) },
-            gemini: { name: 'Gemini', ...(perEngine.gemini || { score: 0, runs: 0, mentions: 0 }) },
-            googleAI: { name: 'Google AI Overview', ...(perEngine.googleAI || { score: 0, runs: 0, mentions: 0 }) },
+            chatgpt:   { name: 'ChatGPT',             ...(perEngine.chatgpt   || { score: 0, runs: 0, mentions: 0 }) },
+            gemini:    { name: 'Gemini',              ...(perEngine.gemini    || { score: 0, runs: 0, mentions: 0 }) },
+            perplexity:{ name: 'Perplexity',          ...(perEngine.perplexity|| { score: 0, runs: 0, mentions: 0 }) },
+            googleAI:  { name: 'Google AI Overview',  ...(perEngine.googleAI  || { score: 0, runs: 0, mentions: 0 }) },
         },
         perCategory,
         sentiment,
@@ -89,7 +99,7 @@ function buildOverviewFromPlatforms(platformResults, allRuns, brandName, domain,
         entityGraph,
         citationSummary: sourceDomains.topDomains,
         competitorGaps,
-        config: { promptCount, engines: 3, totalCalls },
+        config: { promptCount, engines: 4, totalCalls },
         completedPrompts: promptCount,
         totalPrompts: promptCount,
     };
@@ -106,13 +116,13 @@ async function executeScan(scanId, brandName, domain, industry, competitors, loc
     try {
         await prisma.visibilityScan.update({
             where: { id: scanId },
-            data: { progress: JSON.stringify({ phase: 'agents_running', detail: '3 parallel agents (Perplexity, Gemini, Google AI) generating prompts & querying Infatica...', completed: 0, total: 0 }) }
+            data: { progress: JSON.stringify({ phase: 'agents_running', detail: 'Sending 20 prompts to ChatGPT, Gemini, Perplexity & Google AI simultaneously...', completed: 0, total: 0 }) }
         });
 
         const agentConfig = { brandName, domain, industry, competitors: expandedCompetitors, location, country, language };
 
-        const progressByEngine = { perplexity: 0, gemini: 0, googleAI: 0 };
-        const { platformResults, allRuns, errors } = await runAllAgentsInParallel(agentConfig, (p) => {
+        const progressByEngine = { chatgpt: 0, gemini: 0, perplexity: 0, googleAI: 0 };
+        const { platformResults, allRuns, errors, promptList } = await runAllAgentsInParallel(agentConfig, (p) => {
             if (p?.engine) progressByEngine[p.engine] = p.completed;
         });
 
@@ -121,7 +131,7 @@ async function executeScan(scanId, brandName, domain, industry, competitors, loc
 
         await prisma.visibilityScan.update({
             where: { id: scanId },
-            data: { allRuns: JSON.stringify(allRuns), progress: JSON.stringify({ phase: 'querying', detail: `Perplexity ${progressByEngine.perplexity}, Gemini ${progressByEngine.gemini}, Google AI ${progressByEngine.googleAI} completed`, completed: completedCalls, total: totalCalls }) }
+            data: { allRuns: JSON.stringify(allRuns), progress: JSON.stringify({ phase: 'querying', detail: `ChatGPT ${progressByEngine.chatgpt}, Gemini ${progressByEngine.gemini}, Perplexity ${progressByEngine.perplexity}, Google AI ${progressByEngine.googleAI} prompts completed`, completed: completedCalls, total: totalCalls }) }
         });
 
         await prisma.visibilityScan.update({
@@ -167,10 +177,12 @@ async function executeScan(scanId, brandName, domain, industry, competitors, loc
             completedPrompts: overview.completedPrompts,
             totalPrompts: overview.totalPrompts,
             platforms: {
+                chatgpt:    platformResults.chatgpt,
                 perplexity: platformResults.perplexity,
-                gemini: platformResults.gemini,
-                googleAI: platformResults.googleAI,
+                gemini:     platformResults.gemini,
+                googleAI:   platformResults.googleAI,
             },
+            promptsWithEngines: promptList || overview.prompts,
             agentErrors: errors.length > 0 ? errors : undefined,
         };
 
