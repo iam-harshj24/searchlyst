@@ -11,50 +11,55 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-welcomeEmailQueue.process(async (job) => {
-  const { entryIds } = job.data;
-  const entries = await waitlistRepository.findByIds(entryIds);
-  const total = entries.length;
-  let sent = 0;
-  let failed = 0;
-  const errors = [];
+// Only wire up if the queue is available (Redis running)
+if (welcomeEmailQueue) {
+  welcomeEmailQueue.process(async (job) => {
+    const { entryIds } = job.data;
+    const entries = await waitlistRepository.findByIds(entryIds);
+    const total = entries.length;
+    let sent = 0;
+    let failed = 0;
+    const errors = [];
 
-  for (let i = 0; i < entries.length; i++) {
-    const entry = entries[i];
-    try {
-      const result = await sendWelcomeEmail({
-        full_name: entry.full_name,
-        email: entry.email,
-      });
-      if (result.success) {
-        sent++;
-        await waitlistRepository.markWelcomeEmailSent(entry.id);
-      } else {
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i];
+      try {
+        const result = await sendWelcomeEmail({
+          full_name: entry.full_name,
+          email: entry.email,
+        });
+        if (result.success) {
+          sent++;
+          await waitlistRepository.markWelcomeEmailSent(entry.id);
+        } else {
+          failed++;
+          errors.push({ email: entry.email, message: result.error || 'Failed to send' });
+        }
+      } catch (err) {
         failed++;
-        errors.push({ email: entry.email, message: result.error || 'Failed to send' });
+        errors.push({ email: entry.email, message: err.message || 'Failed to send' });
+        console.error('Welcome email error for', entry.email, err);
       }
-    } catch (err) {
-      failed++;
-      errors.push({ email: entry.email, message: err.message || 'Failed to send' });
-      console.error('Welcome email error for', entry.email, err);
+
+      await job.progress({ sent, failed, errors, total });
+
+      if (i < entries.length - 1) {
+        await sleep(COOLDOWN_MS);
+      }
     }
 
-    await job.progress({ sent, failed, errors, total });
+    return { sent, failed, errors, total };
+  });
 
-    if (i < entries.length - 1) {
-      await sleep(COOLDOWN_MS);
-    }
-  }
+  welcomeEmailQueue.on('error', (err) => {
+    console.error('Welcome email queue error:', err);
+  });
 
-  return { sent, failed, errors, total };
-});
-
-welcomeEmailQueue.on('error', (err) => {
-  console.error('Welcome email queue error:', err);
-});
-
-welcomeEmailQueue.on('failed', (job, err) => {
-  console.error('Welcome email job failed:', job.id, err);
-});
+  welcomeEmailQueue.on('failed', (job, err) => {
+    console.error('Welcome email job failed:', job.id, err);
+  });
+} else {
+  console.warn('[WelcomeEmailWorker] Skipping worker setup — queue not available (Redis offline)');
+}
 
 export { welcomeEmailQueue };
