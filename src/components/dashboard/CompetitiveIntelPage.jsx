@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import {
     TrendingUp, BarChart3, Users, Target, Shield,
-    ChevronUp, ChevronDown, AlertTriangle, Sparkles, Activity
+    ChevronUp, ChevronDown, AlertTriangle, Sparkles, Activity,
+    Crosshair, Eye, Plus, ChevronRight, X
 } from 'lucide-react';
 
 function getVisibilityData(domain, projectId) {
@@ -20,8 +21,6 @@ const TABS = [
     { id: 'rankings', label: 'AI Rankings', icon: TrendingUp },
     { id: 'entities', label: 'Entity Map', icon: Users },
     { id: 'gaps', label: 'Content Gaps', icon: Target },
-    { id: 'sentiment', label: 'Sentiment', icon: Shield },
-    { id: 'threats', label: 'Threats', icon: AlertTriangle },
 ];
 
 function BrandAvatar({ name, isUser, size = 7 }) {
@@ -59,8 +58,7 @@ function deriveData(scanData, brandName) {
         rankings: scanData.industryRanking || [],
         entityGraph: scanData.entityGraph || [],
         gaps: Array.isArray(scanData.competitorGaps) ? scanData.competitorGaps : [],
-        sentiment: scanData.sentiment || scanData.competitorAnalysis?.sentimentComparison || [],
-        threats: scanData.competitorAnalysis?.threatRadar || scanData.competitorAnalysis?.threats || [],
+        citationSummary: Array.isArray(scanData.citationSummary) ? scanData.citationSummary : [],
         intelligence: scanData.intelligence || null,
     };
 }
@@ -68,6 +66,7 @@ function deriveData(scanData, brandName) {
 export default function CompetitiveIntelPage({ user, onTabChange }) {
     const [activeTab, setActiveTab] = useState('sov');
     const [aiPanelOpen, setAiPanelOpen] = useState(true);
+    const [gapsView, setGapsView] = useState('grouped');
 
     const scanData = useMemo(() => getVisibilityData(user?.domain, user?.projectId), [user?.domain, user?.projectId]);
     const data = useMemo(() => deriveData(scanData, user?.brandName), [scanData, user?.brandName]);
@@ -77,19 +76,24 @@ export default function CompetitiveIntelPage({ user, onTabChange }) {
     const rankings = data?.rankings || [];
     const entityGraph = data?.entityGraph || [];
     const gaps = data?.gaps || [];
-    const sentiment = data?.sentiment || [];
-    const threats = data?.threats || [];
     const intelligence = data?.intelligence || null;
 
     const competitors = sovData.filter(s => !s.isUser).map(s => s.name.split(' ')[0]);
     const userSov = sovData.find(s => s.isUser);
     const userSovPct = userSov?.percentage ?? 0;
 
-    const threatLevelColor = {
-        high: 'text-[#E92A15] bg-[#1a0a0a] border border-[#E92A15]/30',
-        medium: 'text-[#f59e0b] bg-[#1a1200] border border-[#f59e0b]/30',
-        low: 'text-[#22c55e] bg-[#0a1a0a] border border-[#22c55e]/30',
-    };
+    const gapsByCompetitor = useMemo(() => {
+        const map = {};
+        for (const gap of gaps) {
+            for (const cp of (gap.competitorsPresent || [])) {
+                const name = typeof cp === 'string' ? cp : cp.name;
+                if (!name) continue;
+                if (!map[name]) map[name] = [];
+                map[name].push(gap);
+            }
+        }
+        return Object.entries(map).sort((a, b) => b[1].length - a[1].length);
+    }, [gaps]);
 
     return (
         <div className="w-full pb-12">
@@ -101,7 +105,13 @@ export default function CompetitiveIntelPage({ user, onTabChange }) {
                     </div>
                     <div>
                         <h1 className="text-[19px] font-semibold text-white tracking-tight">Competitive Intelligence</h1>
-                        <p className="text-[#888] text-[13px] mt-0.5">{hasData ? 'Live competitive data from your AI visibility scan' : 'Run a scan to see real competitive data'}</p>
+                        <p className="text-[#888] text-[13px] mt-0.5">
+                            {hasData ? 'Live competitive data from your AI visibility scan' : 'Run a scan to see real competitive data'}
+                            {' '}
+                            <button type="button" onClick={() => onTabChange?.('competitors')} className="text-[#E92A15] hover:underline font-medium ml-1">
+                                Manage competitors →
+                            </button>
+                        </p>
                     </div>
                 </div>
             </div>
@@ -134,10 +144,10 @@ export default function CompetitiveIntelPage({ user, onTabChange }) {
                         <span className="text-[#666] text-[12px]">{hasData ? (gaps.length > 0 ? 'Actionable topics found' : 'No gaps detected') : 'Awaiting scan'}</span>
                     </div>
                     <div className="bg-[#0B0B0B] border border-[#222] rounded-2xl p-5 hover:border-[#333] transition-colors">
-                        <p className="text-[#555] text-[10px] font-bold uppercase tracking-[0.15em] mb-3">Active Threats</p>
-                        <p className={`text-[38px] font-bold tracking-tight leading-none mb-2 ${hasData ? 'text-white' : 'text-[#333]'}`}>{hasData ? threats.length : '—'}</p>
-                        <span className={`text-[12px] ${hasData && threats.some(t => (t.level || '').toLowerCase() === 'high') ? 'text-[#E92A15]' : 'text-[#666]'}`}>
-                            {hasData ? (threats.length > 0 ? 'Monitor closely' : 'No threats detected') : 'Awaiting scan'}
+                        <p className="text-[#555] text-[10px] font-bold uppercase tracking-[0.15em] mb-3">Entities detected</p>
+                        <p className={`text-[38px] font-bold tracking-tight leading-none mb-2 ${hasData ? 'text-white' : 'text-[#333]'}`}>{hasData ? entityGraph.length : '—'}</p>
+                        <span className="text-[#666] text-[12px]">
+                            {hasData ? (entityGraph.length > 0 ? 'Brands in AI answers' : 'None yet') : 'Awaiting scan'}
                         </span>
                     </div>
                 </div>
@@ -233,22 +243,24 @@ export default function CompetitiveIntelPage({ user, onTabChange }) {
                     {activeTab === 'rankings' && (
                         <div className="bg-[#0B0B0B] border border-[#222] rounded-2xl p-6">
                             <h2 className="text-white font-semibold text-[17px] mb-1">AI Rankings</h2>
-                            <p className="text-[#666] text-[13px] mb-6">Your brand's position across AI engine search results</p>
+                            <p className="text-[#666] text-[13px] mb-6">Prompt breadth: share of tracked prompts where each brand appears (not raw mention share)</p>
                             {rankings.length > 0 ? (
                                 <div className="space-y-3">
-                                    {rankings.map((r, i) => {
-                                        const isUser = r.isUser || r.isTargetBrand || (r.brand || r.name || '').toLowerCase() === (user?.brandName || '').toLowerCase();
+                                    {rankings.map((row, i) => {
+                                        const isUser = row.isUser || row.isTargetBrand || (row.brand || row.name || '').toLowerCase() === (user?.brandName || '').toLowerCase();
+                                        const metric = row.promptCoverage != null ? `${row.promptCoverage}%` : (row.score != null ? row.score : row.sov != null ? `${row.sov}%` : '—');
+                                        const metricLabel = row.promptCoverage != null ? 'Coverage' : 'SOV';
                                         return (
                                             <div key={i} className={`flex items-center gap-4 p-4 rounded-xl border ${isUser ? 'border-[#E92A15]/30 bg-[#120404]' : 'border-[#1a1a1a] bg-[#111]'}`}>
-                                                <span className={`text-[22px] font-bold w-8 shrink-0 ${isUser ? 'text-[#E92A15]' : 'text-[#333]'}`}>#{r.rank || i + 1}</span>
-                                                <BrandAvatar name={r.brand || r.name} isUser={isUser} />
-                                                <span className={`flex-1 text-[14px] font-medium ${isUser ? 'text-white' : 'text-[#888]'}`}>{r.brand || r.name}</span>
+                                                <span className={`text-[22px] font-bold w-8 shrink-0 ${isUser ? 'text-[#E92A15]' : 'text-[#333]'}`}>#{row.rank || i + 1}</span>
+                                                <BrandAvatar name={row.brand || row.name} isUser={isUser} />
+                                                <span className={`flex-1 text-[14px] font-medium ${isUser ? 'text-white' : 'text-[#888]'}`}>{row.brand || row.name}</span>
                                                 <div className="text-right">
-                                                    <p className="text-white text-[16px] font-bold">{r.score || r.sov || '--'}</p>
-                                                    <p className="text-[#555] text-[11px]">Score</p>
+                                                    <p className="text-white text-[16px] font-bold">{metric}</p>
+                                                    <p className="text-[#555] text-[11px]">{metricLabel}</p>
                                                 </div>
                                                 <div className="text-right w-20">
-                                                    <p className="text-white text-[16px] font-bold">{r.mentions || '--'}</p>
+                                                    <p className="text-white text-[16px] font-bold">{row.mentions ?? '—'}</p>
                                                     <p className="text-[#555] text-[11px]">Mentions</p>
                                                 </div>
                                             </div>
@@ -290,94 +302,137 @@ export default function CompetitiveIntelPage({ user, onTabChange }) {
                     )}
 
                     {activeTab === 'gaps' && (
-                        <div className="bg-[#0B0B0B] border border-[#222] rounded-2xl p-6">
-                            <h2 className="text-white font-semibold text-[17px] mb-1">Content Gaps</h2>
-                            <p className="text-[#666] text-[13px] mb-6">Topics where competitors are mentioned but you aren't</p>
-                            {gaps.length > 0 ? (
-                                <div className="space-y-3">
-                                    {gaps.map((gap, i) => (
-                                        <div key={i} className="flex items-center gap-4 p-4 rounded-xl border border-[#1a1a1a] bg-[#111] hover:border-[#E92A15]/20 transition-colors group">
-                                            <div className="w-8 h-8 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a] flex items-center justify-center shrink-0">
-                                                <Target className="w-3.5 h-3.5 text-[#666]" />
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-[#ccc] text-[14px] font-medium truncate">{gap.query || gap.topic || gap}</p>
-                                                {gap.competitors && <p className="text-[#555] text-[11px] mt-0.5">Mentioned: {Array.isArray(gap.competitors) ? gap.competitors.join(', ') : gap.competitors}</p>}
-                                            </div>
-                                            <button onClick={() => { localStorage.setItem('searchlyst_content_prefill', gap.query || gap.topic || gap); onTabChange?.('content-studio'); }} className="text-[11px] px-3 py-1.5 bg-[#1a1a1a] border border-[#2a2a2a] text-[#888] rounded-lg hover:bg-[#E92A15]/10 hover:text-[#E92A15] hover:border-[#E92A15]/30 transition-all whitespace-nowrap shrink-0">Write About This →</button>
+                        <div className="space-y-4">
+                            <div className="bg-[#0B0B0B] border border-[#222] rounded-2xl p-6">
+                                <div className="flex items-center justify-between mb-1">
+                                    <h2 className="text-white font-semibold text-[17px]">Content Gaps</h2>
+                                    {gaps.length > 0 && (
+                                        <div className="flex items-center gap-1 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg p-0.5">
+                                            <button
+                                                onClick={() => setGapsView('grouped')}
+                                                className={`text-[11px] px-3 py-1 rounded-md font-medium transition-colors ${gapsView === 'grouped' ? 'bg-[#E92A15] text-white' : 'text-[#666] hover:text-[#aaa]'}`}
+                                            >
+                                                By Competitor
+                                            </button>
+                                            <button
+                                                onClick={() => setGapsView('all')}
+                                                className={`text-[11px] px-3 py-1 rounded-md font-medium transition-colors ${gapsView === 'all' ? 'bg-[#E92A15] text-white' : 'text-[#666] hover:text-[#aaa]'}`}
+                                            >
+                                                All Gaps
+                                            </button>
                                         </div>
-                                    ))}
+                                    )}
                                 </div>
-                            ) : <EmptyState message="Content gap analysis will appear after your first scan" />}
-                        </div>
-                    )}
+                                <p className="text-[#666] text-[13px] mb-6">Topics where competitors are mentioned but you aren't</p>
 
-                    {activeTab === 'sentiment' && (
-                        <div className="bg-[#0B0B0B] border border-[#222] rounded-2xl p-6">
-                            <h2 className="text-white font-semibold text-[17px] mb-1">Sentiment Comparison</h2>
-                            <p className="text-[#666] text-[13px] mb-6">Brand sentiment across AI-generated responses</p>
-                            {(() => {
-                                const sentArr = Array.isArray(sentiment) ? sentiment : (sentiment?.brands || []);
-                                if (sentArr.length === 0) return <EmptyState message="Sentiment comparison will appear after your first scan" />;
-                                return (
-                                    <>
-                                        <div className="space-y-5">
-                                            {sentArr.map((s, i) => {
-                                                const isUser = s.isUser || s.isTargetBrand || (s.brand || s.name || '').toLowerCase() === (user?.brandName || '').toLowerCase();
+                                {gaps.length > 0 ? (
+                                    gapsView === 'grouped' && gapsByCompetitor.length > 0 ? (
+                                        <div className="space-y-8">
+                                            {gapsByCompetitor.map(([compName, compGaps]) => (
+                                                <div key={compName}>
+                                                    <div className="flex items-center gap-3 mb-4">
+                                                        <BrandAvatar name={compName} isUser={false} size={6} />
+                                                        <div>
+                                                            <h3 className="text-white text-[14px] font-semibold">
+                                                                To beat {compName}, create content on:
+                                                            </h3>
+                                                            <p className="text-[#555] text-[11px]">
+                                                                {compGaps.length} topic{compGaps.length !== 1 ? 's' : ''} where they appear and you don't
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="space-y-2 ml-9">
+                                                        {compGaps.map((gap, i) => {
+                                                            const topic = gap.contentTopic || gap.query || gap.topic || gap;
+                                                            const prefill = gap.contentAngle || gap.contentTopic || gap.query || '';
+                                                            const otherComps = (gap.competitorsPresent || [])
+                                                                .filter(cp => (typeof cp === 'string' ? cp : cp.name) !== compName)
+                                                                .map(cp => typeof cp === 'string' ? cp : cp.name)
+                                                                .filter(Boolean);
+                                                            return (
+                                                                <div key={i} className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-xl border border-[#1a1a1a] bg-[#111] hover:border-[#E92A15]/20 transition-colors">
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <p className="text-[#eee] text-[13px] font-medium leading-snug">{topic}</p>
+                                                                        {gap.contentAngle && (
+                                                                            <p className="text-[#666] text-[12px] mt-1 leading-relaxed">{gap.contentAngle}</p>
+                                                                        )}
+                                                                        <div className="flex flex-wrap items-center gap-2 mt-2">
+                                                                            {gap.category && (
+                                                                                <span className="text-[9px] px-1.5 py-0.5 bg-[#1a1a1a] border border-[#2a2a2a] rounded text-[#555] font-medium">{gap.category}</span>
+                                                                            )}
+                                                                            {gap.intent && (
+                                                                                <span className="text-[9px] px-1.5 py-0.5 bg-[#1a1a1a] border border-[#2a2a2a] rounded text-[#555] font-medium">{gap.intent}</span>
+                                                                            )}
+                                                                            {(gap.platforms || gap.engines || []).map((p, j) => (
+                                                                                <span key={j} className="text-[9px] px-1.5 py-0.5 bg-[#0a1a0a] border border-[#22c55e]/20 rounded text-[#22c55e] font-medium">{p}</span>
+                                                                            ))}
+                                                                            {otherComps.length > 0 && (
+                                                                                <span className="text-[#555] text-[10px]">Also: {otherComps.join(', ')}</span>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => { localStorage.setItem('searchlyst_content_prefill', prefill); onTabChange?.('content-studio'); }}
+                                                                        className="text-[11px] px-3 py-1.5 bg-[#1a1a1a] border border-[#2a2a2a] text-[#888] rounded-lg hover:bg-[#E92A15]/10 hover:text-[#E92A15] hover:border-[#E92A15]/30 transition-all whitespace-nowrap shrink-0 self-start sm:self-center"
+                                                                    >
+                                                                        Write About This &rarr;
+                                                                    </button>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-3">
+                                            {gaps.map((gap, i) => {
+                                                const topic = gap.contentTopic || gap.query || gap.topic || gap;
+                                                const prefill = gap.contentAngle || gap.contentTopic || gap.query || gap.topic || gap;
+                                                const comps = gap.competitorsPresent || gap.competitors;
+                                                const compLine = Array.isArray(comps)
+                                                    ? comps.map(c => (typeof c === 'string' ? c : c.name)).filter(Boolean).join(', ')
+                                                    : comps;
                                                 return (
-                                                    <div key={i}>
-                                                        <div className="flex items-center justify-between mb-2">
-                                                            <div className="flex items-center gap-2"><BrandAvatar name={s.brand || s.name} isUser={isUser} size={6} /><span className={`text-[13px] font-medium ${isUser ? 'text-white' : 'text-[#888]'}`}>{s.brand || s.name}</span></div>
-                                                            <div className="flex items-center gap-3 text-[11px]">
-                                                                <span className="text-[#22c55e]">{s.positive || 0}% pos</span>
-                                                                <span className="text-[#666]">{s.neutral || 0}% neu</span>
-                                                                <span className="text-[#E92A15]">{s.negative || 0}% neg</span>
+                                                    <div key={i} className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-xl border border-[#1a1a1a] bg-[#111] hover:border-[#E92A15]/20 transition-colors group">
+                                                        <div className="w-8 h-8 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a] flex items-center justify-center shrink-0">
+                                                            <Target className="w-3.5 h-3.5 text-[#666]" />
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="text-[10px] font-bold uppercase tracking-wider text-[#E92A15]/80 mb-0.5">Topic</p>
+                                                            <p className="text-[#eee] text-[14px] font-medium leading-snug">{topic}</p>
+                                                            {gap.contentAngle && <p className="text-[#777] text-[12px] mt-1.5 leading-relaxed">{gap.contentAngle}</p>}
+                                                            <div className="flex flex-wrap items-center gap-2 mt-2">
+                                                                {gap.category && (
+                                                                    <span className="text-[9px] px-1.5 py-0.5 bg-[#1a1a1a] border border-[#2a2a2a] rounded text-[#555] font-medium">{gap.category}</span>
+                                                                )}
+                                                                {gap.intent && (
+                                                                    <span className="text-[9px] px-1.5 py-0.5 bg-[#1a1a1a] border border-[#2a2a2a] rounded text-[#555] font-medium">{gap.intent}</span>
+                                                                )}
+                                                                {(gap.platforms || gap.engines || []).map((p, j) => (
+                                                                    <span key={j} className="text-[9px] px-1.5 py-0.5 bg-[#0a1a0a] border border-[#22c55e]/20 rounded text-[#22c55e] font-medium">{p}</span>
+                                                                ))}
                                                             </div>
+                                                            {compLine && <p className="text-[#555] text-[11px] mt-1">Competitors cited: {compLine}</p>}
                                                         </div>
-                                                        <div className="flex h-2 rounded-full overflow-hidden gap-0.5">
-                                                            {(s.positive || 0) > 0 && <div className="bg-[#22c55e] rounded-l-full" style={{ width: `${s.positive}%` }} />}
-                                                            {(s.neutral || 0) > 0 && <div className="bg-[#444]" style={{ width: `${s.neutral}%` }} />}
-                                                            {(s.negative || 0) > 0 && <div className="bg-[#E92A15] rounded-r-full" style={{ width: `${s.negative}%` }} />}
-                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => { localStorage.setItem('searchlyst_content_prefill', prefill); onTabChange?.('content-studio'); }}
+                                                            className="text-[11px] px-3 py-1.5 bg-[#1a1a1a] border border-[#2a2a2a] text-[#888] rounded-lg hover:bg-[#E92A15]/10 hover:text-[#E92A15] hover:border-[#E92A15]/30 transition-all whitespace-nowrap shrink-0 self-start sm:self-center"
+                                                        >
+                                                            Write About This &rarr;
+                                                        </button>
                                                     </div>
                                                 );
                                             })}
                                         </div>
-                                        <div className="flex items-center gap-4 mt-6 pt-4 border-t border-[#1a1a1a]">
-                                            <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-[#22c55e]" /><span className="text-[#666] text-[11px]">Positive</span></div>
-                                            <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-[#444]" /><span className="text-[#666] text-[11px]">Neutral</span></div>
-                                            <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-[#E92A15]" /><span className="text-[#666] text-[11px]">Negative</span></div>
-                                        </div>
-                                    </>
-                                );
-                            })()}
+                                    )
+                                ) : <EmptyState message="Content gap analysis will appear after your first scan" />}
+                            </div>
                         </div>
                     )}
 
-                    {activeTab === 'threats' && (
-                        <div className="bg-[#0B0B0B] border border-[#222] rounded-2xl p-6">
-                            <h2 className="text-white font-semibold text-[17px] mb-1">Threat Radar</h2>
-                            <p className="text-[#666] text-[13px] mb-6">Active competitive threats detected across AI engines</p>
-                            {threats.length > 0 ? threats.map((t, i) => {
-                                const level = (t.level || 'medium').toLowerCase();
-                                const colors = threatLevelColor[level] || threatLevelColor.medium;
-                                return (
-                                    <div key={i} className="flex items-start gap-4 p-4 rounded-xl border border-[#1a1a1a] bg-[#111] mb-3">
-                                        <div className="w-8 h-8 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a] flex items-center justify-center shrink-0 mt-0.5">
-                                            <AlertTriangle className="w-3.5 h-3.5 text-[#E92A15]" />
-                                        </div>
-                                        <div className="flex-1">
-                                            <div className="flex items-center gap-2 mb-1.5">
-                                                <p className="text-white text-[14px] font-semibold">{t.competitor || t.brand || t.name}</p>
-                                                <span className={`text-[9px] px-2 py-0.5 rounded font-bold uppercase tracking-wider ${colors}`}>{level}</span>
-                                            </div>
-                                            <p className="text-[#888] text-[13px] leading-relaxed">{t.reason || t.description || 'Competitive threat detected'}</p>
-                                        </div>
-                                    </div>
-                                );
-                            }) : <EmptyState message="Threat analysis will appear after your first scan" />}
-                        </div>
-                    )}
                 </div>
             </div>
         </div>

@@ -1,10 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { apiClient } from '@/api/apiClient';
 import {
-    Search, ChevronDown, Eye, EyeOff,
-    MessageSquare, CheckCircle, XCircle, Target,
+    Search, ChevronDown, EyeOff,
+    MessageSquare, CheckCircle, Target,
     Terminal, Activity, Link2, AlertTriangle,
-    Plus, X, Send, Loader2, Lightbulb, Star, AlertCircle
+    Plus, X, Send, Loader2, Lightbulb, Star, AlertCircle, Trash2
 } from 'lucide-react';
 
 function getVisibilityData(domain, projectId) {
@@ -25,6 +25,7 @@ const ENGINE_META = {
 };
 
 const ENGINE_ORDER = ['perplexity', 'gemini', 'googleAI'];
+
 
 function EngineColumn({ eng, data }) {
     const meta = ENGINE_META[eng] || { label: eng, color: '#888', icon: () => null };
@@ -158,13 +159,69 @@ function IntelligencePanel({ intelligence }) {
     );
 }
 
+function buildPromptSuggestions(user) {
+    const brand = user?.brandName || 'our brand';
+    const industry = user?.industry || '';
+    const location = user?.location || '';
+    const domain = user?.domain || '';
+    const compNames = (user?.competitors || [])
+        .slice(0, 3)
+        .map(c => typeof c === 'string' ? c : c.name || c.domain)
+        .filter(Boolean);
+    const compStr = compNames.length > 0 ? compNames.join(', ') : 'top competitors';
+
+    const base = [
+        `What is ${brand} and what do they offer?`,
+        `Best ${industry || 'software'} platforms in ${location || '2025'}`,
+        `${brand} vs ${compStr} — which is better?`,
+        `Top alternatives to ${brand}`,
+        `Is ${brand} worth it for small businesses?`,
+        `${brand} reviews and pricing comparison`,
+    ];
+
+    if (industry) {
+        base.push(`What are the leading ${industry} companies?`);
+        base.push(`Best ${industry} tools for enterprises`);
+    }
+    if (location) {
+        base.push(`Best ${industry || 'companies'} in ${location}`);
+    }
+    if (domain) {
+        base.push(`What does ${domain} do?`);
+    }
+
+    return base;
+}
+
+function customPromptsStorageKey(domain) {
+    return `searchlyst_custom_prompts_${domain || 'default'}`;
+}
+
 export default function PromptIntelPage({ user }) {
     const [expandedPrompt, setExpandedPrompt] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [showCustomPrompt, setShowCustomPrompt] = useState(false);
-    const [customQuery, setCustomQuery] = useState('');
-    const [customLoading, setCustomLoading] = useState(false);
+    const [batchQueries, setBatchQueries] = useState(['']);
+    const [batchLoading, setBatchLoading] = useState(false);
+    const [batchError, setBatchError] = useState(null);
     const [customPrompts, setCustomPrompts] = useState([]);
+
+    const promptSuggestions = useMemo(() => buildPromptSuggestions(user), [user]);
+
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem(customPromptsStorageKey(user?.domain));
+            if (raw) {
+                const arr = JSON.parse(raw);
+                if (Array.isArray(arr) && arr.length) setCustomPrompts(arr);
+            }
+        } catch { /* ignore */ }
+    }, [user?.domain]);
+
+    const persistCustom = useCallback((list) => {
+        setCustomPrompts(list);
+        try { localStorage.setItem(customPromptsStorageKey(user?.domain), JSON.stringify(list)); } catch { /* ignore */ }
+    }, [user?.domain]);
 
     const scanData = useMemo(() => getVisibilityData(user?.domain, user?.projectId), [user?.domain, user?.projectId]);
     const promptsData = useMemo(() => {
@@ -178,12 +235,57 @@ export default function PromptIntelPage({ user }) {
     const hasData = allPrompts.length > 0;
     const filteredPrompts = allPrompts.filter(p => !searchQuery || p.query?.toLowerCase().includes(searchQuery.toLowerCase()));
 
-    const totalPrompts = allPrompts.length;
     const mentionedCount = allPrompts.filter(p => Object.values(p.engines || {}).some(e => e.mentioned)).length;
     const totalSources = allPrompts.reduce((sum, p) => sum + Object.values(p.engines || {}).reduce((s, e) => s + (e.citations?.length || e.citationCount || 0), 0), 0);
     const gapCount = allPrompts.filter(p => Object.entries(p.engines || {}).some(([, e]) => !e.mentioned && (e.citations || []).some(c => c.isCompetitor))).length;
 
     const intelligence = scanData?.intelligence || null;
+
+    const addBatchRow = () => {
+        if (batchQueries.length < 10) setBatchQueries(prev => [...prev, '']);
+    };
+    const removeBatchRow = (idx) => {
+        setBatchQueries(prev => prev.length > 1 ? prev.filter((_, i) => i !== idx) : prev);
+    };
+    const updateBatchRow = (idx, val) => {
+        setBatchQueries(prev => prev.map((q, i) => i === idx ? val : q));
+    };
+    const useSuggestion = (text) => {
+        const emptyIdx = batchQueries.findIndex(q => !q.trim());
+        if (emptyIdx >= 0) {
+            updateBatchRow(emptyIdx, text);
+        } else if (batchQueries.length < 10) {
+            setBatchQueries(prev => [...prev, text]);
+        }
+    };
+
+    const runBatch = async () => {
+        const queries = batchQueries.map(q => q.trim()).filter(Boolean);
+        if (queries.length === 0) return;
+        setBatchLoading(true);
+        setBatchError(null);
+        try {
+            const res = await apiClient.visibility.runCustomPromptsBatch({
+                queries,
+                brandName: user?.brandName || '',
+                domain: user?.domain || '',
+                competitors: user?.competitors || [],
+                country: '',
+            });
+            if (res.success && Array.isArray(res.prompts) && res.prompts.length > 0) {
+                const merged = [...customPrompts, ...res.prompts];
+                persistCustom(merged);
+                setBatchQueries(['']);
+                setShowCustomPrompt(false);
+            } else {
+                setBatchError('No results returned. Try different prompts.');
+            }
+        } catch (err) {
+            setBatchError(err?.message || 'Failed to run prompts');
+        } finally {
+            setBatchLoading(false);
+        }
+    };
 
     return (
         <div className="w-full pb-12">
@@ -194,7 +296,7 @@ export default function PromptIntelPage({ user }) {
                     </div>
                     <div>
                         <h1 className="text-[19px] font-semibold text-white tracking-tight">Prompt Intelligence</h1>
-                        <p className="text-[#666] text-[13px] mt-0.5">{hasData ? `${totalPrompts} prompts tracked across 3 AI engines` : 'Analyze exact LLM responses, citations, and competitor overlap'}</p>
+                        <p className="text-[#666] text-[13px] mt-0.5">{hasData ? 'Per-prompt analysis across Perplexity, Gemini & ChatGPT' : 'Analyze exact LLM responses, citations, and competitor overlap'}</p>
                     </div>
                 </div>
                 <button
@@ -208,15 +310,11 @@ export default function PromptIntelPage({ user }) {
             <div className="mt-8 space-y-5">
                 {intelligence && <IntelligencePanel intelligence={intelligence} />}
 
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                     <div className="bg-[#0B0B0B] border border-[#1e1e1e] rounded-2xl p-5">
-                        <p className="text-[#555] text-[10px] font-bold uppercase tracking-[0.14em] mb-3">PROMPTS TRACKED</p>
-                        <p className={`text-[38px] font-bold tracking-tight leading-none ${hasData ? 'text-white' : 'text-[#333]'}`}>{hasData ? totalPrompts : '—'}</p>
-                    </div>
-                    <div className="bg-[#0B0B0B] border border-[#1e1e1e] rounded-2xl p-5">
-                        <p className="text-[#555] text-[10px] font-bold uppercase tracking-[0.14em] mb-3">BRAND VISIBLE IN</p>
+                        <p className="text-[#555] text-[10px] font-bold uppercase tracking-[0.14em] mb-3">BRAND VISIBILITY</p>
                         <p className={`text-[38px] font-bold tracking-tight leading-none ${hasData ? 'text-white' : 'text-[#333]'}`}>
-                            {hasData ? <><span className="text-[#22c55e]">{mentionedCount}</span><span className="text-[#555] text-[18px] ml-1">/ {totalPrompts}</span></> : '—'}
+                            {hasData ? <><span className="text-[#22c55e]">{mentionedCount > 0 ? Math.round((mentionedCount / Math.max(allPrompts.length, 1)) * 100) : 0}</span><span className="text-[#555] text-[18px] ml-1">%</span></> : '—'}
                         </p>
                     </div>
                     <div className="bg-[#0B0B0B] border border-[#1e1e1e] rounded-2xl p-5">
@@ -237,10 +335,9 @@ export default function PromptIntelPage({ user }) {
                 <div className="grid grid-cols-12 gap-4 px-6 py-3 text-[10px] font-bold text-[#555] uppercase tracking-wider bg-[#0f0f0f] rounded-xl border border-[#1a1a1a]">
                     <div className="col-span-1">#</div>
                     <div className="col-span-4">Prompt</div>
-                    <div className="col-span-3 text-center">Engines (3)</div>
-                    <div className="col-span-1 text-center">Visibility</div>
-                    <div className="col-span-1 text-center">Sources</div>
-                    <div className="col-span-1 text-center">Sentiment</div>
+                    <div className="col-span-2 text-center">Engines</div>
+                    <div className="col-span-2 text-center">Visibility</div>
+                    <div className="col-span-2 text-center">Sources</div>
                     <div className="col-span-1 text-right">Expand</div>
                 </div>
 
@@ -248,15 +345,10 @@ export default function PromptIntelPage({ user }) {
                     {hasData ? filteredPrompts.map((p, idx) => {
                         const isExpanded = expandedPrompt === (p.promptId || `custom_${idx}`);
                         const engines = p.engines || {};
-                        const responded = ENGINE_ORDER.filter(eng => engines[eng]?.status?.includes('✓')).length;
                         const mentionedEngines = ENGINE_ORDER.filter(eng => engines[eng]?.mentioned).length;
                         const visLabel = mentionedEngines >= 2 ? 'High' : mentionedEngines === 1 ? 'Partial' : 'None';
                         const visColor = mentionedEngines >= 2 ? 'text-[#22c55e] bg-[#22c55e]/10 border-[#22c55e]/30' : mentionedEngines === 1 ? 'text-[#f59e0b] bg-[#f59e0b]/10 border-[#f59e0b]/30' : 'text-[#888] bg-[#222]/30 border-[#333]';
                         const sourceCount = ENGINE_ORDER.reduce((s, eng) => s + (engines[eng]?.citations?.length || engines[eng]?.citationCount || 0), 0);
-                        const sentiments = ENGINE_ORDER.filter(eng => engines[eng]?.mentioned && engines[eng]?.sentiment).map(eng => engines[eng].sentiment);
-                        const sentCounts = sentiments.reduce((acc, s) => { acc[s] = (acc[s] || 0) + 1; return acc; }, {});
-                        const topSentiment = Object.entries(sentCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'neutral';
-                        const sentLabel = topSentiment.charAt(0).toUpperCase() + topSentiment.slice(1);
                         const promptKey = p.promptId || `custom_${idx}`;
 
                         return (
@@ -268,7 +360,7 @@ export default function PromptIntelPage({ user }) {
                                         </span>
                                     </div>
                                     <div className="col-span-4 pr-2"><p className="text-[#ddd] text-[13px] font-medium leading-snug line-clamp-2">{p.query}</p></div>
-                                    <div className="col-span-3 flex justify-center items-center gap-2">
+                                    <div className="col-span-2 flex justify-center items-center gap-1.5">
                                         {ENGINE_ORDER.map(eng => {
                                             const eData = engines[eng];
                                             const meta = ENGINE_META[eng];
@@ -277,9 +369,8 @@ export default function PromptIntelPage({ user }) {
                                             return <div key={eng} className={`w-7 h-7 rounded-lg flex items-center justify-center border ${ok ? 'border-[#22c55e]/40 bg-[#22c55e]/5' : 'border-[#333] bg-[#1a1a1a]'}`} style={{ color: ok ? meta.color : '#555' }} title={`${meta.label}: ${ok ? 'Responded' : 'No response'}`}><Icon /></div>;
                                         })}
                                     </div>
-                                    <div className="col-span-1 flex justify-center"><span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${visColor}`}>{visLabel}</span></div>
-                                    <div className="col-span-1 flex justify-center"><span className="flex items-center gap-1 text-[#aaa] text-[12px]"><Link2 className="w-3 h-3" /> {sourceCount}</span></div>
-                                    <div className="col-span-1 flex justify-center"><span className={`text-[12px] font-medium ${sentLabel === 'Positive' ? 'text-[#22c55e]' : sentLabel === 'Negative' ? 'text-[#ef4444]' : 'text-[#888]'}`}>{sentLabel}</span></div>
+                                    <div className="col-span-2 flex justify-center"><span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${visColor}`}>{visLabel}</span></div>
+                                    <div className="col-span-2 flex justify-center"><span className="flex items-center gap-1 text-[#aaa] text-[12px]"><Link2 className="w-3 h-3" /> {sourceCount}</span></div>
                                     <div className="col-span-1 flex justify-end"><ChevronDown className={`w-4 h-4 text-[#888] transition-transform ${isExpanded ? 'rotate-180' : ''}`} /></div>
                                 </button>
                                 {isExpanded && <ExpandedPromptDetail prompt={p} />}
@@ -288,58 +379,88 @@ export default function PromptIntelPage({ user }) {
                     }) : (
                         <div className="flex flex-col items-center py-12">
                             <Activity className="w-8 h-8 text-[#333] mb-3" />
-                            <p className="text-[#555] text-[13px]">Run a scan from AI Visibility to see 20 prompts tracked across Perplexity, Gemini & ChatGPT</p>
+                            <p className="text-[#555] text-[13px]">Run a scan from AI Visibility to see per-prompt analysis across Perplexity, Gemini & ChatGPT</p>
                         </div>
                     )}
                 </div>
             </div>
 
             {showCustomPrompt && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-                    <div className="bg-[#111] border border-[#2a2a2a] rounded-2xl p-6 w-full max-w-lg mx-4 shadow-2xl">
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-white font-semibold text-[16px]">Run Custom Prompt</h3>
-                            <button onClick={() => setShowCustomPrompt(false)} className="text-[#666] hover:text-white transition-colors">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget && !batchLoading) setShowCustomPrompt(false); }}>
+                    <div className="bg-[#111] border border-[#2a2a2a] rounded-2xl p-6 w-full max-w-2xl mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+                        <div className="flex items-center justify-between mb-1">
+                            <h3 className="text-white font-semibold text-[16px]">Add Custom Prompts</h3>
+                            <button onClick={() => { if (!batchLoading) setShowCustomPrompt(false); }} className="text-[#666] hover:text-white transition-colors">
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
-                        <p className="text-[#888] text-[12px] mb-4">Enter a custom query to run against all 3 AI engines. Results appear here instantly.</p>
-                        <textarea
-                            value={customQuery}
-                            onChange={e => setCustomQuery(e.target.value)}
-                            placeholder="e.g. What are the best real estate platforms in Dubai for first-time buyers?"
-                            className="w-full h-28 bg-[#0a0a0a] border border-[#2a2a2a] rounded-xl px-4 py-3 text-white text-[13px] placeholder:text-[#444] resize-none focus:outline-none focus:border-[#E92A15]/50"
-                        />
-                        <div className="flex justify-end gap-3 mt-4">
-                            <button onClick={() => setShowCustomPrompt(false)} className="px-4 py-2 text-[#888] text-[12px] hover:text-white transition-colors">Cancel</button>
+                        <p className="text-[#888] text-[12px] mb-5">
+                            Add one or multiple prompts below. Only these prompts are sent to Perplexity, Gemini &amp; ChatGPT — your existing scan data stays untouched.
+                        </p>
+
+                        <div className="space-y-2 mb-4">
+                            {batchQueries.map((q, idx) => (
+                                <div key={idx} className="flex items-start gap-2">
+                                    <span className="text-[#555] text-[11px] font-mono mt-3 w-5 text-right shrink-0">{idx + 1}.</span>
+                                    <textarea
+                                        value={q}
+                                        onChange={e => updateBatchRow(idx, e.target.value)}
+                                        placeholder={idx === 0 ? 'e.g. What are the best platforms for first-time buyers?' : 'Add another prompt…'}
+                                        rows={2}
+                                        className="flex-1 bg-[#0a0a0a] border border-[#2a2a2a] rounded-xl px-4 py-2.5 text-white text-[13px] placeholder:text-[#444] resize-none focus:outline-none focus:border-[#E92A15]/50 transition-colors"
+                                    />
+                                    {batchQueries.length > 1 && (
+                                        <button type="button" onClick={() => removeBatchRow(idx)} className="mt-2.5 text-[#555] hover:text-red-400 transition-colors p-1">
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+
+                        {batchQueries.length < 10 && (
                             <button
-                                disabled={!customQuery.trim() || customLoading}
-                                onClick={async () => {
-                                    setCustomLoading(true);
-                                    try {
-                                        const res = await apiClient.visibility.runCustomPrompt({
-                                            query: customQuery.trim(),
-                                            brandName: user?.brandName || '',
-                                            domain: user?.domain || '',
-                                            competitors: user?.competitors || [],
-                                            country: '',
-                                        });
-                                        if (res.success && res.prompt) {
-                                            setCustomPrompts(prev => [...prev, res.prompt]);
-                                            setCustomQuery('');
-                                            setShowCustomPrompt(false);
-                                        }
-                                    } catch (err) {
-                                        console.error('Custom prompt failed:', err);
-                                    } finally {
-                                        setCustomLoading(false);
-                                    }
-                                }}
-                                className="flex items-center gap-2 px-5 py-2 bg-[#E92A15] hover:bg-[#D12512] text-white text-[12px] font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                type="button"
+                                onClick={addBatchRow}
+                                className="flex items-center gap-1.5 text-[12px] text-[#888] hover:text-white transition-colors mb-5"
                             >
-                                {customLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                                {customLoading ? 'Running…' : 'Run Prompt'}
+                                <Plus className="w-3.5 h-3.5" /> Add another prompt row
                             </button>
+                        )}
+
+                        <div className="border-t border-[#1e1e1e] pt-4 mb-5">
+                            <p className="text-[#666] text-[11px] font-semibold uppercase tracking-wider mb-2.5">Suggestions — click to add</p>
+                            <div className="flex flex-wrap gap-1.5">
+                                {promptSuggestions.slice(0, 8).map((s, i) => (
+                                    <button
+                                        key={i}
+                                        type="button"
+                                        onClick={() => useSuggestion(s)}
+                                        className="text-[11px] px-3 py-1.5 rounded-lg border border-[#2a2a2a] bg-[#0a0a0a] text-[#aaa] hover:border-[#E92A15]/40 hover:text-white transition-colors text-left leading-snug"
+                                    >
+                                        {s}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {batchError && <p className="text-red-400 text-[12px] mb-3">{batchError}</p>}
+
+                        <div className="flex items-center justify-between">
+                            <p className="text-[#555] text-[11px]">
+                                {batchQueries.filter(q => q.trim()).length} prompt{batchQueries.filter(q => q.trim()).length !== 1 ? 's' : ''} will be sent
+                            </p>
+                            <div className="flex gap-3">
+                                <button onClick={() => { if (!batchLoading) setShowCustomPrompt(false); }} className="px-4 py-2 text-[#888] text-[12px] hover:text-white transition-colors">Cancel</button>
+                                <button
+                                    disabled={batchQueries.every(q => !q.trim()) || batchLoading}
+                                    onClick={runBatch}
+                                    className="flex items-center gap-2 px-5 py-2 bg-[#E92A15] hover:bg-[#D12512] text-white text-[12px] font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {batchLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                                    {batchLoading ? 'Running…' : `Run ${batchQueries.filter(q => q.trim()).length > 1 ? `${batchQueries.filter(q => q.trim()).length} Prompts` : 'Prompt'}`}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     Search, Globe, Bot, BookOpen, XCircle,
     AlertTriangle, CheckCircle2, RefreshCw, Loader2,
@@ -6,7 +6,6 @@ import {
     Activity, Shield, Link, FileText, Cpu,
     TrendingUp, TrendingDown
 } from 'lucide-react';
-import { apiClient } from "@/api/apiClient";
 
 // ── Design tokens matching Figma ─────────────────────────────────────────────
 const CATEGORY_META = {
@@ -278,99 +277,21 @@ function IssueRow({ issue }) {
 }
 
 // ── Main page ─────────────────────────────────────────────────────────────────
-export default function AuditHealthPage({ user, activeProject }) {
+export default function AuditHealthPage({ user, activeProject, auditManager }) {
     const [auditUrl, setAuditUrl] = useState(user?.domain ? `https://${user.domain}` : '');
-    const [auditId, setAuditId] = useState(null);
-    const [status, setStatus] = useState('idle');
-    const [progress, setProgress] = useState({ completed: 0, total: 0 });
-    const [result, setResult] = useState(null);
-    const [error, setError] = useState(null);
     const [selectedSubcat, setSelectedSubcat] = useState('Technical SEO');
-    const [issueFilter, setIssueFilter] = useState('all'); // all | critical | medium | low
-    const [history, setHistory] = useState([]);
-    const pollRef = useRef(null);
+    const [issueFilter, setIssueFilter] = useState('all');
 
-    const storageKey = `searchlyst_audit_${user?.domain || 'default'}`;
-
-    const stopPolling = useCallback(() => {
-        if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
-    }, []);
-
-    const loadHistory = useCallback(async () => {
-        try {
-            const url = user?.domain ? `https://${user.domain}` : '';
-            const h = await apiClient.audit.getHistory({ url, projectId: user?.projectId ?? activeProject?.id });
-            setHistory(h || []);
-        } catch { /* silent */ }
-    }, [user?.domain, user?.projectId, activeProject?.id]);
-
-    const pollStatus = useCallback((id) => {
-        stopPolling();
-        pollRef.current = setInterval(async () => {
-            try {
-                const res = await apiClient.audit.getStatus(id);
-                if (res.progress) setProgress(res.progress);
-                if (res.status === 'completed') {
-                    setStatus('completed');
-                    setResult(res.result);
-                    localStorage.setItem(storageKey, JSON.stringify(res.result));
-                    stopPolling();
-                    loadHistory();
-                } else if (res.status === 'failed') {
-                    setStatus('failed');
-                    setError(res.error || 'Audit failed');
-                    stopPolling();
-                } else {
-                    setStatus(res.status);
-                }
-            } catch (err) { console.error('Poll error:', err); }
-        }, 4000);
-    }, [stopPolling, storageKey, loadHistory]);
+    const { status, progress, result, error, history, startAudit, resetAudit } = auditManager;
 
     const handleRunAudit = useCallback(async (urlOverride) => {
         const urlToUse = (urlOverride || auditUrl || '').trim();
         if (!urlToUse) return;
-        setStatus('crawling');
-        setResult(null);
-        setError(null);
-        setProgress({ completed: 0, total: 0 });
         setSelectedSubcat('Technical SEO');
         setIssueFilter('all');
         if (!urlOverride) setAuditUrl(urlToUse);
-        try {
-            const res = await apiClient.audit.start({ url: urlToUse, projectId: user?.projectId ?? activeProject?.id });
-            setAuditId(res.auditId);
-            pollStatus(res.auditId);
-        } catch (err) {
-            setStatus('failed');
-            setError(err.message || 'Failed to start audit');
-        }
-    }, [auditUrl, user?.projectId, activeProject?.id, pollStatus]);
-
-    useEffect(() => () => stopPolling(), [stopPolling]);
-
-    useEffect(() => {
-        const saved = localStorage.getItem(storageKey);
-        if (saved) {
-            try {
-                const parsed = JSON.parse(saved);
-                if (parsed) { setResult(parsed); setStatus('completed'); setAuditUrl(user?.domain ? `https://${user.domain}` : ''); }
-            } catch { /* ignore */ }
-        } else {
-            setResult(null); setStatus('idle');
-            const url = (user?.domain ? `https://${user.domain}` : '').trim();
-            setAuditUrl(url || '');
-            if (url) {
-                apiClient.audit.getLatest({ url, projectId: user?.projectId ?? activeProject?.id })
-                    .then(saved => {
-                        if (saved) { setResult(saved); setStatus('completed'); localStorage.setItem(storageKey, JSON.stringify(saved)); }
-                        else handleRunAudit(url);
-                    })
-                    .catch(() => handleRunAudit(url));
-            }
-        }
-        loadHistory();
-    }, [storageKey, user?.domain, user?.projectId, activeProject?.id]); // eslint-disable-line
+        startAudit(urlToUse);
+    }, [auditUrl, startAudit]);
 
     // Derive counts
     const criticalCount = result?.summary?.critical ?? 0;
@@ -453,7 +374,7 @@ export default function AuditHealthPage({ user, activeProject }) {
                 </div>
                 {status === 'completed' && (
                     <button
-                        onClick={() => { stopPolling(); setStatus('idle'); setResult(null); setError(null); setAuditId(null); setProgress({ completed: 0, total: 0 }); localStorage.removeItem(storageKey); }}
+                        onClick={() => resetAudit()}
                         className="flex items-center gap-2 px-5 py-2.5 bg-[#E92A15] hover:bg-[#c82010] text-white text-[13px] font-semibold rounded-xl transition-all shadow-[0_0_20px_rgba(233,42,21,0.25)]"
                     >
                         <RefreshCw className="w-4 h-4" /> Re-scan

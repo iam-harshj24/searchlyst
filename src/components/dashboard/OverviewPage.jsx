@@ -112,9 +112,14 @@ export default function OverviewPage({ domains, activeProject, onAddDomain, onTa
         return hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
     };
 
-    const competitors = user?.competitors || [];
-    const suggestedCompetitors = user?.suggested_competitors || [];
-    const allCompetitors = [...competitors.map(c => ({ domain: c })), ...suggestedCompetitors.filter(sc => !competitors.includes(sc.domain))];
+    const userCompetitors = user?.competitors || [];
+    const localAdded = (() => {
+        try { return JSON.parse(localStorage.getItem(`searchlyst_added_competitors_${user?.domain || 'default'}`) || '[]'); } catch { return []; }
+    })();
+    const allCompetitors = [
+        ...userCompetitors.map(c => typeof c === 'string' ? { domain: c } : c),
+        ...localAdded.filter(d => !userCompetitors.includes(d)).map(d => ({ domain: d })),
+    ];
 
     const displayBrandName = user?.brandName || activeProject?.name || 'Your Brand';
     
@@ -348,6 +353,10 @@ export default function OverviewPage({ domains, activeProject, onAddDomain, onTa
                                     </div>
                                 );
                             })}
+                            <button onClick={() => onTabChange?.('competitors')}
+                                className="w-full flex items-center justify-center gap-1.5 py-2 text-[#E92A15] text-[11px] font-medium hover:text-[#ff4433] transition-colors border-t border-[#222] mt-2 pt-3">
+                                Competitors & suggestions <ChevronRight className="w-3 h-3" />
+                            </button>
                         </div>
                     ) : (
                         <div className="flex-1 flex flex-col items-center justify-center py-6 gap-3">
@@ -355,6 +364,10 @@ export default function OverviewPage({ domains, activeProject, onAddDomain, onTa
                                 <Target className="w-5 h-5 text-[#555]" />
                             </div>
                             <p className="text-[#666] text-[12px]">No competitors tracked yet</p>
+                            <button onClick={() => onTabChange?.('competitors')}
+                                className="text-[#E92A15] text-[11px] font-medium hover:text-[#ff4433] transition-colors">
+                                Open Competitors →
+                            </button>
                         </div>
                     )}
                 </div>
