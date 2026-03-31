@@ -131,7 +131,7 @@ function directTilesStorageKey(domain) {
     return `searchlyst_direct_competitor_tiles_${domain || 'default'}`;
 }
 
-/** Up to 34 unique brand names: onboarding competitors + manually tracked on this page only. */
+/** Up to 20 unique brand names: onboarding competitors + manually tracked on this page only. */
 function buildCompetitorsListForPrompt({ onboardingList, extraTracked }) {
     const out = [];
     const seen = new Set();
@@ -149,7 +149,7 @@ function buildCompetitorsListForPrompt({ onboardingList, extraTracked }) {
         const domain = typeof x === 'string' ? x : x?.domain;
         add(name || domain);
     }
-    return out.slice(0, 34);
+    return out.slice(0, 20);
 }
 
 function buildDirectCompetitorPrompt(user, competitorsList) {
@@ -162,45 +162,28 @@ function buildDirectCompetitorPrompt(user, competitorsList) {
     const geographicReach =
         [user?.location, user?.reach].filter(Boolean).join(' · ') || 'Regional / as defined in brand profile';
 
-    const n = competitorsList.length;
-    const listIntro =
-        n >= 34
-            ? 'Here is a list of 34 brands I already know are in this space:'
-            : `Here is a list of ${n} brands I already know are in this space (tracked competitors; maximum 34):`;
+    // Cap at 20 names to keep prompt well within query limits
+    const capped = competitorsList.slice(0, 20);
+    const listLines = capped.map((name, i) => `${i + 1}. ${name}`).join('\n');
 
-    const listLines = competitorsList.map((name, i) => `${i + 1}. ${name}`).join('\n');
+    return `RESPONSE FORMAT (mandatory): End your reply with EXACTLY ONE line containing ONLY a valid JSON array — no markdown fences, no label, nothing else on that line. Each element: {"name":"string","rank":1,"whyDirect":"string","criteriaStrong":["..."],"criteriaPartial":["..."],"meaningfulDifference":"string"}. If none qualify output [].
 
-    const core = `I am researching the ${industry} space and need help identifying the most exact competitors for a specific brand.
+Task: From the list below, identify TRUE direct competitors to ${brand} (${domain}) in the ${industry} space.
+Target audience: ${targetAudience}
+Geographic reach: ${geographicReach}
 
-Here is the brand I am evaluating:
-- Brand: ${brand}
-- Website: ${domain}
-- Industry: ${industry}
-- Target audience: ${targetAudience}
-- Geographic reach: ${geographicReach}
-
-${listIntro}
-${listLines}
-
-From this list, identify only the brands that are a TRUE direct competitor to ${brand} — meaning they must match on ALL four criteria:
+Criteria — a brand must match ALL 4 to qualify:
 1. Same industry or sub-category
 2. Same or highly overlapping target audience
 3. Same geographic reach or market scope
 4. Competing for the same buyer decision
 
-For each match, tell me:
-- Why they qualify as a direct competitor
-- Which criteria they match strongly and which only partially
-- Any meaningful difference that separates them from ${brand}
+Brands to evaluate:
+${listLines}
 
-Then rank them from most direct to least direct competitor.
-Ignore any brand from the list that does not meet at least 3 of the 4 criteria.`;
+For each qualifying brand: explain why they qualify, which criteria are strong vs partial, and one meaningful difference vs ${brand}. Rank from most-direct to least-direct. Ignore any brand matching fewer than 3 of the 4 criteria.
 
-    const jsonTail = `
-
-IMPORTANT: After your analysis, output ONE final line containing ONLY valid JSON (no markdown fences, no other text on that line): a JSON array of objects, one per retained competitor in rank order (most direct first). Each object MUST have keys: "name" (string), "rank" (number starting at 1), "whyDirect" (string), "criteriaStrong" (array of strings), "criteriaPartial" (array of strings), "meaningfulDifference" (string). If no brand qualifies, output [].`;
-
-    return core + jsonTail;
+Remember: final line = JSON array only.`;
 }
 
 function extractLastJsonArray(text) {
@@ -255,9 +238,11 @@ function tryParseCompetitorJsonArray(text) {
     if (!text?.trim()) return null;
     const t = text.trim();
 
+    // 1. Try markdown fenced blocks first (Gemini SDK often wraps in ```json ... ```)
     const fenced = extractJsonArrayFromMarkdownFence(t);
     if (fenced?.length) return fenced;
 
+    // 2. Scan lines bottom-up for a line that is itself a JSON array
     const lines = t.split('\n');
     for (let i = lines.length - 1; i >= 0; i--) {
         let line = lines[i].trim();
@@ -270,10 +255,40 @@ function tryParseCompetitorJsonArray(text) {
         } catch { /* continue */ }
     }
 
-    const fromBracket = extractLastJsonArray(t);
-    if (Array.isArray(fromBracket)) return fromBracket;
+    // 3. Scan for the last [ ... ] block (backward)
+    const fromLastBracket = extractLastJsonArray(t);
+    if (Array.isArray(fromLastBracket) && fromLastBracket.length > 0) return fromLastBracket;
+
+    // 4. Scan for the FIRST [ ... ] block (forward) — Gemini sometimes puts it early
+    const firstIdx = t.indexOf('[');
+    if (firstIdx >= 0) {
+        let depth = 0;
+        for (let i = firstIdx; i < t.length; i++) {
+            const ch = t[i];
+            if (ch === '[') depth++;
+            else if (ch === ']') {
+                depth--;
+                if (depth === 0) {
+                    try {
+                        const parsed = JSON.parse(t.slice(firstIdx, i + 1));
+                        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+                    } catch { /* not valid */ }
+                    break;
+                }
+            }
+        }
+    }
+
+    // 5. Last resort: try parsing the whole trimmed text as JSON array
+    try {
+        const parsed = JSON.parse(t);
+        if (Array.isArray(parsed)) return parsed;
+    } catch { /* not JSON */ }
+
     return null;
 }
+
+
 
 function parseDirectCompetitorJsonFromEngines(engines) {
     if (!engines || typeof engines !== 'object') return [];
@@ -447,6 +462,7 @@ export default function CompetitorsPage({ user, onTabChange }) {
                 domain: user?.domain || '',
                 competitors: competitorsForApi,
                 country: '',
+                useGeminiDirect: true,
             });
             const engines = res?.prompt?.engines;
             const hadAnyRaw =
@@ -720,7 +736,7 @@ export default function CompetitorsPage({ user, onTabChange }) {
                         <h2 className="text-white font-semibold text-[16px]">Direct competitor matches</h2>
                     </div>
                     <p className="text-[#666] text-[12px] mb-2">
-                        Runs your four-criteria brief across Perplexity, Gemini &amp; ChatGPT. Only names you already track — from onboarding and competitors added on this page — are sent (up to 34).
+                        Runs your four-criteria brief across Perplexity, Gemini &amp; ChatGPT. Only names you already track — from onboarding and competitors added on this page — are sent (up to 20).
                     </p>
                     <p className="text-[#555] text-[11px] mb-4">
                         Names queued: <strong className="text-[#888]">{competitorsListForPrompt.length}</strong>

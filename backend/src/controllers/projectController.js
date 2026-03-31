@@ -15,6 +15,15 @@ export async function createProject(req, res) {
             };
             return res.status(201).json({ success: true, project });
         }
+        // Enforce max 2 projects per user
+        const existingProjects = await projectService.getUserProjects(userId);
+        if (existingProjects.length >= 2) {
+            return res.status(403).json({
+                success: false,
+                message: 'Project limit reached. You can only have up to 2 projects.',
+            });
+        }
+
         const project = await projectService.createProject(userId, req.body);
 
         // Mark user as onboarded

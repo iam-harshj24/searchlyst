@@ -529,7 +529,13 @@ function DashboardInner() {
                 projects={projects}
                 activeProject={activeProject}
                 onProjectSwitch={handleProjectSwitch}
-                onAddProject={() => setShowAddProjectOnboarding(true)}
+                onAddProject={() => {
+                    if (projects.length >= 2) {
+                        import('sonner').then(({ toast }) => toast.error('Project limit reached. You can only have up to 2 projects.'));
+                        return;
+                    }
+                    setShowAddProjectOnboarding(true);
+                }}
                 onLogout={handleLogout}
                 scanActive={scanManager.scanStatus === 'scanning'}
                 auditActive={auditManager.status === 'crawling' || auditManager.status === 'analyzing'}
