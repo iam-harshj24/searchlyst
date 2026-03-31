@@ -533,13 +533,60 @@ export async function getScanHistory(req, res) {
  */
 export async function runCustomPrompt(req, res) {
     try {
-        const { query, brandName, domain, competitors, country } = req.body;
+        const { query, brandName, domain, competitors, country, useGeminiDirect } = req.body;
         if (!query?.trim()) return res.status(400).json({ success: false, message: 'query is required' });
+
+        const expandedCompetitors = (competitors || []).map(c => typeof c === 'string' ? { name: c, domain: c } : c);
+        const engineResults = {};
+
+        // ── Gemini Direct (SDK) path — used for structured JSON prompts ──────
+        // Infatica Gemini/ChatGPT endpoints return rendered HTML (800K-1.2M chars)
+        // which buries the model's JSON output. The SDK gives clean text directly.
+        if (useGeminiDirect) {
+            const geminiKey = process.env.GEMINI_API_KEY?.trim();
+            if (!geminiKey) {
+                return res.status(503).json({ success: false, message: 'GEMINI_API_KEY is required for direct structured prompts' });
+            }
+            try {
+                const { GoogleGenerativeAI } = await import('@google/generative-ai');
+                const genAI = new GoogleGenerativeAI(geminiKey);
+                const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+                const result = await model.generateContent(query.trim());
+                const text = result.response?.text?.() ?? '';
+                console.log(`[runCustomPrompt/geminiDirect] Response: ${text.length} chars`);
+                engineResults['geminiDirect'] = {
+                    mentioned: false,
+                    snippet: null,
+                    sentiment: 'n/a',
+                    positionRank: null,
+                    citations: [],
+                    rawText: text.trim() || null,
+                    status: text.trim() ? '✓ Response received' : '⚠ No response',
+                };
+            } catch (err) {
+                console.error('[runCustomPrompt/geminiDirect] Failed:', err.message);
+                engineResults['geminiDirect'] = {
+                    mentioned: false, snippet: null, sentiment: 'n/a', positionRank: null,
+                    citations: [], rawText: null, status: `⚠ Error: ${err.message}`,
+                };
+            }
+
+            const basePrompt = {
+                promptId: `custom_${Date.now()}`,
+                query: query.trim(),
+                category: 'custom',
+                intent: 'custom_prompt',
+                isCustom: true,
+                engines: engineResults,
+            };
+            return res.json({ success: true, prompt: attachPromptSentimentSchema(basePrompt) });
+        }
+
+        // ── Standard Infatica path (for regular custom prompts) ───────────────
         if (!process.env.INFATICA_API_KEY?.trim()) {
             return res.status(503).json({ success: false, message: 'Visibility scans require INFATICA_API_KEY on the server' });
         }
 
-        const expandedCompetitors = (competitors || []).map(c => typeof c === 'string' ? { name: c, domain: c } : c);
         const engines = [
             { key: 'perplexity', fn: queryPerplexity, label: 'Perplexity' },
             { key: 'gemini', fn: queryGemini, label: 'Gemini' },
@@ -557,7 +604,6 @@ export async function runCustomPrompt(req, res) {
             })
         );
 
-        const engineResults = {};
         for (const r of results) {
             const val = r.status === 'fulfilled' ? r.value : { engine: 'unknown', success: false };
             engineResults[val.engine] = {
@@ -584,6 +630,7 @@ export async function runCustomPrompt(req, res) {
         res.status(500).json({ success: false, message: error.message });
     }
 }
+
 
 /**
  * Batch run: accepts an array of queries and runs each against all 3 engines.

@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Plus, Globe, Check } from 'lucide-react';
+import { ChevronDown, Plus, Globe, Check, Lock } from 'lucide-react';
+
+const PROJECT_LIMIT = 2;
 
 const getInitial = (name) => {
     if (!name) return 'S';
@@ -9,6 +11,7 @@ const getInitial = (name) => {
 export default function ProjectSwitcher({ projects, activeProject, onSwitch, onAddNew }) {
     const [open, setOpen] = useState(false);
     const ref = useRef(null);
+    const atLimit = (projects?.length ?? 0) >= PROJECT_LIMIT;
 
     useEffect(() => {
         const handleClick = (e) => {
@@ -60,15 +63,33 @@ export default function ProjectSwitcher({ projects, activeProject, onSwitch, onA
                         ))}
                     </div>
                     <div className="border-t border-[#222] p-2">
-                        <button
-                            onClick={() => { onAddNew(); setOpen(false); }}
-                            className="w-full flex items-center gap-3 p-2 rounded-xl text-[#888] hover:bg-[#1A1A1A] hover:text-white transition-all"
-                        >
-                            <div className="w-8 h-8 rounded-full bg-[#222] flex items-center justify-center flex-shrink-0">
-                                <Plus className="w-4 h-4" />
+                        {atLimit ? (
+                            <div
+                                title={`Project limit reached (${PROJECT_LIMIT} max)`}
+                                className="w-full flex items-center gap-3 p-2 rounded-xl text-[#555] cursor-not-allowed"
+                            >
+                                <div className="w-8 h-8 rounded-full bg-[#1a1a1a] flex items-center justify-center flex-shrink-0 border border-[#2a2a2a]">
+                                    <Lock className="w-4 h-4 text-[#444]" />
+                                </div>
+                                <div className="flex-1 text-left">
+                                    <span className="text-[14px] font-medium">Add New Project</span>
+                                    <p className="text-[11px] text-[#444]">{projects.length}/{PROJECT_LIMIT} projects used</p>
+                                </div>
                             </div>
-                            <span className="text-[14px] font-medium">Add New Project</span>
-                        </button>
+                        ) : (
+                            <button
+                                onClick={() => { onAddNew(); setOpen(false); }}
+                                className="w-full flex items-center gap-3 p-2 rounded-xl text-[#888] hover:bg-[#1A1A1A] hover:text-white transition-all"
+                            >
+                                <div className="w-8 h-8 rounded-full bg-[#222] flex items-center justify-center flex-shrink-0">
+                                    <Plus className="w-4 h-4" />
+                                </div>
+                                <div className="flex-1 text-left">
+                                    <span className="text-[14px] font-medium">Add New Project</span>
+                                    <p className="text-[11px] text-[#555]">{projects.length}/{PROJECT_LIMIT} projects used</p>
+                                </div>
+                            </button>
+                        )}
                     </div>
                 </div>
             )}

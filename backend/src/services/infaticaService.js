@@ -9,7 +9,7 @@
  */
 
 const INFATICA_BASE = 'https://scrape.infatica.io';
-const MAX_QUERY_LEN = 2000;
+const MAX_QUERY_LEN = 6000;
 const MAX_RETRIES = 1;
 const RETRY_DELAYS = [2000];
 const ATTEMPT_TIMEOUT = 35_000;
