@@ -9,6 +9,7 @@ import AuditHealthPage from '@/components/dashboard/AuditHealthPage';
 import SentimentGeoPage from '@/components/dashboard/SentimentGeoPage';
 import CompetitiveIntelPage from '@/components/dashboard/CompetitiveIntelPage';
 import PromptIntelPage from '@/components/dashboard/PromptIntelPage';
+import CompetitorsPage from '@/components/dashboard/CompetitorsPage';
 import ActionsPage from '@/components/dashboard/ActionsPage';
 import AgentPage from '@/components/dashboard/AgentPage';
 import Sidebar from '@/components/dashboard/Sidebar';
@@ -103,10 +104,19 @@ function useScanManager(user) {
                     localStorage.removeItem(activeScanKey);
                     stopPolling();
                 } else if (res.status === 'failed') {
-                    setScanStatus('failed');
                     setScanError(res.error);
                     localStorage.removeItem(activeScanKey);
                     stopPolling();
+                    try {
+                        const fallback = await apiClient.visibility.getLatestScan(projectId, domain);
+                        if (fallback?.scan?.result) {
+                            setScanResult(fallback.scan.result);
+                            localStorage.setItem(storageKey, JSON.stringify(fallback.scan.result));
+                            setScanStatus('completed');
+                            return;
+                        }
+                    } catch { /* no fallback available */ }
+                    setScanStatus('failed');
                 }
             } catch { }
         }, 3000);
@@ -182,11 +192,9 @@ function useScanManager(user) {
     // Start a new scan
     const startScan = useCallback(async () => {
         if (!user?.domain) return;
-        setScanStatus('scanning'); setScanResult(null); setScanError(null);
+        setScanStatus('scanning'); setScanError(null);
         setScanPhase('initializing'); setScanPhaseDetail('Starting...');
         setScanProgress({ completed: 0, total: 0 }); setCompletedPrompts(0); setTotalPrompts(0);
-        localStorage.removeItem(storageKey);
-        localStorage.removeItem(`searchlyst_visibility_${user?.domain || 'default'}`); // Also clear legacy key
         try {
             const comps = (user?.competitors || []).map(c => typeof c === 'string' ? { name: c, domain: c } : c);
             const res = await apiClient.visibility.startScan({
@@ -195,6 +203,9 @@ function useScanManager(user) {
                 country: user?.location?.toLowerCase().includes('india') ? 'IN' : '',
                 projectId: user?.projectId || undefined,
             });
+            setScanResult(null);
+            localStorage.removeItem(storageKey);
+            localStorage.removeItem(`searchlyst_visibility_${user?.domain || 'default'}`);
             setScanId(res.scanId);
             localStorage.setItem(activeScanKey, JSON.stringify({ scanId: res.scanId, startedAt: new Date().toISOString() }));
             startPolling(res.scanId);
@@ -206,6 +217,133 @@ function useScanManager(user) {
         scanProgress, completedPrompts, totalPrompts, scanError,
         loadingFromBackend,
         startScan, stopPolling,
+    };
+}
+
+/* ------------------------------------------------------------------ */
+/*  useAuditManager — persistent background audit polling              */
+/* ------------------------------------------------------------------ */
+function useAuditManager(user, activeProject) {
+    const [auditId, setAuditId] = useState(null);
+    const [status, setStatus] = useState('idle');
+    const [progress, setProgress] = useState({ completed: 0, total: 0 });
+    const [result, setResult] = useState(null);
+    const [error, setError] = useState(null);
+    const [history, setHistory] = useState([]);
+    const pollRef = useRef(null);
+
+    const domain = user?.domain || '';
+    const projectId = user?.projectId ?? activeProject?.id;
+    const storageKey = `searchlyst_audit_${domain || 'default'}`;
+    const activeAuditKey = `searchlyst_active_audit_${domain}_${projectId ?? 'default'}`;
+
+    const stopPolling = useCallback(() => {
+        if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+    }, []);
+
+    const loadHistory = useCallback(async () => {
+        try {
+            const url = domain ? `https://${domain}` : '';
+            const h = await apiClient.audit.getHistory({ url, projectId });
+            setHistory(h || []);
+        } catch { /* silent */ }
+    }, [domain, projectId]);
+
+    const pollStatus = useCallback((id) => {
+        stopPolling();
+        pollRef.current = setInterval(async () => {
+            try {
+                const res = await apiClient.audit.getStatus(id);
+                if (res.progress) setProgress(res.progress);
+                if (res.status === 'completed') {
+                    setStatus('completed');
+                    setResult(res.result);
+                    localStorage.setItem(storageKey, JSON.stringify(res.result));
+                    localStorage.removeItem(activeAuditKey);
+                    stopPolling();
+                    loadHistory();
+                } else if (res.status === 'failed') {
+                    setStatus('failed');
+                    setError(res.error || 'Audit failed');
+                    localStorage.removeItem(activeAuditKey);
+                    stopPolling();
+                } else {
+                    setStatus(res.status);
+                }
+            } catch (err) { console.error('Audit poll error:', err); }
+        }, 4000);
+    }, [stopPolling, storageKey, activeAuditKey, loadHistory]);
+
+    const startAudit = useCallback(async (urlOverride) => {
+        const urlToUse = (urlOverride || (domain ? `https://${domain}` : '')).trim();
+        if (!urlToUse) return;
+        setStatus('crawling');
+        setResult(null);
+        setError(null);
+        setProgress({ completed: 0, total: 0 });
+        localStorage.removeItem(storageKey);
+        try {
+            const res = await apiClient.audit.start({ url: urlToUse, projectId });
+            setAuditId(res.auditId);
+            localStorage.setItem(activeAuditKey, JSON.stringify({ auditId: res.auditId, startedAt: new Date().toISOString() }));
+            pollStatus(res.auditId);
+        } catch (err) {
+            setStatus('failed');
+            setError(err.message || 'Failed to start audit');
+        }
+    }, [domain, projectId, storageKey, activeAuditKey, pollStatus]);
+
+    const resetAudit = useCallback(() => {
+        stopPolling();
+        setStatus('idle');
+        setResult(null);
+        setError(null);
+        setAuditId(null);
+        setProgress({ completed: 0, total: 0 });
+        localStorage.removeItem(storageKey);
+        localStorage.removeItem(activeAuditKey);
+    }, [stopPolling, storageKey, activeAuditKey]);
+
+    useEffect(() => () => stopPolling(), [stopPolling]);
+
+    useEffect(() => {
+        if (!domain) return;
+
+        // Resume active audit if one is in progress
+        try {
+            const active = JSON.parse(localStorage.getItem(activeAuditKey));
+            if (active?.auditId) {
+                setAuditId(active.auditId);
+                setStatus('crawling');
+                pollStatus(active.auditId);
+                loadHistory();
+                return;
+            }
+        } catch { /* silent */ }
+
+        // Load from localStorage cache
+        const saved = localStorage.getItem(storageKey);
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                if (parsed) { setResult(parsed); setStatus('completed'); }
+            } catch { /* ignore */ }
+        } else {
+            const url = domain ? `https://${domain}` : '';
+            if (url) {
+                apiClient.audit.getLatest({ url, projectId })
+                    .then(r => {
+                        if (r) { setResult(r); setStatus('completed'); localStorage.setItem(storageKey, JSON.stringify(r)); }
+                    })
+                    .catch(() => {});
+            }
+        }
+        loadHistory();
+    }, [domain, projectId, storageKey, activeAuditKey, pollStatus, loadHistory]);
+
+    return {
+        auditId, status, progress, result, error, history,
+        startAudit, resetAudit, stopPolling, loadHistory,
     };
 }
 
@@ -227,6 +365,7 @@ function DashboardInner() {
         : user;
     const contextUser = activeProject ? scanUser : user;
     const scanManager = useScanManager(scanUser);
+    const auditManager = useAuditManager(scanUser, activeProject);
 
     const fetchProjects = async () => {
         try {
@@ -364,10 +503,12 @@ function DashboardInner() {
                 return <AIVisibilityPage user={contextUser} scanManager={scanManager} />;
             case 'competitive-intel':
                 return <CompetitiveIntelPage user={contextUser} onTabChange={setActiveTab} />;
+            case 'competitors':
+                return <CompetitorsPage user={contextUser} onTabChange={setActiveTab} />;
             case 'sentiment-geo':
                 return <SentimentGeoPage user={contextUser} scanManager={scanManager} />;
             case 'audit-health':
-                return <AuditHealthPage user={contextUser} activeProject={activeProject} />;
+                return <AuditHealthPage user={contextUser} activeProject={activeProject} auditManager={auditManager} />;
             case 'prompt-intel':
                 return <PromptIntelPage user={contextUser} />;
             case 'actions':
@@ -391,6 +532,7 @@ function DashboardInner() {
                 onAddProject={() => setShowAddProjectOnboarding(true)}
                 onLogout={handleLogout}
                 scanActive={scanManager.scanStatus === 'scanning'}
+                auditActive={auditManager.status === 'crawling' || auditManager.status === 'analyzing'}
             />
             <div className="flex-1 min-h-0 overflow-auto bg-[#000000]">
                 <div className="p-8 page-transition">

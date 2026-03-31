@@ -17,13 +17,13 @@ import {
     computeShareOfVoice,
     computePerCategory,
     computeSourceDomains,
-    computeIndustryRanking,
+    computeIndustryPresenceRanking,
     computeCompetitorGap,
     computeSentimentBreakdown,
 } from './scoringEngine.js';
 
 const ENGINES = ['perplexity', 'gemini', 'googleAI'];
-const PLATFORM_NAMES = { perplexity: 'Perplexity', gemini: 'Gemini', googleAI: 'Google AI' };
+const PLATFORM_NAMES = { perplexity: 'Perplexity', gemini: 'Gemini', googleAI: 'ChatGPT' };
 const BATCH_SIZES = { perplexity: 2, gemini: 3, googleAI: 3 };
 const PHASE1_SIZE = 10;
 
@@ -133,7 +133,7 @@ function buildPlatformResults(allRuns, prompts, brandName, competitors, domain) 
             perCategory: computePerCategory(dataRuns),
             sentiment: computeSentimentBreakdown(dataRuns),
             sourceDomains: computeSourceDomains(dataRuns),
-            industryRanking: computeIndustryRanking(dataRuns, brandName, competitors, domain),
+            industryRanking: computeIndustryPresenceRanking(dataRuns, brandName),
             competitorGaps: computeCompetitorGap(dataRuns, brandName, competitors),
             promptCount: prompts.length,
             totalCalls: engineRuns.length,

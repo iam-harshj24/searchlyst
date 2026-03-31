@@ -136,6 +136,9 @@ function deriveSentimentAndGeo(scanResult) {
         { name: 'Negative', value: summary.negative || 0, color: '#ef4444' },
     ];
 
+    const ENGINE_ORDER_LOCAL = ['perplexity', 'gemini', 'googleAI'];
+    const ENGINE_LABELS = { perplexity: 'Perplexity', gemini: 'Gemini', googleAI: 'ChatGPT' };
+
     const prompts = (scanResult.prompts || []).map(p => {
         const engines = p.engines || {};
         const engineEntries = Object.entries(engines);
@@ -154,17 +157,20 @@ function deriveSentimentAndGeo(scanResult) {
             ? (posCount / sentiments.length >= 0.5 ? 'positive' : 'neutral')
             : 'neutral';
 
-        const platform = engineEntries.length > 0
-            ? { perplexity: 'Perplexity', gemini: 'Gemini', googleAI: 'ChatGPT' }[engineEntries[0][0]] || engineEntries[0][0]
-            : 'Unknown';
+        const perEngine = ENGINE_ORDER_LOCAL.map(ek => ({
+            engine: ek,
+            label: ENGINE_LABELS[ek] || ek,
+            mentioned: !!engines[ek]?.mentioned,
+            sentiment: engines[ek]?.sentiment || 'n/a',
+        }));
 
         return {
             prompt: p.query,
-            platform,
             brandMentioned: mentioned,
             position,
             citationCount: totalCitations,
             sentiment: sentimentLabel,
+            perEngine,
         };
     });
 
@@ -245,11 +251,6 @@ function deriveSentimentAndGeo(scanResult) {
     };
 }
 
-const PLATFORM_STYLES = {
-    Perplexity: 'bg-[#1a1a1a] text-[#aaa] border border-[#2a2a2a]',
-    Gemini: 'bg-[#1a1a1a] text-[#aaa] border border-[#2a2a2a]',
-    ChatGPT: 'bg-[#1a1a1a] text-[#aaa] border border-[#2a2a2a]',
-};
 
 export default function SentimentGeoPage({ user, scanManager }) {
     const [tooltip, setTooltip] = useState(null);
@@ -300,7 +301,7 @@ export default function SentimentGeoPage({ user, scanManager }) {
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                     {[
                         { label: 'Avg Sentiment', value: hasData ? `${avgSentiment}%` : '—', icon: Smile, change: hasData ? `${avgSentiment > 50 ? '+' : ''}${avgSentiment - 50}%` : '—', positive: avgSentiment >= 50 },
-                        { label: 'Tracked Prompts', value: hasData ? String(trackedPrompts) : '—', icon: Search, change: hasData ? `${trackedPrompts}` : '—', positive: true },
+                        { label: 'Total Citations', value: hasData ? String(totalCitations) : '—', icon: Search, change: hasData ? `${totalCitations}` : '—', positive: true },
                         { label: 'Active Regions', value: hasData ? String(activeRegions) : '—', icon: Globe, change: hasData ? `${activeRegions}` : '—', positive: true },
                         { label: 'Negative Mentions', value: hasData ? `${negativePct}%` : '—', icon: Frown, change: hasData ? `${negativePct}%` : '—', positive: negativePct <= 15 },
                     ].map((kpi, i) => {
@@ -335,7 +336,7 @@ export default function SentimentGeoPage({ user, scanManager }) {
                         <div className="flex items-start justify-between mb-6">
                             <div>
                                 <h2 className="text-white font-semibold text-[16px]">Sentiment Distribution</h2>
-                                <p className="text-[#666] text-[13px] mt-0.5">How AI platforms perceive your brand across {trackedPrompts} prompts</p>
+                                <p className="text-[#666] text-[13px] mt-0.5">How AI platforms perceive your brand across all analyzed responses</p>
                             </div>
                             <div className="flex items-center gap-4 text-[11px] shrink-0">
                                 <span className="flex items-center gap-1.5 text-[#ccc]"><span className="w-2 h-2 rounded-full bg-white inline-block" />Positive</span>
@@ -404,19 +405,19 @@ export default function SentimentGeoPage({ user, scanManager }) {
                     </div>
                 </div>
 
-                {/* Prompt Performance Table */}
+                {/* Per-Platform Sentiment Table */}
                 <div className="bg-[#0B0B0B] border border-[#222] rounded-2xl p-6">
                     <div className="flex items-start justify-between mb-5">
                         <div>
-                            <h2 className="text-white font-semibold text-[16px]">Prompt Performance</h2>
-                            <p className="text-[#666] text-[13px] mt-0.5">Track which AI prompts mention your brand and their sentiment</p>
+                            <h2 className="text-white font-semibold text-[16px]">Per-Platform Sentiment</h2>
+                            <p className="text-[#666] text-[13px] mt-0.5">How each AI platform perceives your brand per prompt</p>
                         </div>
                     </div>
                     <div className="overflow-x-auto">
                         <table className="w-full">
                             <thead>
                                 <tr className="border-b border-[#1a1a1a]">
-                                    {['PROMPT', 'BRAND MENTIONED', 'POSITION', 'CITATIONS', 'PLATFORM', 'SENTIMENT'].map(h => (
+                                    {['PROMPT', 'MENTIONED', 'POSITION', 'PERPLEXITY', 'GEMINI', 'CHATGPT'].map(h => (
                                         <th key={h} className={`pb-3 text-[10px] text-[#444] uppercase tracking-[0.12em] font-bold ${h === 'PROMPT' ? 'text-left' : 'text-center'}`}>{h}</th>
                                     ))}
                                 </tr>
@@ -429,58 +430,57 @@ export default function SentimentGeoPage({ user, scanManager }) {
                                                 <td className="py-4 pr-4"><div className="animate-pulse bg-[#1a1a1a] rounded w-48 h-4" /></td>
                                                 <td className="text-center"><div className="animate-pulse bg-[#1a1a1a] rounded w-12 h-5 mx-auto" /></td>
                                                 <td className="text-center"><div className="animate-pulse bg-[#1a1a1a] rounded w-8 h-4 mx-auto" /></td>
-                                                <td className="text-center"><div className="animate-pulse bg-[#1a1a1a] rounded w-6 h-4 mx-auto" /></td>
-                                                <td className="text-center"><div className="animate-pulse bg-[#1a1a1a] rounded w-16 h-5 mx-auto" /></td>
+                                                <td className="text-center"><div className="animate-pulse bg-[#1a1a1a] rounded w-14 h-5 mx-auto" /></td>
+                                                <td className="text-center"><div className="animate-pulse bg-[#1a1a1a] rounded w-14 h-5 mx-auto" /></td>
                                                 <td className="text-center"><div className="animate-pulse bg-[#1a1a1a] rounded w-14 h-5 mx-auto" /></td>
                                             </tr>
                                         ))}
-                                        <tr><td colSpan={6} className="py-4 text-center text-[#444] text-[12px]">Run a scan to see prompt performance data</td></tr>
+                                        <tr><td colSpan={6} className="py-4 text-center text-[#444] text-[12px]">Run a scan to see per-platform sentiment data</td></tr>
                                     </>
-                                ) : prompts.map((row, i) => (
-                                    <tr key={i} className="border-b border-[#111] hover:bg-[#111] transition-colors group cursor-pointer">
-                                        <td className="py-4 pr-4 max-w-[300px]">
-                                            <div className="flex items-center gap-2">
-                                                <Search className="w-3.5 h-3.5 text-[#444] shrink-0" />
-                                                <span className="text-[#ccc] text-[13px] line-clamp-2">{row.prompt}</span>
-                                            </div>
-                                        </td>
-                                        <td className="text-center">
-                                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[12px] font-medium ${row.brandMentioned
-                                                ? 'bg-[#1a1a1a] text-[#aaa] border border-[#2a2a2a]'
-                                                : 'bg-[#1a0a0a] text-[#E92A15] border border-[#E92A15]/20'
-                                            }`}>
-                                                {row.brandMentioned ? '✓ Yes' : '✗ No'}
+                                ) : prompts.map((row, i) => {
+                                    const sentChip = (eng) => {
+                                        const d = (row.perEngine || []).find(e => e.engine === eng);
+                                        if (!d || !d.mentioned) return <span className="text-[#444] text-[11px]">—</span>;
+                                        const s = (d.sentiment || 'neutral').toLowerCase();
+                                        const clr = s === 'positive' ? 'text-[#22c55e] bg-[#0a1a0a] border-[#22c55e]/30' :
+                                                    s === 'negative' ? 'text-[#ef4444] bg-[#1a0a0a] border-[#ef4444]/30' :
+                                                    'text-[#eab308] bg-[#1a1a0a] border-[#eab308]/30';
+                                        const icon = s === 'positive' ? <ArrowUpRight className="w-3 h-3" /> :
+                                                     s === 'negative' ? <ArrowDownRight className="w-3 h-3" /> : null;
+                                        return (
+                                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-semibold border ${clr}`}>
+                                                {icon}{s.charAt(0).toUpperCase() + s.slice(1)}
                                             </span>
-                                        </td>
-                                        <td className="text-center">
-                                            {row.position != null
-                                                ? <span className="text-white text-[14px] font-bold">#{row.position}</span>
-                                                : <span className="text-[#333] text-[14px]">—</span>
-                                            }
-                                        </td>
-                                        <td className="text-center">
-                                            <span className="text-[#888] text-[13px]">{row.citationCount}</span>
-                                        </td>
-                                        <td className="text-center">
-                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[12px] ${PLATFORM_STYLES[row.platform] || 'bg-[#1a1a1a] text-[#aaa] border border-[#2a2a2a]'}`}>
-                                                <span className="w-1.5 h-1.5 rounded-full bg-current opacity-60" />
-                                                {row.platform}
-                                            </span>
-                                        </td>
-                                        <td className="text-center">
-                                            <span className={`inline-flex items-center gap-1 text-[12px] font-semibold px-2 py-1 rounded-lg ${
-                                                row.sentiment === 'positive' ? 'text-[#22c55e] bg-[#0a1a0a]' :
-                                                row.sentiment === 'negative' ? 'text-[#E92A15] bg-[#1a0a0a]' :
-                                                'text-[#888] bg-[#1a1a1a]'
-                                            }`}>
-                                                {row.sentiment === 'positive' ? <ArrowUpRight className="w-3 h-3" /> :
-                                                 row.sentiment === 'negative' ? <ArrowDownRight className="w-3 h-3" /> :
-                                                 <span className="text-[10px]">—</span>}
-                                                {row.sentiment}
-                                            </span>
-                                        </td>
-                                    </tr>
-                                ))}
+                                        );
+                                    };
+                                    return (
+                                        <tr key={i} className="border-b border-[#111] hover:bg-[#111] transition-colors">
+                                            <td className="py-4 pr-4 max-w-[280px]">
+                                                <div className="flex items-center gap-2">
+                                                    <Search className="w-3.5 h-3.5 text-[#444] shrink-0" />
+                                                    <span className="text-[#ccc] text-[13px] line-clamp-2">{row.prompt}</span>
+                                                </div>
+                                            </td>
+                                            <td className="text-center">
+                                                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[12px] font-medium ${row.brandMentioned
+                                                    ? 'bg-[#1a1a1a] text-[#aaa] border border-[#2a2a2a]'
+                                                    : 'bg-[#1a0a0a] text-[#E92A15] border border-[#E92A15]/20'
+                                                }`}>
+                                                    {row.brandMentioned ? '✓ Yes' : '✗ No'}
+                                                </span>
+                                            </td>
+                                            <td className="text-center">
+                                                {row.position != null
+                                                    ? <span className="text-white text-[14px] font-bold">#{row.position}</span>
+                                                    : <span className="text-[#333] text-[14px]">—</span>
+                                                }
+                                            </td>
+                                            <td className="text-center">{sentChip('perplexity')}</td>
+                                            <td className="text-center">{sentChip('gemini')}</td>
+                                            <td className="text-center">{sentChip('googleAI')}</td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>

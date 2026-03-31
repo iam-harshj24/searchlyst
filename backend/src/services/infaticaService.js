@@ -177,7 +177,7 @@ export async function queryGemini(query, country) {
 
 export async function queryGoogleAI(query, country) {
     const q = truncateQuery(query);
-    const label = 'Google AI';
+    const label = 'ChatGPT';
     const url = `https://www.google.com/search?q=${encodeURIComponent(q)}`;
     console.log(`  [${label}] "${q.substring(0, 70)}..."`);
     const res = await infaticaFetch(`${INFATICA_BASE}/serp`, {

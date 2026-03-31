@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
     LayoutDashboard, Bot, Eye, BarChart3, Compass, PenTool,
     Activity, UserCircle, TrendingUp, User, LogOut,
-    FileSearch, Globe, Zap, Sun, Moon, Swords, Terminal, Bell
+    FileSearch, Globe, Zap, Sun, Moon, Swords, Terminal, Bell, Users,
 } from 'lucide-react';
 import ProjectSwitcher from './ProjectSwitcher';
 import { useTheme } from '@/lib/ThemeContext';
@@ -27,6 +27,7 @@ const menuSections = [
         items: [
             { id: 'ai-visibility', label: 'AI Visibility', icon: Eye },
             { id: 'competitive-intel', label: 'Competitive Intel', icon: Swords },
+            { id: 'competitors', label: 'Competitors', icon: Users },
             { id: 'sentiment-geo', label: 'Sentiment & Geo', icon: Globe },
             { id: 'audit-health', label: 'Audits & Health', icon: FileSearch },
             { id: 'prompt-intel', label: 'Prompt Intelligence', icon: Terminal },
@@ -40,7 +41,7 @@ const menuSections = [
     },
 ];
 
-export default function Sidebar({ activeTab, onTabChange, user, authUser, userRole, projects, activeProject, onProjectSwitch, onAddProject, onLogout, scanActive }) {
+export default function Sidebar({ activeTab, onTabChange, user, authUser, userRole, projects, activeProject, onProjectSwitch, onAddProject, onLogout, scanActive, auditActive }) {
     const [collapsed, setCollapsed] = useState(false);
     const { theme, toggleTheme } = useTheme();
 
@@ -90,7 +91,7 @@ export default function Sidebar({ activeTab, onTabChange, user, authUser, userRo
                         {section.items.map((item) => {
                             const Icon = item.icon;
                             const isActive = activeTab === item.id;
-                            const showScanDot = item.id === 'ai-visibility' && scanActive;
+                            const showScanDot = (item.id === 'ai-visibility' && scanActive) || (item.id === 'audit-health' && auditActive);
                             return (
                                 <button
                                     key={item.id}

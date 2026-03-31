@@ -10,7 +10,7 @@ import {
     computeSentimentBreakdown,
     computeQueryTracking,
     computeSourceDomains,
-    computeIndustryRanking,
+    computeIndustryPresenceRanking,
     computeUrlRanking,
 } from '../services/scoringEngine.js';
 import { queryPerplexity, queryGemini, queryGoogleAI } from '../services/infaticaService.js';
@@ -22,11 +22,140 @@ function buildCompStr(competitors) {
     return list.slice(0, 5).join(', ') || 'major competitors';
 }
 
+function normalizeDomainHint(d) {
+    return String(d || '').replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0].toLowerCase();
+}
+
+function plainFromInfatica(raw) {
+    if (raw?.text?.trim()) return raw.text.trim();
+    if (raw?.html) {
+        const h = typeof raw.html === 'string' ? raw.html : '';
+        return h
+            .replace(/<script[\s\S]*?<\/script>/gi, '')
+            .replace(/<style[\s\S]*?<\/style>/gi, '')
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/&nbsp;/gi, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+    return '';
+}
+
+function parseNumberedCompetitorLines(text) {
+    if (!text || typeof text !== 'string') return [];
+    const lines = text.split(/\r?\n/);
+    const out = [];
+    const seen = new Set();
+    for (const line of lines) {
+        const m = line.match(/^\s*\d+[\).\s]+\s*(.+)$/);
+        const bullet = line.match(/^\s*[-*•]\s+(.+)$/);
+        const raw = (m || bullet)?.[1]?.trim();
+        if (!raw) continue;
+        const name = raw.replace(/\s*[\u2014\-]\s*.+$/, '').replace(/\([^)]*\)/g, '').trim();
+        if (name.length < 2 || name.length > 80) continue;
+        const key = name.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(name);
+    }
+    return out.slice(0, 24);
+}
+
+function hostSlug(domain) {
+    const d = normalizeDomainHint(domain);
+    if (!d) return '';
+    return d.split('.')[0].replace(/-/g, '');
+}
+
+function suggestionMatchesCitedDomains(name, citedDomainsNorm) {
+    if (!citedDomainsNorm?.length) return false;
+    const nl = (name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const words = (name || '')
+        .toLowerCase()
+        .split(/\s+/)
+        .map(w => w.replace(/[^a-z0-9]/g, ''))
+        .filter(w => w.length > 2);
+    for (const dom of citedDomainsNorm) {
+        if (!dom) continue;
+        const slug = hostSlug(dom);
+        if (slug && slug.length > 2 && (nl.includes(slug) || words.some(w => slug.includes(w) || w.includes(slug)))) return true;
+    }
+    return false;
+}
+
+function suggestionNearTrackedPeer(name, expandedCompetitors) {
+    const nl = (name || '').toLowerCase();
+    const words = nl.split(/[\s./]+/).filter(w => w.length > 3);
+    for (const c of expandedCompetitors || []) {
+        const cn = String(c.name || '').toLowerCase();
+        const cd = hostSlug(c.domain || c.name || '');
+        if (cn && (nl === cn || nl.includes(cn) || cn.includes(nl))) return true;
+        if (cd && cd.length > 3 && words.some(w => w.includes(cd) || cd.includes(w))) return true;
+    }
+    return false;
+}
+
+function isDuplicateOfBrandOrTracked(name, brandName, brandDomain, expandedCompetitors) {
+    const nl = (name || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    const bl = (brandName || '').toLowerCase().trim();
+    if (bl && (nl === bl || nl.includes(bl) || bl.includes(nl))) return true;
+    const bslug = hostSlug(brandDomain);
+    if (bslug && bslug.length > 2 && nl.replace(/[^a-z0-9]/g, '').includes(bslug)) return true;
+    for (const c of expandedCompetitors || []) {
+        const cn = String(c.name || '').toLowerCase().trim();
+        if (cn && (nl === cn || nl.includes(cn) || cn.includes(nl))) return true;
+        const cd = normalizeDomainHint(c.domain || '');
+        const cs = hostSlug(cd);
+        if (cs && cs.length > 2 && nl.replace(/[^a-z0-9]/g, '').includes(cs)) return true;
+    }
+    return false;
+}
+
+const PROMPT_ENGINE_ORDER = ['perplexity', 'gemini', 'googleAI'];
+
+function engineDisplayLabel(ek) {
+    if (ek === 'googleAI') return 'ChatGPT';
+    if (ek === 'perplexity') return 'Perplexity';
+    if (ek === 'gemini') return 'Gemini';
+    return ek;
+}
+
+/** Per-LLM sentiment schema for prompt list + detail views */
+function attachPromptSentimentSchema(p) {
+    const eng = p.engines || {};
+    const sentimentByEngine = {};
+    const engineSentiments = [];
+    for (const ek of PROMPT_ENGINE_ORDER) {
+        const row = eng[ek];
+        const sent = row?.sentiment && row.sentiment !== 'n/a' ? row.sentiment : 'n/a';
+        sentimentByEngine[ek] = sent;
+        engineSentiments.push({
+            engine: ek,
+            label: engineDisplayLabel(ek),
+            mentioned: !!row?.mentioned,
+            sentiment: sent,
+            positionRank: row?.positionRank ?? null,
+        });
+    }
+    return { ...p, sentimentByEngine, engineSentiments };
+}
+
 function normalizeGaps(gaps) {
     if (!Array.isArray(gaps)) return [];
     return gaps.map(g => {
-        if (typeof g === 'string') return { query: g, competitors: [] };
-        if (g && typeof g === 'object' && (g.query || g.topic)) return { query: g.query || g.topic, competitors: Array.isArray(g.competitors) ? g.competitors : (g.competitorsPresent || []).map(c => c.name || c) };
+        if (typeof g === 'string') return { query: g, competitors: [], contentTopic: g, contentAngle: '' };
+        if (g && typeof g === 'object' && (g.query || g.topic)) {
+            const competitors = Array.isArray(g.competitors)
+                ? g.competitors
+                : (g.competitorsPresent || []).map(c => (typeof c === 'string' ? c : c.name || c));
+            return {
+                ...g,
+                query: g.query || g.topic,
+                competitors,
+                contentTopic: g.contentTopic || g.query || g.topic,
+                contentAngle: g.contentAngle || '',
+            };
+        }
         return g;
     }).filter(Boolean);
 }
@@ -40,7 +169,7 @@ function buildOverviewFromPlatforms(platformResults, allRuns, brandName, domain,
     const queryTracking = computeQueryTracking(allRuns, brandName);
     const sourceDomains = computeSourceDomains(allRuns);
     const urlRanking = computeUrlRanking(allRuns);
-    const industryRanking = computeIndustryRanking(allRuns, brandName, competitors, domain);
+    const industryRanking = computeIndustryPresenceRanking(allRuns, brandName);
     const competitorGaps = computeCompetitorGap(allRuns, brandName, competitors);
 
     const promptMap = {};
@@ -62,7 +191,7 @@ function buildOverviewFromPlatforms(platformResults, allRuns, brandName, domain,
             status: hasResponse ? '✓ Response received' : '⚠ No response',
         };
     }
-    const prompts = Object.values(promptMap);
+    const prompts = Object.values(promptMap).map(attachPromptSentimentSchema);
 
     const entityMap = {};
     for (const run of allRuns) {
@@ -88,7 +217,7 @@ function buildOverviewFromPlatforms(platformResults, allRuns, brandName, domain,
         platformBreakdown: {
             perplexity: { name: 'Perplexity', ...(perEngine.perplexity || { score: 0, runs: 0, mentions: 0 }) },
             gemini: { name: 'Gemini', ...(perEngine.gemini || { score: 0, runs: 0, mentions: 0 }) },
-            googleAI: { name: 'Google AI', ...(perEngine.googleAI || { score: 0, runs: 0, mentions: 0 }) },
+            googleAI: { name: 'ChatGPT', ...(perEngine.googleAI || { score: 0, runs: 0, mentions: 0 }) },
         },
         perCategory,
         sentiment,
@@ -131,7 +260,7 @@ function assembleResult(overview, platformResults, intelligence, brandName, doma
         entityGraph: overview.entityGraph,
         citationSummary: overview.citationSummary,
         competitorGaps: normalizeGaps(overview.competitorGaps),
-        competitorAnalysis: { shareOfVoice: sovArr, industryRanking: sovArr, threats: [] },
+        competitorAnalysis: { shareOfVoice: sovArr, industryRanking: overview.industryRanking || [], threats: [] },
         competitorInsights: {
             topFindings: intelligence?.strengthAreas || [],
             recommendations: intelligence?.topOpportunities || [],
@@ -160,7 +289,7 @@ async function executeScan(scanId, brandName, domain, industry, competitors, loc
     try {
         await prisma.visibilityScan.update({
             where: { id: scanId },
-            data: { progress: JSON.stringify({ phase: 'agents_running', detail: '3 parallel agents (Perplexity, Gemini, Google AI) querying...', completed: 0, total: 0 }) }
+            data: { progress: JSON.stringify({ phase: 'agents_running', detail: '3 parallel agents (Perplexity, Gemini, ChatGPT) querying...', completed: 0, total: 0 }) }
         });
 
         const agentConfig = { brandName, domain, industry, competitors: expandedCompetitors, location, country, language };
@@ -414,7 +543,7 @@ export async function runCustomPrompt(req, res) {
         const engines = [
             { key: 'perplexity', fn: queryPerplexity, label: 'Perplexity' },
             { key: 'gemini', fn: queryGemini, label: 'Gemini' },
-            { key: 'googleAI', fn: queryGoogleAI, label: 'Google AI' },
+            { key: 'googleAI', fn: queryGoogleAI, label: 'ChatGPT' },
         ];
 
         const results = await Promise.allSettled(
@@ -442,17 +571,179 @@ export async function runCustomPrompt(req, res) {
             };
         }
 
-        return res.json({
-            success: true,
-            prompt: {
-                promptId: `custom_${Date.now()}`,
-                query: query.trim(),
+        const basePrompt = {
+            promptId: `custom_${Date.now()}`,
+            query: query.trim(),
+            category: 'custom',
+            intent: 'custom_prompt',
+            isCustom: true,
+            engines: engineResults,
+        };
+        return res.json({ success: true, prompt: attachPromptSentimentSchema(basePrompt) });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+}
+
+/**
+ * Batch run: accepts an array of queries and runs each against all 3 engines.
+ * Only the provided prompts are sent — no re-scan, no re-running existing prompts.
+ * Returns structured prompt objects that the frontend merges into its list.
+ */
+export async function runCustomPromptsBatch(req, res) {
+    try {
+        const { queries, brandName, domain, competitors, country } = req.body;
+        if (!Array.isArray(queries) || queries.length === 0) {
+            return res.status(400).json({ success: false, message: 'queries[] is required and must be non-empty' });
+        }
+        if (queries.length > 10) {
+            return res.status(400).json({ success: false, message: 'Maximum 10 prompts per batch' });
+        }
+        if (!process.env.INFATICA_API_KEY?.trim()) {
+            return res.status(503).json({ success: false, message: 'Visibility scans require INFATICA_API_KEY on the server' });
+        }
+
+        const expandedCompetitors = (competitors || []).map(c => typeof c === 'string' ? { name: c, domain: c } : c);
+        const engines = [
+            { key: 'perplexity', fn: queryPerplexity },
+            { key: 'gemini', fn: queryGemini },
+            { key: 'googleAI', fn: queryGoogleAI },
+        ];
+
+        const prompts = [];
+        for (const query of queries) {
+            const q = (query || '').trim();
+            if (!q) continue;
+
+            const engineResults = {};
+            const settled = await Promise.allSettled(
+                engines.map(async ({ key, fn }) => {
+                    const raw = await fn(q, country || '');
+                    if (raw && (raw.text || raw.html)) {
+                        const parsed = parseResponse(raw, brandName || '', domain || '', expandedCompetitors, key);
+                        return { engine: key, success: true, ...parsed };
+                    }
+                    return { engine: key, success: false };
+                }),
+            );
+
+            for (const r of settled) {
+                const val = r.status === 'fulfilled' ? r.value : { engine: 'unknown', success: false };
+                engineResults[val.engine] = {
+                    mentioned: val.brandMentioned || false,
+                    snippet: val.brandEntity?.snippet || null,
+                    sentiment: val.brandEntity?.sentiment || 'n/a',
+                    positionRank: val.brandEntity?.positionRank || null,
+                    citations: val.citations || [],
+                    rawText: val.rawText || null,
+                    status: val.success ? '✓ Response received' : '⚠ No response',
+                };
+            }
+
+            prompts.push(attachPromptSentimentSchema({
+                promptId: `custom_${Date.now()}_${prompts.length}`,
+                query: q,
                 category: 'custom',
                 intent: 'custom_prompt',
                 isCustom: true,
                 engines: engineResults,
-            },
-        });
+            }));
+        }
+
+        return res.json({ success: true, prompts });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+}
+
+/**
+ * Brand + tracked-competitor-grounded suggestions; re-ranks so scan citation domains win.
+ */
+export async function suggestCompetitors(req, res) {
+    try {
+        const {
+            brandName = '',
+            domain = '',
+            industry = '',
+            location = '',
+            reach = '',
+            competitors = [],
+            country = '',
+            citedDomains = [],
+        } = req.body || {};
+
+        if (!process.env.INFATICA_API_KEY?.trim()) {
+            return res.status(503).json({ success: false, message: 'Visibility requires INFATICA_API_KEY on the server' });
+        }
+
+        const expandedCompetitors = (competitors || []).map(c =>
+            typeof c === 'string' ? { name: c, domain: c } : { name: c.name || c.domain, domain: c.domain || c.name },
+        );
+
+        const trackedCatalog = expandedCompetitors
+            .slice(0, 14)
+            .map(c => {
+                const n = c.name || c.domain || '';
+                if (!n) return null;
+                const d = normalizeDomainHint(c.domain || '');
+                return d && d !== n.toLowerCase() ? `${n} (${d})` : n;
+            })
+            .filter(Boolean)
+            .join('; ') || '(none yet — infer peers from the category only)';
+
+        const prompt = `You are a market analyst. A buyer is evaluating vendors like "${brandName}" (${domain || 'website TBD'}).
+
+Hard context (must respect):
+- Industry / category: ${industry || 'general B2B'}
+- Primary geography: ${location || 'global'}
+- Typical buyer scale: ${reach || 'not specified'}
+
+Ground-truth competitors this user already tracks (same shortlist — expand the set, do not repeat these names or their obvious parent brands):
+${trackedCatalog}
+
+Task: List 14–18 additional DIRECT competitors that belong in the same RFP / comparison set as "${brandName}" and the tracked peers above—same product job, same buyer, same geo where relevant.
+
+Rules:
+- Real companies or products only. Exclude Wikipedia, news, forums, social networks, directories, and generic ".com" content farms.
+- Do NOT list "${brandName}" or any name/domain you already listed in the user's tracked set above.
+- Output ONLY a numbered list (1. 2. 3. …), one company per line, no intro or explanation.`;
+
+        const engines = [queryPerplexity, queryGemini, queryGoogleAI];
+        let combinedText = '';
+        for (const fn of engines) {
+            try {
+                const raw = await fn(prompt, country || '');
+                const chunk = plainFromInfatica(raw);
+                if (chunk.length > 80) {
+                    combinedText = combinedText ? `${combinedText}\n${chunk}` : chunk;
+                    if (parseNumberedCompetitorLines(combinedText).length >= 10) break;
+                }
+            } catch { /* try next */ }
+        }
+
+        const names = parseNumberedCompetitorLines(combinedText);
+        const citedNorm = [...new Set((citedDomains || []).map(normalizeDomainHint).filter(Boolean))];
+
+        const suggestions = [];
+        for (const name of names) {
+            if (isDuplicateOfBrandOrTracked(name, brandName, domain, expandedCompetitors)) continue;
+            const urlMatch = suggestionMatchesCitedDomains(name, citedNorm);
+            const trackedPeer = suggestionNearTrackedPeer(name, expandedCompetitors);
+            let score = 38;
+            if (urlMatch) score += 62;
+            if (trackedPeer) score += 22;
+            const priority = score >= 85 ? 'high' : score >= 58 ? 'medium' : 'low';
+            suggestions.push({
+                name,
+                score,
+                priority,
+                signals: { urlMatch, trackedPeer },
+            });
+        }
+
+        suggestions.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+
+        return res.json({ success: true, suggestions: suggestions.slice(0, 20) });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }

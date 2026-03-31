@@ -218,6 +218,12 @@ export const apiClient = {
     async runCustomPrompt(data) {
       return apiClient.post('/visibility/run-prompt', data);
     },
+    async runCustomPromptsBatch(data) {
+      return apiClient.post('/visibility/run-prompts', data);
+    },
+    async suggestCompetitors(data) {
+      return apiClient.post('/visibility/suggest-competitors', data);
+    },
   },
 
   // Waitlist specific methods

@@ -247,6 +247,16 @@ function checkMentions(textLower, aliases) {
 
 // ── Core Shared Parser (works for both text and HTML → text) ─────────────────
 
+/** Keep payload bounded but preserve the *end* of long answers (custom prompts often put JSON on the last line). */
+function capRawTextForStorage(text, maxLen = 8000) {
+    if (!text || text.length <= maxLen) return text;
+    const sep = '\n\n… [truncated] …\n\n';
+    const tailLen = Math.min(5500, Math.floor((maxLen - sep.length) * 0.62));
+    const headLen = maxLen - sep.length - tailLen;
+    if (headLen < 400) return text.slice(-maxLen);
+    return text.slice(0, headLen) + sep + text.slice(-tailLen);
+}
+
 function buildRunData(text, sources, brandName, domain, competitors, engine) {
     const textLower = text.toLowerCase();
     const domainClean = (domain || '').replace(/^www\./, '').toLowerCase();
@@ -325,7 +335,7 @@ function buildRunData(text, sources, brandName, domain, competitors, engine) {
         citations,
         citationStats,
         textLength: text.length,
-        rawText: text.substring(0, 8000), // cap at 8k chars for storage
+        rawText: capRawTextForStorage(text, 8000),
     };
 }
 

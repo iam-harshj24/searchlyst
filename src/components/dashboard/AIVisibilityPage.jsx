@@ -13,7 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 
 const PI = { perplexity: '🔮', gemini: '✨', googleAI: '🤖', chatgpt: '🤖', claude: '✹' };
-const EL = { perplexity: 'Perplexity', gemini: 'Gemini', googleAI: 'Google AI', chatgpt: 'ChatGPT', claude: 'Claude' };
+const EL = { perplexity: 'Perplexity', gemini: 'Gemini', googleAI: 'ChatGPT', chatgpt: 'ChatGPT', claude: 'Claude' };
 
 function SemiCircleGauge({ score, icon, label, size = 160 }) {
     const swBg = 20;
@@ -118,47 +118,23 @@ const LIVE_STATUS_BY_PHASE = {
     ],
 };
 
-function ScanProgressWidget({ phase, phaseDetail, progress, completedPrompts, totalPrompts, scanId }) {
-    const [elapsedMs, setElapsedMs] = useState(0);
+function ScanProgressWidget({ phase, phaseDetail, progress, scanId }) {
     const [rotateIdx, setRotateIdx] = useState(0);
 
-    useEffect(() => {
-        const start = Date.now();
-        const interval = setInterval(() => setElapsedMs(Date.now() - start), 1000);
-        return () => clearInterval(interval);
-    }, [scanId]);
-
     const pool = LIVE_STATUS_BY_PHASE[phase] || LIVE_STATUS_BY_PHASE.default;
+    useEffect(() => { setRotateIdx(0); }, [phase, scanId]);
     useEffect(() => {
-        setRotateIdx(0);
-    }, [phase, scanId]);
-
-    useEffect(() => {
-        const t = setInterval(() => {
-            setRotateIdx(i => (i + 1) % pool.length);
-        }, 2800);
+        const t = setInterval(() => setRotateIdx(i => (i + 1) % pool.length), 2800);
         return () => clearInterval(t);
     }, [phase, pool.length, scanId]);
 
-    const formatTime = (ms) => {
-        const secs = Math.floor(ms / 1000);
-        const m = Math.floor(secs / 60);
-        const s = secs % 60;
-        return `${m}:${s.toString().padStart(2, '0')}`;
-    };
-
     const pct = progress.total > 0 ? Math.round((progress.completed / progress.total) * 100) : 0;
-    const total = totalPrompts || progress.total || 60;
-    const estSeconds = Math.max(90, Math.ceil(total * 2.2));
-    const estLabel = estSeconds >= 3600
-        ? `~${Math.ceil(estSeconds / 3600)}h`
-        : `~${Math.ceil(estSeconds / 60)} min`;
 
     const steps = [
         { id: 'initializing', label: 'Connect & prepare', sub: 'Secure session and your brand context' },
-        { id: 'agents_running', label: 'Generate prompts & launch agents', sub: 'Intelligence prompts → ChatGPT, Gemini & Perplexity' },
-        { id: 'querying', label: 'Send prompts & collect responses', sub: completedPrompts != null && totalPrompts ? `${completedPrompts} / ${totalPrompts} completed` : 'Answers, sources & citations from each engine' },
-        { id: 'analyzing', label: 'Analyze & build parameters', sub: 'Visibility scores, SOV, sentiment & AI Insights' },
+        { id: 'agents_running', label: 'Launch agents', sub: 'ChatGPT, Gemini & Perplexity' },
+        { id: 'querying', label: 'Collect responses', sub: 'Answers, sources & citations' },
+        { id: 'analyzing', label: 'Analyze & score', sub: 'Visibility, SOV, sentiment' },
     ];
 
     const phaseOrder = ['initializing', 'agents_running', 'querying', 'analyzing'];
@@ -197,21 +173,9 @@ function ScanProgressWidget({ phase, phaseDetail, progress, completedPrompts, to
                     </div>
                 </div>
 
-                <div className="flex items-stretch gap-4 sm:gap-6 bg-[#111] border border-[#222] rounded-xl px-4 sm:px-5 py-3 shrink-0">
-                    <div className="flex flex-col justify-center">
-                        <span className="text-[#666] text-[10px] font-bold uppercase tracking-wider mb-0.5">Elapsed</span>
-                        <span className="text-white font-mono text-[18px] font-semibold leading-none tabular-nums">{formatTime(elapsedMs)}</span>
-                    </div>
-                    <div className="w-px bg-[#222] self-stretch" />
-                    <div className="flex flex-col justify-center">
-                        <span className="text-[#666] text-[10px] font-bold uppercase tracking-wider mb-0.5">Est. total</span>
-                        <span className="text-[#aaa] font-mono text-[18px] font-semibold leading-none">{estLabel}</span>
-                    </div>
-                    <div className="w-px bg-[#222] self-stretch hidden sm:block" />
-                    <div className="flex flex-col justify-center min-w-[52px]">
-                        <span className="text-[#666] text-[10px] font-bold uppercase tracking-wider mb-0.5">Progress</span>
-                        <span className="text-[#E92A15] font-mono text-[18px] font-bold tabular-nums">{pct}%</span>
-                    </div>
+                <div className="flex items-center gap-3 bg-[#111] border border-[#222] rounded-xl px-5 py-3 shrink-0">
+                    <span className="text-[#666] text-[10px] font-bold uppercase tracking-wider">Progress</span>
+                    <span className="text-[#E92A15] font-mono text-[22px] font-bold tabular-nums">{pct}%</span>
                 </div>
             </div>
 
@@ -253,9 +217,6 @@ function ScanProgressWidget({ phase, phaseDetail, progress, completedPrompts, to
                     </div>
                 </div>
             </div>
-            <p className="text-[#444] text-[10px] mt-3 text-center">
-                Live AI queries → response parsing → scoring engine → strategic brief
-            </p>
         </div>
     );
 }
@@ -289,8 +250,7 @@ export default function AIVisibilityPage({ user, scanManager }) {
     const {
         scanId, scanStatus: status, scanResult: result, scanPhase: phase,
         scanPhaseDetail: phaseDetail, scanProgress: progress,
-        completedPrompts, totalPrompts, scanError: error,
-        loadingFromBackend, startScan,
+        scanError: error, loadingFromBackend, startScan,
     } = scanManager;
 
     const [tab, setTab] = useState('overview');
@@ -377,8 +337,6 @@ export default function AIVisibilityPage({ user, scanManager }) {
                     phase={phase}
                     phaseDetail={phaseDetail}
                     progress={progress}
-                    completedPrompts={completedPrompts}
-                    totalPrompts={totalPrompts}
                 />
                 {r && r.isPartial && (
                     <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/5 border border-amber-500/20 rounded-xl p-4 flex items-center gap-3">
@@ -444,7 +402,7 @@ export default function AIVisibilityPage({ user, scanManager }) {
                             const claudeAvg = realScores.length > 0 ? Math.round(realScores.reduce((a, b) => a + b, 0) / realScores.length) : 0;
                             return (
                                 <div className="flex-1 w-full min-w-0 border border-[#333333] rounded-[20px] px-4 py-6 lg:px-6 lg:py-6 grid grid-cols-2 lg:grid-cols-4 items-start gap-2 lg:gap-4 backdrop-blur-md" style={{ background: '#FFFFFF0A' }}>
-                                    <SemiCircleGauge score={cScore} icon={<ChatGPTLogo className="w-[16px] h-[16px] text-white" />} label="Google AI" size={160} />
+                                    <SemiCircleGauge score={cScore} icon={<ChatGPTLogo className="w-[16px] h-[16px] text-white" />} label="ChatGPT" size={160} />
                                     <SemiCircleGauge score={gScore} icon={<GeminiLogo className="w-[16px] h-[16px] text-[#4285f4]" />} label="Gemini" size={160} />
                                     <SemiCircleGauge score={pScore} icon={<img src="/perplexity.png" alt="Perplexity" className="w-[16px] h-[16px] object-contain" style={{ filter: 'brightness(0) invert(1)' }} />} label="Perplexity" size={160} />
                                     <SemiCircleGauge score={claudeAvg} icon={<img src="/claude.png" alt="Claude" className="w-[16px] h-[16px] object-contain" />} label="Claude" size={160} />
@@ -471,7 +429,13 @@ export default function AIVisibilityPage({ user, scanManager }) {
                     </div>
                     {/* Overview Tab */}
                     {tab === 'overview' && (() => {
-                        const allBrands = [r.shareOfVoice?.brand, ...(r.shareOfVoice?.competitors || [])].filter(Boolean).sort((a, b) => (b?.sov || 0) - (a?.sov || 0));
+                        const sovBrands = [r.shareOfVoice?.brand, ...(r.shareOfVoice?.competitors || [])].filter(Boolean).sort((a, b) => (b?.sov || 0) - (a?.sov || 0));
+                        let industryRows = Array.isArray(r.industryRanking) ? [...r.industryRanking] : [];
+                        const firstInd = industryRows[0];
+                        if (firstInd && firstInd.promptCoverage === undefined && firstInd.sov !== undefined) {
+                            industryRows = [];
+                        }
+                        const allBrands = sovBrands;
                         const totalSov = allBrands.reduce((sum, b) => sum + (b?.sov || 0), 0) || 1;
                         const scanStamp = r.scannedAt || r.scanDate;
                         const scanDate = scanStamp ? new Date(scanStamp).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' }) : '—';
@@ -515,29 +479,35 @@ export default function AIVisibilityPage({ user, scanManager }) {
                                 </div>
                             </div>
 
-                            {/* Card 2: Industry Ranking */}
+                            {/* Card 2: Industry Ranking — prompt breadth (distinct prompts where brand appears), not SOV */}
                             <div className="bg-[#0d0d0d] border border-[#1e1e1e] rounded-2xl p-6 overflow-hidden">
                                 <h3 className="text-white font-semibold text-[15px] mb-0.5">Industry Ranking</h3>
-                                <p className="text-[#777] text-[12px] mb-5">Brands with highest AI visibility</p>
+                                <p className="text-[#777] text-[12px] mb-5">Breadth: share of tracked prompts where each brand appears</p>
                                 <table className="w-full text-left text-[12px]">
                                     <thead>
                                         <tr className="text-[#666] text-[10px] uppercase tracking-wider border-b border-[#1e1e1e]">
                                             <th className="pb-3 pl-2 font-medium">#</th>
                                             <th className="pb-3 font-medium">BRAND</th>
                                             <th className="pb-3 text-right font-medium">MENTIONS</th>
-                                            <th className="pb-3 text-right font-medium">POSITION</th>
-                                            <th className="pb-3 text-right font-medium">CHANGE</th>
-                                            <th className="pb-3 text-right pr-2 font-medium">VISIBILITY</th>
+                                            <th className="pb-3 text-right font-medium">AVG POS</th>
+                                            <th className="pb-3 text-right font-medium">PROMPTS</th>
+                                            <th className="pb-3 text-right pr-2 font-medium">COVERAGE</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {allBrands.map((item, i) => {
+                                        {industryRows.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={6} className="py-8 text-center text-[#666] text-[12px]">
+                                                    Run a fresh scan to populate prompt-breadth rankings. Older results only included mention-share order.
+                                                </td>
+                                            </tr>
+                                        ) : industryRows.map((item, i) => {
                                             if (!item) return null;
-                                            const isTarget = item.name === (r.shareOfVoice?.brand?.name || brandName);
-                                            const changeVal = parseFloat(item.change || 0);
+                                            const isTarget = item.isTargetBrand ?? item.name === (r.shareOfVoice?.brand?.name || brandName);
+                                            const pt = item.totalPrompts > 0 ? `${item.promptsReached}/${item.totalPrompts}` : '—';
                                             return (
-                                                <tr key={i} className="border-b border-[#1a1a1a] last:border-0 hover:bg-[#111] transition-colors">
-                                                    <td className="py-3.5 pl-2 text-[#666] font-medium">{i + 1}</td>
+                                                <tr key={`${item.name}-${i}`} className="border-b border-[#1a1a1a] last:border-0 hover:bg-[#111] transition-colors">
+                                                    <td className="py-3.5 pl-2 text-[#666] font-medium">{item.rank ?? i + 1}</td>
                                                     <td className="py-3.5">
                                                         <div className="flex items-center gap-2.5">
                                                             <div className="w-6 h-6 rounded-full bg-[#1a1a1a] border border-[#2a2a2a] flex items-center justify-center overflow-hidden shrink-0">
@@ -548,14 +518,9 @@ export default function AIVisibilityPage({ user, scanManager }) {
                                                         </div>
                                                     </td>
                                                     <td className="py-3.5 text-right text-white/70 font-medium">{item.mentions || 0}</td>
-                                                    <td className="py-3.5 text-right text-white/70 font-medium">{item.avgPosition || '-'}</td>
-                                                    <td className="py-3.5 text-right">
-                                                        <span className={`inline-flex items-center gap-1 font-medium ${changeVal >= 0 ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
-                                                            {changeVal >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                                                            {item.change || '+0.0%'}
-                                                        </span>
-                                                    </td>
-                                                    <td className="py-3.5 text-right pr-2 text-white/90 font-semibold">{item.sov || 0}%</td>
+                                                    <td className="py-3.5 text-right text-white/70 font-medium">{item.avgPosition ?? '-'}</td>
+                                                    <td className="py-3.5 text-right text-white/70 font-medium tabular-nums">{pt}</td>
+                                                    <td className="py-3.5 text-right pr-2 text-white/90 font-semibold">{item.promptCoverage != null ? `${item.promptCoverage}%` : '—'}</td>
                                                 </tr>
                                             );
                                         })}
@@ -603,10 +568,10 @@ export default function AIVisibilityPage({ user, scanManager }) {
                                 </div>
                             </div>
 
-                            {/* Card 4: Share of Voice Ranking */}
+                            {/* Card 4: Share of Voice Ranking — mention volume share, distinct from prompt coverage */}
                             <div className="bg-[#0d0d0d] border border-[#1e1e1e] rounded-2xl p-6 overflow-hidden">
                                 <h3 className="text-white font-semibold text-[15px] mb-0.5">Share of Voice Ranking</h3>
-                                <p className="text-[#777] text-[12px] mb-5">Brands with highest share of voice</p>
+                                <p className="text-[#777] text-[12px] mb-5">Mention share across all extracted brand mentions (volume-weighted)</p>
                                 <table className="w-full text-left text-[12px]">
                                     <thead>
                                         <tr className="text-[#666] text-[10px] uppercase tracking-wider border-b border-[#1e1e1e]">
@@ -964,17 +929,27 @@ export default function AIVisibilityPage({ user, scanManager }) {
                     {/* Gaps Tab */}
                     {tab === 'gaps' && (
                         <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-5">
-                            <h3 className="text-[var(--text-primary)] font-medium text-sm mb-1">Competitive Gaps</h3>
-                            <p className="text-[var(--text-muted)] text-xs mb-3">Queries where competitors appear but you don't — your content priorities</p>
-                            <div className="space-y-2">
+                            <h3 className="text-[var(--text-primary)] font-medium text-sm mb-1">Content gap topics</h3>
+                            <p className="text-[var(--text-muted)] text-xs mb-3">Prompts where competitors surface in AI answers but you do not — topics to create content around</p>
+                            <div className="space-y-3">
                                 {(r.competitorGaps || []).map((g, i) => {
                                     const query = g.query || g.topic || (typeof g === 'string' ? g : '');
+                                    const topic = g.contentTopic || query;
+                                    const angle = g.contentAngle || '';
                                     const competitors = g.competitorsPresent || (Array.isArray(g.competitors) ? g.competitors.map(c => typeof c === 'string' ? { name: c, count: 1 } : c) : []);
                                     return (
-                                        <div key={i} className="p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl">
-                                            <p className="text-sm text-[var(--text-primary)] mb-1">"{query}"</p>
+                                        <div key={i} className="p-4 bg-amber-500/5 border border-amber-500/10 rounded-xl space-y-2">
+                                            <div>
+                                                <p className="text-[10px] font-bold uppercase tracking-wider text-amber-500/80 mb-1">Suggested content topic</p>
+                                                <p className="text-sm text-[var(--text-primary)] font-medium leading-snug">{topic}</p>
+                                            </div>
+                                            {angle ? (
+                                                <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed">{angle}</p>
+                                            ) : null}
+                                            <p className="text-[11px] text-[var(--text-muted)] italic border-l-2 border-[#333] pl-2">&ldquo;{query}&rdquo;</p>
                                             {competitors.length > 0 && (
-                                                <div className="flex gap-1 flex-wrap">
+                                                <div className="flex gap-1 flex-wrap pt-1 items-center">
+                                                    <span className="text-[10px] text-[var(--text-muted)] mr-1">Competitors cited:</span>
                                                     {competitors.map((c, j) => (
                                                         <span key={j} className="text-[10px] bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded">{c.name || c} ({c.count ?? 1}x)</span>
                                                     ))}

@@ -11,6 +11,11 @@
 
 const SENTIMENT_VALUES = { positive: 1, neutral: 0, negative: -1 };
 
+function humanizeCategory(cat) {
+    if (!cat) return '';
+    return String(cat).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
 export function computeVisibilityScore(allRunResults, brandName) {
     const totalResults = allRunResults.length;
     if (totalResults === 0) return { overall: 0, components: {}, totalRuns: 0, uniquePrompts: 0, mentionedIn: 0 };
@@ -305,26 +310,69 @@ export function computeCompetitorGap(allRunResults, brandName, competitors) {
     const byQuery = {};
     for (const run of allRunResults) {
         const key = run.promptId ?? run.query;
-        if (!byQuery[key]) byQuery[key] = { query: run.query, brandMentioned: false, competitors: {} };
+        if (!byQuery[key]) {
+            byQuery[key] = {
+                query: run.query,
+                category: run.category || null,
+                intent: run.intent || null,
+                brandMentioned: false,
+                competitors: {},
+            };
+        }
 
         if (run.brandMentioned) byQuery[key].brandMentioned = true;
+        if (!byQuery[key].category && run.category) byQuery[key].category = run.category;
+        if (!byQuery[key].intent && run.intent) byQuery[key].intent = run.intent;
 
         for (const entity of (run.entities || [])) {
             if (entity.isCompetitor && !entity.isTargetBrand) {
-                byQuery[key].competitors[entity.name] = (byQuery[key].competitors[entity.name] || 0) + 1;
+                const n = entity.name;
+                if (!n) continue;
+                const prev = byQuery[key].competitors[n];
+                const dom = (entity.domain || '').replace(/^www\./, '').split('/')[0].toLowerCase();
+                if (!prev) {
+                    byQuery[key].competitors[n] = { count: 1, domain: dom || '' };
+                } else if (typeof prev === 'number') {
+                    byQuery[key].competitors[n] = { count: prev + 1, domain: dom || '' };
+                } else {
+                    byQuery[key].competitors[n] = {
+                        count: prev.count + 1,
+                        domain: (prev.domain || dom || ''),
+                    };
+                }
             }
         }
     }
 
     const gaps = Object.values(byQuery)
         .filter(q => !q.brandMentioned && Object.keys(q.competitors).length > 0)
-        .map(q => ({
-            query: q.query,
-            competitorsPresent: Object.entries(q.competitors)
-                .map(([name, count]) => ({ name, count }))
-                .sort((a, b) => b.count - a.count),
-            opportunity: 'high',
-        }))
+        .map((q) => {
+            const sorted = Object.entries(q.competitors)
+                .map(([name, val]) => {
+                    if (typeof val === 'number') return { name, count: val, domain: '' };
+                    return { name, count: val.count, domain: val.domain || '' };
+                })
+                .sort((a, b) => b.count - a.count);
+            const topNames = sorted.slice(0, 3).map(c => c.name).filter(Boolean);
+            const catLabel = humanizeCategory(q.category);
+            const shortQuery = q.query.length > 140 ? `${q.query.slice(0, 137)}…` : q.query;
+            const topicHead = catLabel || 'AI answer visibility';
+            const contentTopic = `${topicHead}: ${shortQuery}`;
+            const leadComp = topNames[0] || 'competitors';
+            const also = topNames.length > 1 ? ` (also ${topNames.slice(1).join(', ')})` : '';
+            const contentAngle =
+                `Create definitive, quotable content that answers this intent so ChatGPT, Gemini, and Perplexity can cite your brand alongside ${leadComp}${also}.`;
+
+            return {
+                query: q.query,
+                category: q.category,
+                intent: q.intent,
+                contentTopic,
+                contentAngle,
+                competitorsPresent: sorted,
+                opportunity: 'high',
+            };
+        })
         .sort((a, b) => b.competitorsPresent.length - a.competitorsPresent.length);
 
     return gaps;
@@ -353,6 +401,7 @@ export function computeSentimentBreakdown(allRunResults) {
     };
 }
 
+/** SOV-sorted entity list (legacy / analytics). */
 export function computeIndustryRanking(allRunResults, brandName, competitors, brandDomain) {
     const sov = computeShareOfVoice(allRunResults, brandName, competitors, brandDomain);
 
@@ -366,6 +415,60 @@ export function computeIndustryRanking(allRunResults, brandName, competitors, br
         }));
 
     return allEntities;
+}
+
+/**
+ * Prompt-coverage ranking — how many distinct prompts each brand appears in (AI visibility breadth).
+ * Different from SOV, which weights raw mention volume.
+ */
+export function computeIndustryPresenceRanking(allRunResults, brandName) {
+    const promptKeys = [...new Set(allRunResults.map(r => r.promptId ?? r.query))];
+    const totalPrompts = Math.max(promptKeys.length, 1);
+    const entityMap = {};
+
+    for (const run of allRunResults) {
+        const pKey = run.promptId ?? run.query;
+        for (const entity of run.entities || []) {
+            const name = entity.name;
+            if (!name) continue;
+            if (!entityMap[name]) {
+                entityMap[name] = {
+                    name,
+                    domain: (entity.domain || '').replace(/^www\./, ''),
+                    prompts: new Set(),
+                    mentions: 0,
+                    totalPosition: 0,
+                    positionCount: 0,
+                };
+            }
+            entityMap[name].prompts.add(pKey);
+            entityMap[name].mentions += entity.mentions || 1;
+            if (entity.positionRank) {
+                entityMap[name].totalPosition += entity.positionRank;
+                entityMap[name].positionCount++;
+            }
+            if (entity.domain && !entityMap[name].domain) {
+                entityMap[name].domain = entity.domain.replace(/^www\./, '');
+            }
+        }
+    }
+
+    return Object.values(entityMap)
+        .filter(e => e.mentions > 0)
+        .map(e => ({
+            name: e.name,
+            domain: e.domain || '',
+            mentions: e.mentions,
+            avgPosition: e.positionCount > 0
+                ? (Math.round((e.totalPosition / e.positionCount) * 10) / 10).toFixed(1)
+                : '-',
+            promptCoverage: Math.round((e.prompts.size / totalPrompts) * 1000) / 10,
+            promptsReached: e.prompts.size,
+            totalPrompts,
+            isTargetBrand: e.name === brandName,
+        }))
+        .sort((a, b) => b.promptCoverage - a.promptCoverage || b.mentions - a.mentions)
+        .map((row, idx) => ({ rank: idx + 1, ...row }));
 }
 
 /** Rank all unique URLs across all runs by frequency. */
