@@ -1,290 +1,242 @@
 /**
- * visibilityAgents.js
+ * Visibility Agents — Two-Phase Parallel Execution
  *
- * New architecture:
- *   - Generate 20 prompts ONCE (shared across all engines)
- *   - For each prompt, send ONE request to Infatica's multi-engine API
- *     (ChatGPT + Gemini + Perplexity all return in one call)
- *   - Also run Google AI Overview in parallel (separate SERP endpoint)
- *   - Parse every engine's response
- *   - Build prompt-keyed result map for Prompt Intelligence UI
+ * Architecture:
+ * - Generate 20 compressed prompts once
+ * - Phase 1: First 10 prompts across 3 engines in parallel → emit early results
+ * - Phase 2: Remaining 10 prompts in parallel → final results
+ * - Larger batch sizes (perplexity=2, gemini=3, googleAI=3) to cut wall-clock time
+ * - Target: ~1.5 min per phase, ~3 min total
  */
 
-import { queryAllEngines, queryGoogleAIOverview } from './infaticaService.js';
-import { generateSuperPrompts, generateFallbackPrompts } from './promptIntelligence.js';
+import { queryPerplexity, queryGemini, queryGoogleAI } from './infaticaService.js';
+import { generatePromptMatrixForPlatform, generateFallbackPrompts } from './promptIntelligence.js';
 import { parseResponse } from './responseParser.js';
 import {
     computeVisibilityScore,
     computeShareOfVoice,
-    computePerEngine,
     computePerCategory,
     computeSourceDomains,
     computeIndustryRanking,
     computeCompetitorGap,
     computeSentimentBreakdown,
-    computeQueryTracking,
 } from './scoringEngine.js';
 
-// All LLMs sent to the Infatica multi-engine endpoint
-const LLM_ENGINES = ['chatgpt', 'gemini', 'perplexity'];
+const ENGINES = ['perplexity', 'gemini', 'googleAI'];
+const PLATFORM_NAMES = { perplexity: 'Perplexity', gemini: 'Gemini', googleAI: 'Google AI' };
+const BATCH_SIZES = { perplexity: 2, gemini: 3, googleAI: 3 };
+const PHASE1_SIZE = 10;
 
-// All engines including Google AI (separate endpoint)
-const ALL_ENGINES = [...LLM_ENGINES, 'googleAI'];
-
-const ENGINE_LABELS = {
-    chatgpt: 'ChatGPT',
-    gemini: 'Gemini',
-    perplexity: 'Perplexity',
-    googleAI: 'Google AI Overview',
-};
+function queryFn(engine) {
+    switch (engine) {
+        case 'perplexity': return queryPerplexity;
+        case 'gemini':     return queryGemini;
+        case 'googleAI':   return queryGoogleAI;
+    }
+}
 
 /**
- * Run a single prompt against all engines.
- * Returns per-engine { text, sources } map.
+ * Run a single engine agent: process prompts in batches per BATCH_SIZES[engine].
  */
-async function runPromptOnAllEngines(promptText, { geo = 'US', country = '' } = {}) {
-    // Fire LLM engines (multi-engine call) and Google AI SERP in parallel
-    const [llmResults, googleResult] = await Promise.allSettled([
-        queryAllEngines(promptText, { engines: LLM_ENGINES, geo }),
-        queryGoogleAIOverview(promptText, country),
-    ]);
+async function runEngineAgent(engine, prompts, brandName, domain, competitors, country, onResult) {
+    const fn = queryFn(engine);
+    const runs = [];
+    let successCount = 0;
+    let failCount = 0;
+    const batchSize = BATCH_SIZES[engine] || 2;
+    const totalBatches = Math.ceil(prompts.length / batchSize);
 
-    const results = {};
+    console.log(`[Agent:${engine}] Starting ${prompts.length} prompts in ${totalBatches} batches (size=${batchSize})`);
 
-    // LLM engines
-    if (llmResults.status === 'fulfilled') {
-        Object.assign(results, llmResults.value);
-    } else {
-        console.warn('[VisAgent] LLM multi-engine call failed:', llmResults.reason?.message);
-        for (const eng of LLM_ENGINES) {
-            results[eng] = { text: null, sources: [] };
+    for (let i = 0; i < prompts.length; i += batchSize) {
+        const batch = prompts.slice(i, i + batchSize);
+        const batchNum = Math.floor(i / batchSize) + 1;
+
+        const results = await Promise.allSettled(
+            batch.map(async (prompt) => {
+                try {
+                    const infResult = await fn(prompt.core, country);
+                    if (infResult && (infResult.text || infResult.html)) {
+                        const parsed = parseResponse(infResult, brandName, domain, competitors, engine);
+                        return { success: true, data: parsed, prompt };
+                    }
+                    return { success: false, prompt };
+                } catch (err) {
+                    console.warn(`  [Agent:${engine}] Call failed: ${err.message}`);
+                    return { success: false, prompt };
+                }
+            })
+        );
+
+        for (const r of results) {
+            const val = r.status === 'fulfilled' ? r.value : { success: false, prompt: batch[0] };
+            const prompt = val.prompt;
+            const runData = val.success ? val.data : {
+                engine,
+                brandMentioned: false, brandEntity: null, entities: [],
+                citations: [], citationStats: { total: 0, byCategory: {}, brandCited: false, competitorsCited: [] },
+                textLength: 0, rawText: null,
+            };
+
+            const run = {
+                promptId: prompt.id,
+                query: prompt.core,
+                engine,
+                promptWeight: prompt.weight ?? 1.0,
+                category: prompt.category,
+                intent: prompt.intent,
+                strategicValue: prompt.strategicValue ?? 10,
+                includesBrand: prompt.includesBrand ?? false,
+                ...runData,
+            };
+            runs.push(run);
+            if (val.success) successCount++; else failCount++;
+            if (onResult) onResult(run, val.success);
+        }
+
+        console.log(`[Agent:${engine}] Batch ${batchNum}/${totalBatches} done (running: ${successCount} ok, ${failCount} fail)`);
+    }
+
+    console.log(`[Agent:${engine}] Finished: ${successCount}/${prompts.length} with data, ${failCount} empty`);
+    return { runs, successCount, failCount };
+}
+
+/** Collect runs from Promise.allSettled results */
+function collectPhaseRuns(settledResults, errors) {
+    const runs = [];
+    for (let i = 0; i < settledResults.length; i++) {
+        const engine = ENGINES[i];
+        if (settledResults[i].status === 'fulfilled') {
+            runs.push(...settledResults[i].value.runs);
+        } else {
+            console.error(`[Agent:${engine}] Fatal:`, settledResults[i].reason?.message);
+            if (!errors.find(e => e.engine === engine)) {
+                errors.push({ engine, error: settledResults[i].reason?.message });
+            }
         }
     }
-
-    // Google AI Overview
-    results.googleAI = googleResult.status === 'fulfilled'
-        ? googleResult.value
-        : { text: null, sources: [], html: null };
-
-    return results;
+    return runs;
 }
 
-/**
- * Parse a single engine's Infatica result into our standard run data shape.
- */
-function buildRunFromEngineResult(engineResult, { promptId, query, engine, category, intent, weight, brandName, domain, competitors }) {
-    const runData = parseResponse(engineResult, brandName, domain, competitors, engine);
-    return {
-        promptId,
-        query,
-        engine,
-        category,
-        intent,
-        promptWeight: weight ?? 1.0,
-        strategicValue: 10,
-        ...runData,
-    };
-}
-
-/**
- * Main scan function.
- * For each of the 20 prompts → query all LLMs simultaneously → parse → aggregate.
- */
-export async function runAllEnginesOnAllPrompts(agentConfig, onProgress) {
-    const {
-        brandName, domain, industry, competitors = [],
-        location, country, language,
-    } = agentConfig;
-
-    const geo = country || (location?.toLowerCase().includes('india') ? 'IN' : 'US');
-
-    // Generate the 20 prompts once
-    let prompts;
-    try {
-        prompts = generateSuperPrompts({ brandName, domain, industry, competitors, location, language });
-    } catch (err) {
-        console.warn('[VisAgent] Prompt generation failed, using fallback:', err.message);
-        prompts = generateFallbackPrompts(brandName, domain, industry, competitors, location);
-    }
-
-    const total = prompts.length;
-    console.log(`[VisAgent] Starting scan: ${total} prompts × ${ALL_ENGINES.length} engines = up to ${total * ALL_ENGINES.length} responses`);
-
-    /**
-     * allRuns: flat list of { promptId, query, engine, brandMentioned, entities, citations, rawText, ... }
-     * promptMap: { P01: { promptId, query, category, intent, engines: { chatgpt: {...}, gemini: {...}, ... } }, ... }
-     */
-    const allRuns = [];
-    const promptMap = {};
-
-    // Process prompts in batches of 5 to avoid rate limits
-    const BATCH_SIZE = 5;
-    for (let batchStart = 0; batchStart < total; batchStart += BATCH_SIZE) {
-        const batch = prompts.slice(batchStart, batchStart + BATCH_SIZE);
-
-        await Promise.allSettled(batch.map(async (prompt) => {
-            let engineResults;
-            try {
-                engineResults = await runPromptOnAllEngines(prompt.core, { geo, country });
-            } catch (err) {
-                console.warn(`[VisAgent] Prompt ${prompt.id} failed:`, err.message);
-                engineResults = {};
-                for (const eng of ALL_ENGINES) {
-                    engineResults[eng] = { text: null, sources: [], html: null };
-                }
-            }
-
-            // Initialize the prompt entry
-            if (!promptMap[prompt.id]) {
-                promptMap[prompt.id] = {
-                    promptId: prompt.id,
-                    query: prompt.core,
-                    category: prompt.category,
-                    intent: prompt.intent,
-                    engines: {},
-                };
-            }
-
-            // Parse each engine's response
-            for (const engine of ALL_ENGINES) {
-                const engineResult = engineResults[engine] || { text: null, sources: [], html: null };
-                const run = buildRunFromEngineResult(engineResult, {
-                    promptId: prompt.id,
-                    query: prompt.core,
-                    engine,
-                    category: prompt.category,
-                    intent: prompt.intent,
-                    weight: prompt.weight,
-                    brandName,
-                    domain,
-                    competitors,
-                });
-
-                allRuns.push(run);
-
-                const hasResponse = !!(run.rawText?.trim?.().length > 0);
-                promptMap[prompt.id].engines[engine] = {
-                    mentioned:      run.brandMentioned,
-                    snippet:        run.brandEntity?.snippet || null,
-                    sentiment:      run.brandEntity?.sentiment || 'neutral',
-                    positionRank:   run.brandEntity?.positionRank || null,
-                    rawText:        run.rawText || null,
-                    citationCount:  (run.citations || []).length,
-                    status:         hasResponse ? '✓ Response received' : '⚠ No response',
-                    citations: (run.citations || []).slice(0, 10).map(c => ({
-                        domain:          c.domain,
-                        url:             c.url,
-                        title:           c.title || '',
-                        category:        c.category || 'other',
-                        citationPosition: c.citationPosition,
-                        isTargetBrand:   c.isTargetBrand,
-                        isCompetitor:    c.isCompetitor,
-                    })),
-                };
-            }
-
-            // Report progress
-            const completedCount = Object.keys(promptMap).length;
-            if (onProgress) {
-                onProgress({
-                    completed: completedCount,
-                    total,
-                    promptId: prompt.id,
-                    engines: ALL_ENGINES,
-                });
-            }
-        }));
-    }
-
-    console.log(`[VisAgent] Scan complete: ${allRuns.length} total responses across ${Object.keys(promptMap).length} prompts`);
-
-    return {
-        allRuns,
-        promptMap,
-        promptList: Object.values(promptMap),
-        engines: ALL_ENGINES,
-    };
-}
-
-/**
- * Build per-engine analytics from allRuns.
- * Returns the platformResults shape expected by visibilityController.js.
- */
-function buildPlatformResults(allRuns, brandName, competitors) {
+/** Build per-platform result objects */
+function buildPlatformResults(allRuns, prompts, brandName, competitors, domain) {
     const platformResults = {};
-
-    for (const engine of ALL_ENGINES) {
+    for (const engine of ENGINES) {
         const engineRuns = allRuns.filter(r => r.engine === engine);
-        if (engineRuns.length === 0) continue;
-
-        const score = computeVisibilityScore(engineRuns, brandName);
-        const shareOfVoice = computeShareOfVoice(engineRuns, brandName, competitors);
-        const perCategory = computePerCategory(engineRuns);
-        const sentiment = computeSentimentBreakdown(engineRuns);
-        const sourceDomains = computeSourceDomains(engineRuns);
-        const industryRanking = computeIndustryRanking(engineRuns, brandName, competitors);
-        const competitorGaps = computeCompetitorGap(engineRuns, brandName, competitors);
-
+        const dataRuns = engineRuns.filter(r => r.textLength > 0);
         platformResults[engine] = {
             engine,
-            platformName: ENGINE_LABELS[engine] || engine,
+            platformName: PLATFORM_NAMES[engine],
             allRuns: engineRuns,
-            promptCount: engineRuns.length,
+            score: computeVisibilityScore(dataRuns, brandName),
+            shareOfVoice: computeShareOfVoice(dataRuns, brandName, competitors, domain),
+            perCategory: computePerCategory(dataRuns),
+            sentiment: computeSentimentBreakdown(dataRuns),
+            sourceDomains: computeSourceDomains(dataRuns),
+            industryRanking: computeIndustryRanking(dataRuns, brandName, competitors, domain),
+            competitorGaps: computeCompetitorGap(dataRuns, brandName, competitors),
+            promptCount: prompts.length,
             totalCalls: engineRuns.length,
-            score,
-            shareOfVoice,
-            perCategory,
-            sentiment,
-            sourceDomains,
-            industryRanking,
-            competitorGaps,
-            citationSummary: sourceDomains.topDomains,
-            config: { promptCount: engineRuns.length, totalCalls: engineRuns.length },
+            successfulCalls: dataRuns.length,
+            prompts: [],
+            entityGraph: [],
+            citationSummary: computeSourceDomains(dataRuns).topDomains,
+            config: { promptCount: prompts.length, totalCalls: engineRuns.length, successfulCalls: dataRuns.length },
         };
     }
-
     return platformResults;
 }
 
 /**
- * Main entry point called by visibilityController.
- * Replaces the old runAllAgentsInParallel.
+ * Main entry: two-phase parallel execution.
+ *
+ * Phase 1 — first 10 prompts → calls onEarlyResults so the controller can
+ *           save intermediate data and the frontend can start rendering.
+ * Phase 2 — remaining 10 prompts → merged with Phase 1 for final results.
+ *
+ * @param {object}   agentConfig     - brandName, domain, industry, etc.
+ * @param {function} onAgentProgress - (p) => void, called per completed call
+ * @param {function} onEarlyResults  - async (phase1Runs, prompts) => void
  */
-export async function runAllAgentsInParallel(agentConfig, onAgentProgress) {
-    const { brandName, competitors = [] } = agentConfig;
+export async function runAllAgentsInParallel(agentConfig, onAgentProgress, onEarlyResults) {
+    const { brandName, domain, industry, competitors, location, country, language } = agentConfig;
 
-    const { allRuns, promptList } = await runAllEnginesOnAllPrompts(agentConfig, (p) => {
+    let prompts;
+    try {
+        prompts = await generatePromptMatrixForPlatform(
+            { brandName, domain, industry, competitors, location, language },
+            'general'
+        );
+    } catch (err) {
+        console.warn(`[Agents] Prompt generation failed, using fallback:`, err.message);
+        prompts = generateFallbackPrompts(brandName, domain, industry, competitors, location);
+    }
+
+    const phase1Prompts = prompts.slice(0, PHASE1_SIZE);
+    const phase2Prompts = prompts.slice(PHASE1_SIZE);
+    const totalCalls = prompts.length * ENGINES.length;
+    let completedCalls = 0;
+    let successCalls = 0;
+
+    const progressCb = (_run, wasSuccess) => {
+        completedCalls++;
+        if (wasSuccess) successCalls++;
         if (onAgentProgress) {
-            // Simulate progress for all engines per prompt
-            for (const engine of ALL_ENGINES) {
-                onAgentProgress({ engine, completed: p.completed, total: p.total });
-            }
+            onAgentProgress({ completed: completedCalls, total: totalCalls, successful: successCalls });
         }
-    });
+    };
 
-    const platformResults = buildPlatformResults(allRuns, brandName, competitors);
+    console.log(`[Agents] ${prompts.length} prompts × ${ENGINES.length} engines = ${totalCalls} total calls (batch sizes: ${JSON.stringify(BATCH_SIZES)})`);
+    console.log(`[Agents] Phase 1: ${phase1Prompts.length} prompts | Phase 2: ${phase2Prompts.length} prompts`);
+
+    // ── Phase 1: first 10 prompts across all engines in parallel ─────────────
+    const phase1Settled = await Promise.allSettled(
+        ENGINES.map(engine =>
+            runEngineAgent(engine, phase1Prompts, brandName, domain, competitors, country, progressCb)
+        )
+    );
+
     const errors = [];
+    const phase1Runs = collectPhaseRuns(phase1Settled, errors);
 
-    // Check for engines with zero responses
-    for (const engine of ALL_ENGINES) {
-        if (!platformResults[engine]) {
-            errors.push({ engine, error: 'No responses received' });
-            platformResults[engine] = {
-                engine,
-                platformName: ENGINE_LABELS[engine] || engine,
-                error: 'No responses received',
-                allRuns: [],
-                score: { overall: 0, components: {} },
-                shareOfVoice: { brand: { name: brandName, sov: 0, mentions: 0 }, competitors: [] },
-                industryRanking: [],
-                prompts: [],
-                entityGraph: [],
-                citationSummary: [],
-                competitorGaps: [],
-                config: { promptCount: 0, totalCalls: 0 },
-            };
+    console.log(`[Agents] Phase 1 complete: ${phase1Runs.filter(r => r.textLength > 0).length}/${phase1Runs.length} runs with data`);
+
+    // Emit early results so frontend can start rendering
+    if (onEarlyResults && phase1Runs.length > 0) {
+        try {
+            await onEarlyResults(phase1Runs, prompts);
+        } catch (e) {
+            console.warn('[Agents] Early results callback error:', e.message);
         }
     }
 
-    return { platformResults, allRuns, errors, promptList };
+    // ── Phase 2: remaining prompts across all engines in parallel ────────────
+    let phase2Runs = [];
+    if (phase2Prompts.length > 0) {
+        const phase2Settled = await Promise.allSettled(
+            ENGINES.map(engine =>
+                runEngineAgent(engine, phase2Prompts, brandName, domain, competitors, country, progressCb)
+            )
+        );
+        phase2Runs = collectPhaseRuns(phase2Settled, errors);
+        console.log(`[Agents] Phase 2 complete: ${phase2Runs.filter(r => r.textLength > 0).length}/${phase2Runs.length} runs with data`);
+    }
+
+    // ── Merge and return ─────────────────────────────────────────────────────
+    const allRuns = [...phase1Runs, ...phase2Runs];
+    const platformResults = buildPlatformResults(allRuns, prompts, brandName, competitors, domain);
+
+    const stats = {};
+    for (const engine of ENGINES) {
+        const engineRuns = allRuns.filter(r => r.engine === engine);
+        const dataRuns = engineRuns.filter(r => r.textLength > 0);
+        stats[engine] = { success: dataRuns.length, fail: engineRuns.length - dataRuns.length };
+    }
+
+    console.log(`[Agents] Complete: ${successCalls}/${totalCalls} calls returned data`);
+    for (const [eng, s] of Object.entries(stats)) {
+        console.log(`  ${eng}: ${s.success} ok, ${s.fail} empty`);
+    }
+
+    return { platformResults, allRuns, errors };
 }

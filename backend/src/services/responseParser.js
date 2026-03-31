@@ -51,26 +51,72 @@ function extractTextFromHtml(html) {
     }
 }
 
+function decodeGoogleResultHref(href) {
+    if (!href || typeof href !== 'string') return null;
+    if (href.startsWith('http')) return href;
+    if (href.startsWith('/url?')) {
+        try {
+            const q = new URLSearchParams(href.replace(/^\/url\?/, '')).get('q');
+            if (q?.startsWith('http')) return q;
+        } catch { /* ignore */ }
+    }
+    return null;
+}
+
 function extractLinksFromHtml(html) {
     if (!html) return [];
     try {
         const $ = cheerio.load(html);
         const links = [];
+        const seen = new Set();
         $('a[href]').each((_, el) => {
-            const href = $(el).attr('href');
+            const raw = $(el).attr('href');
             const text = $(el).text().trim();
-            if (href?.startsWith('http')) {
-                try {
-                    const url = new URL(href);
-                    const d = url.hostname.replace('www.', '');
-                    if (!d.includes('google.com') && !d.includes('gstatic')) {
-                        links.push({ url: href, domain: d, text: text.substring(0, 80) });
-                    }
-                } catch {}
-            }
+            const href = raw?.startsWith('http') ? raw : decodeGoogleResultHref(raw || '');
+            if (!href) return;
+            try {
+                const url = new URL(href);
+                const d = url.hostname.replace(/^www\./, '');
+                if (d.includes('google.com') || d.includes('gstatic')) return;
+                if (seen.has(href)) return;
+                seen.add(href);
+                links.push({ url: href, domain: d, text: text.substring(0, 80) });
+            } catch {}
         });
         return links;
     } catch { return []; }
+}
+
+function extractAIAnswerFromRenderedPage(html, engine) {
+    if (!html) return '';
+    try {
+        const $ = cheerio.load(html);
+        $('script, style, noscript, svg, link, meta').remove();
+        const parts = [];
+
+        if (engine === 'perplexity') {
+            $('[class*="prose"], [class*="answer"], [class*="markdown"], [class*="response"], article, .pb-lg').each((_, el) => {
+                const t = $(el).text().replace(/\s+/g, ' ').trim();
+                if (t.length > 100) parts.push(t);
+            });
+        } else if (engine === 'gemini') {
+            $('[class*="response"], [class*="answer"], [class*="markdown"], [class*="model-response"], .response-content, main article').each((_, el) => {
+                const t = $(el).text().replace(/\s+/g, ' ').trim();
+                if (t.length > 100) parts.push(t);
+            });
+        } else {
+            // Google AI Overview / featured snippets — multiple selector strategies for resilience
+            $('[data-attrid], [data-content-feature], [data-md-type], .hgKELb, .wUrVib, .IZ6rdc, .LGOcR, .kno-rdesc, .V3FYCf, .bVj5Zb, .xpdopen, .mod, .aiAnswerBox, [class*="ai-overview"], [class*="aiOverview"], [jsname="Cpkphb"]').each((_, el) => {
+                const t = $(el).text().replace(/\s+/g, ' ').trim();
+                if (t.length > 80) parts.push(t);
+            });
+        }
+
+        const merged = parts.join('\n\n').trim();
+        return merged.length > 100 ? merged : '';
+    } catch {
+        return '';
+    }
 }
 
 // ── AI Text Response Parsing (Perplexity/Gemini numbered citation style) ─────
@@ -104,7 +150,20 @@ function extractSourcesFromAIText(text) {
         }
     }
 
-    // Pattern 2: Bare URLs in the text (regardless of section)
+    // Pattern 2: Markdown-style links [title](url) anywhere in text
+    const mdLinks = text.matchAll(/\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/g);
+    for (const m of mdLinks) {
+        const url = m[2].replace(/[.,;:!?]+$/, '');
+        const title = m[1];
+        try {
+            const domain = new URL(url).hostname.replace('www.', '');
+            if (!sources.find(s => s.url === url)) {
+                sources.push({ url, domain, title });
+            }
+        } catch {}
+    }
+
+    // Pattern 3: Bare URLs in the text
     if (sources.length === 0) {
         const urlMatches = text.matchAll(/\bhttps?:\/\/[^\s,\]\)\'"<>]{5,}/g);
         for (const m of urlMatches) {
@@ -118,7 +177,7 @@ function extractSourcesFromAIText(text) {
         }
     }
 
-    return sources.slice(0, 20);
+    return sources.slice(0, 30);
 }
 
 // ── Brand / Competitor Mention Detection ─────────────────────────────────────
@@ -285,15 +344,21 @@ export function parseResponse(infaticaResult, brandName, domain, competitors, en
     const { text, sources = [], html } = infaticaResult;
 
     if (text) {
-        // Structured text response from Perplexity/Gemini
-        const parsedSources = sources.length > 0 ? sources : extractSourcesFromAIText(text);
-        console.log(`[Parser/${engine}] Text: ${text.length} chars, sources: ${parsedSources.length}`);
-        return buildRunData(text, parsedSources, brandName, domain, competitors, engine);
+        const structuredSources = sources.length > 0 ? [...sources] : [];
+        const textSources = extractSourcesFromAIText(text);
+        const seenUrls = new Set(structuredSources.map(s => s.url));
+        for (const ts of textSources) {
+            if (ts.url && !seenUrls.has(ts.url)) {
+                structuredSources.push(ts);
+                seenUrls.add(ts.url);
+            }
+        }
+        console.log(`[Parser/${engine}] Text: ${text.length} chars, sources: ${structuredSources.length} (${sources.length} structured + ${textSources.length} extracted)`);
+        return buildRunData(text, structuredSources, brandName, domain, competitors, engine);
     }
 
     if (html) {
-        // HTML scrape (Google AI SERP, or rendered page)
-        return fastParse(html, brandName, domain, competitors, engine);
+        return fastParse(html, brandName, domain, competitors, engine, sources);
     }
 
     // Empty response
@@ -314,35 +379,44 @@ export function parseResponse(infaticaResult, brandName, domain, competitors, en
  * fastParse — HTML scrape parser (used for SERP / rendered pages).
  * Kept for backward compatibility.
  */
-export function fastParse(html, brandName, domain, competitors, engine) {
-    const text = extractTextFromHtml(html);
-    if (!text) {
-        return {
-            engine,
-            brandMentioned: false,
-            brandEntity: null,
-            entities: [],
-            citations: [],
-            citationStats: { total: 0, byCategory: {}, brandCited: false, competitorsCited: [] },
-            textLength: 0,
-            rawText: null,
-        };
-    }
+export function fastParse(html, brandName, domain, competitors, engine, extraSources = []) {
+    let text = extractAIAnswerFromRenderedPage(html, engine);
+    if (!text) text = extractTextFromHtml(html);
 
     const links = extractLinksFromHtml(html);
     const domainClean = (domain || '').replace(/^www\./, '').toLowerCase();
     const competitorDomains = competitors.map(c => typeof c === 'string' ? c : c.domain || '').filter(Boolean);
 
-    // Convert links to sources format
-    const sources = links.map(l => ({ url: l.url, domain: l.domain, title: l.text }));
+    const linkSources = links.map(l => ({ url: l.url, domain: l.domain, title: l.text }));
+    const seenUrls = new Set(linkSources.map(s => s.url));
+    for (const es of extraSources) {
+        if (es.url && !seenUrls.has(es.url)) {
+            linkSources.push(es);
+            seenUrls.add(es.url);
+        }
+    }
 
-    const runData = buildRunData(text, sources, brandName, domain, competitors, engine);
+    if (!text) {
+        console.warn(`[Parser/${engine}] No text extracted from HTML (${html.length} chars), but ${linkSources.length} links found`);
+        const citations = linkSources.slice(0, 15).map((s, idx) => ({
+            url: s.url, domain: s.domain, title: s.title || '',
+            citationPosition: idx + 1,
+            category: categorizeDomain(s.domain, domainClean, competitorDomains),
+            isTargetBrand: domainClean ? s.domain.includes(domainClean.split('.')[0]) : false,
+            isCompetitor: competitorDomains.some(cd => s.domain.includes(cd.replace(/^www\./, '').split('.')[0])),
+        }));
+        return {
+            engine, brandMentioned: false, brandEntity: null, entities: [],
+            citations,
+            citationStats: { total: citations.length, byCategory: {}, brandCited: citations.some(c => c.isTargetBrand), competitorsCited: [...new Set(citations.filter(c => c.isCompetitor).map(c => c.domain))] },
+            textLength: 0, rawText: null,
+        };
+    }
 
-    // Re-categorize citations with DA info if available
-    const citations = links.slice(0, 15).map((l, idx) => ({
-        url: l.url,
-        domain: l.domain,
-        title: l.text,
+    const runData = buildRunData(text, linkSources, brandName, domain, competitors, engine);
+
+    const citations = linkSources.slice(0, 15).map((l, idx) => ({
+        url: l.url, domain: l.domain, title: l.title || '',
         citationPosition: idx + 1,
         category: categorizeDomain(l.domain, domainClean, competitorDomains),
         isTargetBrand: domainClean ? l.domain.includes(domainClean.split('.')[0]) : false,

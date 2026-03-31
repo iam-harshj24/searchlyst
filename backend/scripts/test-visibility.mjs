@@ -31,18 +31,18 @@ console.log('1. PROMPT INTELLIGENCE (generateFallbackPrompts)');
 try {
     const prompts = generateFallbackPrompts('Searchlyst', 'searchlyst.com', 'SEO', ['Ahrefs', 'SEMrush'], 'US');
     assert(Array.isArray(prompts), 'Returns array');
-    assert(prompts.length === 15, 'Returns exactly 15 prompts');
-    assert(prompts.every(p => p.core && p.category && p.weight !== undefined), 'Each prompt has core, category, weight');
+    assert(prompts.length === 20, 'Returns exactly 20 Super prompts');
+    assert(prompts.every(p => p.core && p.category && p.id && p.intent), 'Each prompt has core, category, id, intent');
     const cats = new Set(prompts.map(p => p.category));
-    assert(cats.has('direct_brand'), 'Has direct_brand');
-    assert(cats.has('industry_best'), 'Has industry_best');
-    assert(cats.has('problem_solution'), 'Has problem_solution');
-    assert(cats.has('alternative'), 'Has alternative');
-    assert(cats.has('social_proof'), 'Has social_proof');
-    const weights = prompts.map(p => p.weight);
-    assert(weights.some(w => w === 2.0), 'industry_best has weight 2.0');
-    assert(weights.some(w => w === 0.8), 'direct_brand has weight 0.8');
-    pass('generateFallbackPrompts: 15 prompts, 5 categories, correct weights');
+    assert(cats.has('visibility'), 'Has visibility');
+    assert(cats.has('ranking'), 'Has ranking');
+    assert(cats.has('share_of_voice'), 'Has share_of_voice');
+    assert(cats.has('geo_context'), 'Has geo_context');
+    assert(cats.has('deep_probe'), 'Has deep_probe');
+    assert(prompts[0].id === 'P01' && prompts[19].id === 'P20', 'P01–P20 ids');
+    assert(prompts.every(p => typeof p.weight === 'number' && p.weight > 0), 'Each prompt has a numeric weight > 0');
+    assert(prompts.every(p => typeof p.includesBrand === 'boolean'), 'Each prompt has boolean includesBrand');
+    pass('generateFallbackPrompts: 20 prompts, 5 layer categories, weights + includesBrand set');
 } catch (e) {
     console.error('  ✗', e.message);
 }

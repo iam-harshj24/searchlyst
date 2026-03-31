@@ -102,23 +102,9 @@ export default function OverviewPage({ domains, activeProject, onAddDomain, onTa
             });
         }
 
-        const score = visData?.score?.overall ?? 0;
         if (!visData) return [];
-        const data = [];
-        const now = new Date();
-        const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-        let currentScore = Math.max(10, score - 15);
-        for (let i = 6; i >= 0; i--) {
-            const d = new Date(now);
-            d.setDate(d.getDate() - i);
-            data.push({
-                date: days[d.getDay() === 0 ? 6 : d.getDay() - 1],
-                score: Math.round(currentScore),
-            });
-            currentScore = Math.min(100, Math.max(0, currentScore + (Math.random() * 5)));
-        }
-        data[data.length - 1].score = score;
-        return data;
+        const score = visData?.score?.overall ?? 0;
+        return [{ date: 'Today', score }];
     }, [visData?.score?.overall, !!visData]);
 
     const getGreeting = () => {
@@ -132,37 +118,30 @@ export default function OverviewPage({ domains, activeProject, onAddDomain, onTa
 
     const displayBrandName = user?.brandName || activeProject?.name || 'Your Brand';
     
-    const activeDomain = user?.domain || activeProject?.url || 'camanahomes.com';
+    const activeDomain = user?.domain || activeProject?.url || '';
     const compDomains = allCompetitors.map(c => c.domain || c).filter(d => d && d !== activeDomain);
     const compsCount = allCompetitors.length;
-    const projectDate = activeProject?.createdAt ? new Date(activeProject.createdAt).toLocaleDateString() : '3/6/2026';
+    const projectDate = activeProject?.createdAt ? new Date(activeProject.createdAt).toLocaleDateString() : '—';
 
     const analysisData = [
         { 
             domain: activeDomain, 
             active: true, 
-            vis: visScore || 21, 
-            trend: '+3', 
-            issues: auditScore ? (100 - auditScore) : 3, 
+            vis: visScore ?? null, 
+            trend: null, 
+            issues: auditScore ? (100 - auditScore) : null, 
             date: projectDate, 
             comps: compsCount 
         },
-        ...compDomains.slice(0, 3).map((compDomain, i) => {
-            let hash = 0;
-            for (let j = 0; j < compDomain.length; j++) hash = compDomain.charCodeAt(j) + ((hash << 5) - hash);
-            const score = 10 + Math.abs(hash) % 80;
-            const trendVal = Math.floor(Math.abs(hash) / 10) % 8;
-            const issues = Math.abs(hash) % 40;
-            return {
-                domain: compDomain,
-                active: false,
-                vis: score,
-                trend: trendVal > 0 ? (trendVal > 4 ? `+${trendVal - 4}` : null) : null,
-                issues: issues,
-                date: projectDate,
-                comps: compsCount
-            };
-        })
+        ...compDomains.slice(0, 3).map((compDomain) => ({
+            domain: compDomain,
+            active: false,
+            vis: null,
+            trend: null,
+            issues: null,
+            date: projectDate,
+            comps: compsCount,
+        }))
     ];
 
     return (
@@ -205,45 +184,26 @@ export default function OverviewPage({ domains, activeProject, onAddDomain, onTa
                         </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                        {user?.industry ? (
+                        {user?.industry && (
                             <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[#333] bg-[#1A1A1A] text-[#aaa] text-[11px]">
                                 <Building2 className="w-3 h-3" /> {user.industry}
                             </span>
-                        ) : (
-                            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[#333] bg-[#1A1A1A] text-[#aaa] text-[11px]">
-                                <Building2 className="w-3 h-3" /> General
-                            </span>
                         )}
-                        {user?.companySize ? (
+                        {user?.companySize && (
                             <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[#333] bg-[#1A1A1A] text-[#aaa] text-[11px]">
                                 <Users className="w-3 h-3" /> {user.companySize}
                             </span>
-                        ) : (
-                            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[#333] bg-[#1A1A1A] text-[#aaa] text-[11px]">
-                                <Users className="w-3 h-3" /> 11-100
-                            </span>
                         )}
-                        {user?.location ? (
+                        {user?.location && (
                             <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[#333] bg-[#1A1A1A] text-[#aaa] text-[11px]">
                                 <MapPin className="w-3 h-3" /> {user.location}
                             </span>
-                        ) : (
-                            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[#333] bg-[#1A1A1A] text-[#aaa] text-[11px]">
-                                <MapPin className="w-3 h-3" /> Dubai
-                            </span>
                         )}
-                        {user?.language ? (
+                        {user?.language && (
                             <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[#333] bg-[#1A1A1A] text-[#aaa] text-[11px]">
                                 <Globe className="w-3 h-3" /> {user.language}
                             </span>
-                        ) : (
-                            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[#333] bg-[#1A1A1A] text-[#aaa] text-[11px]">
-                                <Globe className="w-3 h-3" /> English
-                            </span>
                         )}
-                         <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[#333] bg-[#1A1A1A] text-[#aaa] text-[11px]">
-                             <Globe className="w-3 h-3" /> worldwide
-                         </span>
                     </div>
                 </div>
             </div>
@@ -259,10 +219,10 @@ export default function OverviewPage({ domains, activeProject, onAddDomain, onTa
                     </div>
                     <div>
                         <div className="flex items-baseline gap-1">
-                            <span className="text-white text-[28px] font-bold tracking-tight">{dashboardMetrics ? dashboardMetrics.hoursSaved.toFixed(1) : '6.0'}</span>
-                            <span className="text-[#666] text-[14px]">h</span>
+                            <span className="text-white text-[28px] font-bold tracking-tight">{dashboardMetrics ? dashboardMetrics.hoursSaved.toFixed(1) : '—'}</span>
+                            {dashboardMetrics && <span className="text-[#666] text-[14px]">h</span>}
                         </div>
-                        <p className="text-[#666] text-[11px] mt-1 line-clamp-1">{dashboardMetrics ? 'Total via AI operations' : 'This week via AI research & drafting'}</p>
+                        <p className="text-[#666] text-[11px] mt-1 line-clamp-1">{dashboardMetrics ? 'Total via AI operations' : 'Run scans to track time saved'}</p>
                     </div>
                 </div>
 
@@ -275,7 +235,7 @@ export default function OverviewPage({ domains, activeProject, onAddDomain, onTa
                     </div>
                     <div>
                         <div className="flex items-baseline gap-1">
-                            <span className="text-white text-[28px] font-bold tracking-tight">{projects?.length || 4}</span>
+                            <span className="text-white text-[28px] font-bold tracking-tight">{projects?.length || 0}</span>
                         </div>
                         <p className="text-[#666] text-[11px] mt-1 line-clamp-1">Domains tracked for AI visibility</p>
                     </div>
@@ -290,10 +250,10 @@ export default function OverviewPage({ domains, activeProject, onAddDomain, onTa
                     </div>
                     <div>
                         <div className="flex items-baseline gap-1">
-                            <span className="text-white text-[28px] font-bold tracking-tight">{dashboardMetrics?.siteHealth || auditScore || 74}</span>
-                            <span className="text-[#666] text-[14px]">%</span>
+                            <span className="text-white text-[28px] font-bold tracking-tight">{dashboardMetrics?.siteHealth || auditScore || '—'}</span>
+                            {(dashboardMetrics?.siteHealth || auditScore) && <span className="text-[#666] text-[14px]">%</span>}
                         </div>
-                        <p className="text-[#666] text-[11px] mt-1 line-clamp-1">Latest intelligent audit</p>
+                        <p className="text-[#666] text-[11px] mt-1 line-clamp-1">{(dashboardMetrics?.siteHealth || auditScore) ? 'Latest intelligent audit' : 'Run an audit to see health'}</p>
                     </div>
                 </div>
 
@@ -306,9 +266,9 @@ export default function OverviewPage({ domains, activeProject, onAddDomain, onTa
                     </div>
                     <div>
                         <div className="flex items-baseline gap-1">
-                            <span className="text-white text-[28px] font-bold tracking-tight">{dashboardMetrics !== null ? dashboardMetrics.articlesPublished : 2}</span>
+                            <span className="text-white text-[28px] font-bold tracking-tight">{dashboardMetrics !== null ? dashboardMetrics.articlesPublished : '—'}</span>
                         </div>
-                        <p className="text-[#666] text-[11px] mt-1 line-clamp-1">{dashboardMetrics !== null ? 'Total high-value outputs' : '1,523 words across 7 projects'}</p>
+                        <p className="text-[#666] text-[11px] mt-1 line-clamp-1">{dashboardMetrics !== null ? 'Total high-value outputs' : 'Create content to track output'}</p>
                     </div>
                 </div>
             </div>
@@ -329,14 +289,13 @@ export default function OverviewPage({ domains, activeProject, onAddDomain, onTa
                     <div className="flex items-center justify-between mb-8 z-10 relative">
                         <div className="flex items-center gap-3">
                             <div className="flex items-baseline">
-                                <span className="text-white text-[42px] font-bold tracking-tighter leading-none">{visScore || 21}</span>
-                                <span className="text-[#666] text-[16px] font-medium ml-1">/100</span>
-                            </div>
-                            <div className="flex items-center gap-1 px-2.5 py-1 bg-[#112211] border border-[#113311] text-[#4ade80] rounded-full text-[11px] font-bold">
-                                <TrendingUp className="w-3 h-3" /> +3 this week
+                                <span className="text-white text-[42px] font-bold tracking-tighter leading-none">{visScore ?? '—'}</span>
+                                {visScore != null && <span className="text-[#666] text-[16px] font-medium ml-1">/100</span>}
                             </div>
                         </div>
-                        <span className="text-[#666] text-[11px]">Above {visScore ? Math.max(1, Math.min(99, Math.floor(visScore * 0.85))) : 12}% of {user?.industry || activeProject?.industry || 'your industry'} brands</span>
+                        {visScore != null && (
+                            <span className="text-[#666] text-[11px]">Current score for {user?.industry || activeProject?.industry || 'your industry'}</span>
+                        )}
                     </div>
 
                     <div className="h-[200px] w-full mt-4 -ml-2">
@@ -367,7 +326,6 @@ export default function OverviewPage({ domains, activeProject, onAddDomain, onTa
                             {allCompetitors.slice(0, 6).map((comp, i) => {
                                 const domain = comp.domain || comp;
                                 const name = comp.name || domain.replace('.com', '');
-                                const score = [34, 58, 72, 41, 63, 29][i] || Math.floor(Math.random() * 50) + 20;
                                 return (
                                     <div key={i} className="flex items-center gap-3 group">
                                         <DomainLogo 
@@ -382,10 +340,6 @@ export default function OverviewPage({ domains, activeProject, onAddDomain, onTa
                                             <p className="text-[#666] text-[11px] truncate">{domain}</p>
                                         </div>
                                         <div className="flex items-center gap-3">
-                                            <div className="w-12 h-1 bg-[#222] rounded-full overflow-hidden">
-                                                <div className="h-full bg-[#E92A15] rounded-full" style={{ width: `${score}%` }} />
-                                            </div>
-                                            <span className="text-[#aaa] text-[12px] font-mono w-5 text-right">{score}</span>
                                             <a href={`https://${domain}`} target="_blank" rel="noopener noreferrer"
                                                 className="text-[#555] hover:text-white transition-colors">
                                                 <ExternalLink className="w-3.5 h-3.5" />
@@ -411,7 +365,7 @@ export default function OverviewPage({ domains, activeProject, onAddDomain, onTa
                 <h3 className="text-[#aaa] text-[10px] font-bold uppercase tracking-[0.15em] mb-4">Quick Actions</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {[
-                        { icon: Shield, label: 'Audit My Website', desc: `Check ${user?.domain || 'camana.com'} health`, tab: 'audit-health' },
+                        { icon: Shield, label: 'Audit My Website', desc: `Check ${user?.domain || 'your site'} health`, tab: 'audit-health' },
                         { icon: Eye, label: 'AI Visibility Report', desc: `How AI sees ${displayBrandName}`, tab: 'ai-visibility' },
                         { icon: FileText, label: 'Create Content', desc: `Write for ${user?.industry || activeProject?.industry || 'your industry'}`, tab: 'content-studio' },
                         { icon: Bell, label: 'Actions', desc: 'Fix issues & boost visibility', tab: 'actions' },
@@ -470,7 +424,7 @@ export default function OverviewPage({ domains, activeProject, onAddDomain, onTa
                                             <TrendingUp className="w-3 h-3" /> {row.trend}
                                         </span>
                                     )}
-                                    <span className="text-white text-[20px] font-semibold">{row.vis}%</span>
+                                    <span className="text-white text-[20px] font-semibold">{row.vis != null ? `${row.vis}%` : '—'}</span>
                                 </div>
                             </div>
 
@@ -483,11 +437,13 @@ export default function OverviewPage({ domains, activeProject, onAddDomain, onTa
                                             <CheckCircle2 className="w-[18px] h-[18px] text-white" />
                                             <span className="text-white text-[14px] font-semibold">All Cleared</span>
                                         </>
-                                    ) : (
+                                    ) : row.issues != null ? (
                                         <>
                                             <AlertTriangle className="w-[18px] h-[18px] text-white" />
                                             <span className="text-white text-[14px] font-semibold">{row.issues}</span>
                                         </>
+                                    ) : (
+                                        <span className="text-[#555] text-[14px] font-semibold">—</span>
                                     )}
                                 </div>
                             </div>
