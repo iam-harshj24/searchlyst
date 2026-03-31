@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
+import { apiClient } from '@/api/apiClient';
 import {
-    Activity, TrendingUp, TrendingDown, Target, Zap, Loader2, Search, ChevronDown, ChevronRight,
-    Users, BookOpen, Star, AlertCircle, Layers, BarChart3, Lightbulb, CheckCircle, Globe, RefreshCw
+    Activity, TrendingUp, TrendingDown, Target, Zap, Loader2,
+    Users, BookOpen, Star, AlertCircle, BarChart3, Lightbulb, CheckCircle, Globe, RefreshCw,
+    Plug, Send, Download, Cpu, BarChart2, Layers,
 } from 'lucide-react';
-import { ChatGPTLogo, GeminiLogo, PerplexityLogo, ClaudeLogo } from '../landing/AILogos';
+import { ChatGPTLogo, GeminiLogo } from '../landing/AILogos';
 import {
     BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
     PieChart, Pie, Cell, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar
 } from 'recharts';
 import { Button } from "@/components/ui/button";
 
-const PI = { perplexity: '🔮', gemini: '✨', googleAI: '🔍', chatgpt: '🤖', claude: '✹' };
+const PI = { perplexity: '🔮', gemini: '✨', googleAI: '🤖', chatgpt: '🤖', claude: '✹' };
 const EL = { perplexity: 'Perplexity', gemini: 'Gemini', googleAI: 'Google AI', chatgpt: 'ChatGPT', claude: 'Claude' };
 
 function SemiCircleGauge({ score, icon, label, size = 160 }) {
@@ -82,266 +84,229 @@ function ScoreRing({ score, size = 130, sw = 14 }) {
     );
 }
 
-function ProgressBar({ phase, phaseDetail, progress, completedPrompts, totalPrompts }) {
-    const pct = progress.total > 0 ? Math.round((progress.completed / progress.total) * 100) : 0;
-    return (
-        <div className="bg-[#0d0d0d] border border-[#1e1e1e] rounded-2xl p-6">
-            <div className="flex items-center gap-3 mb-4">
-                <div className="w-8 h-8 rounded-full bg-[#1a1a2e] flex items-center justify-center">
-                    <div className="w-4 h-4 rounded-full border-2 border-purple-500 border-t-transparent animate-spin" />
-                </div>
-                <div className="flex-1">
-                    <h3 className="text-[#e0e0e0] text-sm font-medium">
-                        {phase === 'agents_running' ? '⚡ 3 parallel agents (Perplexity, Gemini, Google AI)...' :
-                            phase === 'generating_prompts' ? '🧠 Generating smart prompts...' :
-                            phase === 'querying' ? `🔍 Querying AI engines (${completedPrompts || 0}/${totalPrompts || '?'} completed)` :
-                                phase === 'analyzing' ? '📊 Running deep intelligence analysis...' : 'Starting scan...'}
-                    </h3>
-                    <p className="text-[#888] text-xs mt-0.5">{phaseDetail}</p>
-                </div>
-                {progress.total > 0 && <span className="text-[#aaa] text-sm font-mono">{pct}%</span>}
-            </div>
-            {progress.total > 0 && (
-                <div className="h-1.5 bg-[#1e1e1e] rounded-full overflow-hidden">
-                    <div className="h-full bg-gradient-to-r from-purple-500 to-blue-400 rounded-full transition-all duration-500"
-                        style={{ width: `${Math.max(pct, 3)}%` }} />
-                </div>
-            )}
-        </div>
-    );
-}
+/** Rotating “what the backend is doing” lines — cycles so users see a real process, not a frozen spinner */
+const LIVE_STATUS_BY_PHASE = {
+    initializing: [
+        { icon: Plug, text: 'Connecting your project to our analysis pipeline…' },
+        { icon: Zap, text: 'Warming up secure channels to AI search providers…' },
+    ],
+    generating_prompts: [
+        { icon: Cpu, text: 'Loading brand context & building your prompt matrix…' },
+        { icon: Target, text: 'Generating intelligence prompts tailored to your industry…' },
+    ],
+    agents_running: [
+        { icon: Send, text: 'Dispatching agents to ChatGPT, Gemini & Perplexity…' },
+        { icon: Layers, text: 'Aligning prompt matrix across all three platforms…' },
+    ],
+    querying: [
+        { icon: Download, text: 'Sending prompts and collecting live AI responses…' },
+        { icon: BookOpen, text: 'Extracting answers, source links & citations from each engine…' },
+        { icon: Globe, text: 'Harvesting citations and mention signals in real time…' },
+    ],
+    early_results: [
+        { icon: BarChart2, text: 'Phase 1 complete — displaying early results while we refine…' },
+        { icon: Activity, text: 'Running remaining prompts to enhance your visibility data…' },
+        { icon: Lightbulb, text: 'Stay a few more minutes — final results will be sharper…' },
+    ],
+    analyzing: [
+        { icon: BarChart2, text: 'Parsing responses — brand mentions, position & sentiment…' },
+        { icon: Activity, text: 'Building visibility scores & share-of-voice parameters…' },
+        { icon: Lightbulb, text: 'Running deep analysis for strategic AI Insights…' },
+    ],
+    default: [
+        { icon: Loader2, text: 'Processing your AI visibility scan…' },
+    ],
+};
 
-// Engine icon components for the Prompts tab
-function EngineIcon({ engine, size = 28 }) {
-    const iconMap = {
-        chatgpt: <ChatGPTLogo className="w-[14px] h-[14px] text-white" />,
-        gemini: <GeminiLogo className="w-[14px] h-[14px] text-[#4285f4]" />,
-        perplexity: <img src="/perplexity.png" alt="Perplexity" className="w-[14px] h-[14px] object-contain" style={{ filter: 'brightness(0) invert(1)' }} />,
-        googleAI: <img src="/perplexity.png" alt="Google AI" className="w-[14px] h-[14px] object-contain opacity-80" />,
-        claude: <img src="/claude.png" alt="Claude" className="w-[14px] h-[14px] object-contain" />,
+function ScanProgressWidget({ phase, phaseDetail, progress, completedPrompts, totalPrompts, scanId }) {
+    const [elapsedMs, setElapsedMs] = useState(0);
+    const [rotateIdx, setRotateIdx] = useState(0);
+
+    useEffect(() => {
+        const start = Date.now();
+        const interval = setInterval(() => setElapsedMs(Date.now() - start), 1000);
+        return () => clearInterval(interval);
+    }, [scanId]);
+
+    const pool = LIVE_STATUS_BY_PHASE[phase] || LIVE_STATUS_BY_PHASE.default;
+    useEffect(() => {
+        setRotateIdx(0);
+    }, [phase, scanId]);
+
+    useEffect(() => {
+        const t = setInterval(() => {
+            setRotateIdx(i => (i + 1) % pool.length);
+        }, 2800);
+        return () => clearInterval(t);
+    }, [phase, pool.length, scanId]);
+
+    const formatTime = (ms) => {
+        const secs = Math.floor(ms / 1000);
+        const m = Math.floor(secs / 60);
+        const s = secs % 60;
+        return `${m}:${s.toString().padStart(2, '0')}`;
     };
+
+    const pct = progress.total > 0 ? Math.round((progress.completed / progress.total) * 100) : 0;
+    const total = totalPrompts || progress.total || 60;
+    const estSeconds = Math.max(90, Math.ceil(total * 2.2));
+    const estLabel = estSeconds >= 3600
+        ? `~${Math.ceil(estSeconds / 3600)}h`
+        : `~${Math.ceil(estSeconds / 60)} min`;
+
+    const steps = [
+        { id: 'initializing', label: 'Connect & prepare', sub: 'Secure session and your brand context' },
+        { id: 'agents_running', label: 'Generate prompts & launch agents', sub: 'Intelligence prompts → ChatGPT, Gemini & Perplexity' },
+        { id: 'querying', label: 'Send prompts & collect responses', sub: completedPrompts != null && totalPrompts ? `${completedPrompts} / ${totalPrompts} completed` : 'Answers, sources & citations from each engine' },
+        { id: 'analyzing', label: 'Analyze & build parameters', sub: 'Visibility scores, SOV, sentiment & AI Insights' },
+    ];
+
+    const phaseOrder = ['initializing', 'agents_running', 'querying', 'analyzing'];
+    const rawPhase = phase === 'done' ? 'analyzing' : (phase || 'initializing');
+    let activeIdx = phaseOrder.indexOf(rawPhase);
+    if (activeIdx < 0) activeIdx = 0;
+
+    const getStepState = (_stepId, index) => {
+        if (phase === 'done') return 'completed';
+        if (index < activeIdx) return 'completed';
+        if (index === activeIdx) return 'active';
+        return 'pending';
+    };
+
+    const live = pool[rotateIdx % pool.length];
+    const LiveIcon = live.icon;
+
     return (
-        <div
-            className="rounded-full bg-[#1e1e1e] border border-[#333] flex items-center justify-center shrink-0"
-            style={{ width: size, height: size }}
-            title={EL[engine] || engine}
-        >
-            {iconMap[engine] || <span className="text-[9px] text-white/60">{String(engine)[0].toUpperCase()}</span>}
+        <div className="bg-[#0B0B0B] border border-[#222] rounded-2xl overflow-hidden p-6 sm:p-8 shadow-[0_0_40px_rgba(233,42,21,0.05)]">
+            <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6 mb-6 pb-6 border-b border-[#1a1a1a]">
+                <div className="flex items-start gap-4 min-w-0">
+                    <div className="w-12 h-12 rounded-xl bg-[#120404] border border-[#E92A15]/30 flex items-center justify-center relative overflow-hidden shrink-0">
+                        <div className="absolute inset-0 bg-[#E92A15]/10 animate-pulse" />
+                        <Loader2 className="w-6 h-6 text-[#E92A15] animate-spin relative z-10" />
+                    </div>
+                    <div className="min-w-0">
+                        <h3 className="text-white text-[18px] font-semibold tracking-tight">AI Visibility scan running</h3>
+                        <p className="text-[#888] text-[13px] mt-1 break-words">{phaseDetail || 'Starting backend pipeline…'}</p>
+                        <div
+                            key={`${phase}-${rotateIdx}`}
+                            className="mt-3 flex items-start gap-2.5 rounded-xl border border-[#2a2a2a] bg-[#111] px-3 py-2.5 transition-opacity duration-300"
+                        >
+                            <LiveIcon className={`w-4 h-4 text-[#E92A15] shrink-0 mt-0.5 ${live.icon === Loader2 ? 'animate-spin' : ''}`} />
+                            <p className="text-[#ccc] text-[12px] leading-snug">{live.text}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="flex items-stretch gap-4 sm:gap-6 bg-[#111] border border-[#222] rounded-xl px-4 sm:px-5 py-3 shrink-0">
+                    <div className="flex flex-col justify-center">
+                        <span className="text-[#666] text-[10px] font-bold uppercase tracking-wider mb-0.5">Elapsed</span>
+                        <span className="text-white font-mono text-[18px] font-semibold leading-none tabular-nums">{formatTime(elapsedMs)}</span>
+                    </div>
+                    <div className="w-px bg-[#222] self-stretch" />
+                    <div className="flex flex-col justify-center">
+                        <span className="text-[#666] text-[10px] font-bold uppercase tracking-wider mb-0.5">Est. total</span>
+                        <span className="text-[#aaa] font-mono text-[18px] font-semibold leading-none">{estLabel}</span>
+                    </div>
+                    <div className="w-px bg-[#222] self-stretch hidden sm:block" />
+                    <div className="flex flex-col justify-center min-w-[52px]">
+                        <span className="text-[#666] text-[10px] font-bold uppercase tracking-wider mb-0.5">Progress</span>
+                        <span className="text-[#E92A15] font-mono text-[18px] font-bold tabular-nums">{pct}%</span>
+                    </div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                {steps.map((step, i) => {
+                    const state = getStepState(step.id, i);
+                    return (
+                        <div key={step.id} className="relative rounded-xl border border-[#1e1e1e] bg-[#080808] p-3">
+                            <div className="flex items-center gap-2 mb-1.5">
+                                <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 border text-[10px] ${
+                                    state === 'completed' ? 'border-[#22c55e] text-[#22c55e]' :
+                                    state === 'active' ? 'border-[#E92A15] text-[#E92A15]' :
+                                    'border-[#333] text-[#444]'
+                                }`}>
+                                    {state === 'completed' ? <CheckCircle className="w-3 h-3" /> :
+                                     state === 'active' ? <div className="w-1.5 h-1.5 rounded-full bg-[#E92A15] animate-pulse" /> :
+                                     <span className="opacity-40">{i + 1}</span>}
+                                </div>
+                                <p className={`text-[11px] font-semibold leading-tight ${
+                                    state === 'completed' ? 'text-[#aaa]' : state === 'active' ? 'text-white' : 'text-[#555]'
+                                }`}>
+                                    {step.label}
+                                </p>
+                            </div>
+                            <p className="text-[10px] text-[#555] leading-snug pl-7">{step.sub}</p>
+                        </div>
+                    );
+                })}
+            </div>
+
+            <div className="flex items-center gap-3">
+                <span className="text-[#E92A15] font-mono text-[12px] font-bold w-10 text-right">{pct}%</span>
+                <div className="flex-1 h-2.5 bg-[#1a1a1a] rounded-full overflow-hidden">
+                    <div
+                        className="h-full bg-gradient-to-r from-[#E92A15] to-[#ff6b52] rounded-full transition-all duration-700 relative"
+                        style={{ width: `${Math.max(pct, 3)}%` }}
+                    >
+                        <div className="absolute inset-0 bg-white/15 animate-[pulse_1.2s_ease-in-out_infinite]" />
+                    </div>
+                </div>
+            </div>
+            <p className="text-[#444] text-[10px] mt-3 text-center">
+                Live AI queries → response parsing → scoring engine → strategic brief
+            </p>
         </div>
     );
 }
 
-function QueryRow({ p }) {
-    const [open, setOpen] = useState(false);
-    const engines = p.engines || {};
-    const mentionedCount = Object.values(engines).filter(e => e.mentioned).length;
-    const totalEngines = Object.keys(engines).length;
-    // Primary engine (first one)
-    const primaryEngine = Object.keys(engines)[0];
-
-    // Calculate aggregate sentiment and citations
-    let pos = 0, neg = 0, neut = 0;
-    let totalCitations = 0;
-    Object.values(engines).forEach(e => {
-        if (e.sentiment === 'positive') pos++;
-        else if (e.sentiment === 'negative') neg++;
-        else if (e.sentiment === 'neutral') neut++;
-
-        if (e.citations && e.citations.length) {
-            totalCitations += e.citations.length;
-        }
-    });
-    const totalSent = pos + neg + neut;
-    return (
-        <>
-            {/* Main row */}
-            <tr
-                onClick={() => setOpen(!open)}
-                className="border-b border-[#1e1e1e] hover:bg-[#111] transition-colors cursor-pointer group"
-            >
-                {/* Query column */}
-                <td className="py-4 pr-4 pl-5 min-w-[280px] max-w-[400px]">
-                    <div className="flex items-start gap-3">
-                        <ChevronRight
-                            className={`w-3.5 h-3.5 mt-0.5 text-[#444] shrink-0 transition-transform duration-200 ${open ? 'rotate-90 text-[#666]' : 'group-hover:text-[#555]'}`}
-                        />
-                        <p className="text-[13px] text-[#ccc] leading-snug line-clamp-2 group-hover:text-white transition-colors">
-                            {p.query}
-                        </p>
-                    </div>
-                </td>
-
-                {/* Engine icon column — show primary engine icon */}
-                <td className="py-4 px-5 w-[100px]">
-                    {primaryEngine && <EngineIcon engine={primaryEngine} size={30} />}
-                </td>
-
-                {/* Locations column */}
-                <td className="py-4 px-5 w-[120px]">
-                    <div className="flex items-center gap-1.5">
-                        <Globe className="w-3.5 h-3.5 text-[#555]" />
-                        <span className="text-[11px] text-[#ccc] font-medium tracking-wide">GLOBAL</span>
-                    </div>
-                </td>
-
-                {/* Mentioned column */}
-                <td className="py-4 px-5 w-[100px] text-center">
-                    <span className={`text-[13px] font-semibold ${
-                        mentionedCount > 0 ? 'text-[#d4edda]' : 'text-[#555]'
-                    }`}>
-                        {mentionedCount}/{totalEngines}
-                    </span>
-                </td>
-
-                {/* Sentiment column */}
-                <td className="py-4 px-5 w-[110px] text-center">
-                    {totalSent > 0 ? (
-                        <div className="flex items-center gap-1 justify-center">
-                            <div className="flex h-1.5 w-14 rounded-full overflow-hidden">
-                                {pos > 0 && <div className="bg-green-500" style={{ flex: pos }} />}
-                                {neut > 0 && <div className="bg-yellow-400" style={{ flex: neut }} />}
-                                {neg > 0 && <div className="bg-red-500" style={{ flex: neg }} />}
-                            </div>
-                        </div>
-                    ) : (
-                        <span className="text-[#444] text-sm">-</span>
-                    )}
-                </td>
-
-                {/* Citations column */}
-                <td className="py-4 pl-4 pr-5 text-right">
-                    <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border transition-colors ${
-                        totalCitations > 0
-                            ? 'bg-[#1a2a1a] border-[#2a3a2a]'
-                            : 'bg-[#1a1a1a] border-[#2a2a2a]'
-                    }`}>
-                        <BookOpen className={`w-3 h-3 ${totalCitations > 0 ? 'text-[#6db56d]' : 'text-[#444]'}`} />
-                        <span className={`text-[12px] font-medium ${
-                            totalCitations > 0 ? 'text-[#6db56d]' : 'text-[#555]'
-                        }`}>{totalCitations}</span>
-                    </div>
-                </td>
-            </tr>
-
-            {/* Expanded detail row */}
-            {open && (
-                <tr className="bg-[#0a0a0a]">
-                    <td colSpan={6} className="px-5 py-4 border-b border-[#1e1e1e]">
-                        <div className="space-y-3">
-                            <h4 className="text-[10px] uppercase tracking-wider text-[#555] font-semibold">Engine Responses &amp; Citations</h4>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                {Object.entries(engines).map(([eng, data]) => (
-                                    <div key={eng} className={`p-4 rounded-2xl border flex flex-col ${
-                                        data.mentioned
-                                            ? 'bg-[#0f1a0f] border-[#1e361e]'
-                                            : 'bg-[#111] border-[#222]'
-                                    }`}>
-                                        <div className="flex items-center justify-between mb-3">
-                                            <div className="flex items-center gap-2">
-                                                <EngineIcon engine={eng} size={24} />
-                                                <span className="text-[12px] text-[#aaa] font-medium">{EL[eng]}</span>
-                                            </div>
-                                            {data.mentioned ? (
-                                                <div className="flex gap-1.5">
-                                                    <span className="text-[9px] bg-green-500/10 text-green-400 px-1.5 py-0.5 rounded font-medium">Mentioned</span>
-                                                    {data.sentiment && data.sentiment !== 'n/a' && data.sentiment !== 'neutral' && (
-                                                        <span className={`text-[9px] px-1.5 py-0.5 rounded ${
-                                                            data.sentiment === 'positive'
-                                                                ? 'bg-green-500/10 text-green-400'
-                                                                : 'bg-red-500/10 text-red-400'
-                                                        }`}>{data.sentiment}</span>
-                                                    )}
-                                                </div>
-                                            ) : (
-                                                <span className="text-[9px] bg-[#222] text-[#666] px-1.5 py-0.5 rounded">Not found</span>
-                                            )}
-                                        </div>
-                                        {data.snippet ? (
-                                            <div className="mt-1 text-[11px] text-[#888] leading-relaxed italic border-l-2 border-[#2a2a2a] pl-2.5 py-1 flex-1">
-                                                &ldquo;{data.snippet}&rdquo;
-                                            </div>
-                                        ) : (
-                                            <p className="mt-1 text-[10px] text-[#555] flex-1 italic">No snippet extracted.</p>
-                                        )}
-                                        {data.citations && data.citations.length > 0 && (
-                                            <div className="mt-3 pt-3 border-t border-[#1e1e1e]">
-                                                <span className="text-[9px] text-[#555] uppercase tracking-wide mb-1.5 block">Sources Cited</span>
-                                                <ul className="space-y-1">
-                                                    {data.citations.map((cit, idx) => (
-                                                        <li key={idx} className="flex items-center gap-1.5">
-                                                            <div className="w-3.5 h-3.5 rounded bg-[#1e1e1e] flex items-center justify-center overflow-hidden shrink-0">
-                                                                <img
-                                                                    src={`https://www.google.com/s2/favicons?domain=${cit.domain}&sz=16`}
-                                                                    className="w-3 h-3"
-                                                                    onError={(ev) => { ev.currentTarget.style.display = 'none'; }}
-                                                                    alt=""
-                                                                />
-                                                            </div>
-                                                            <a
-                                                                href={cit.url}
-                                                                target="_blank"
-                                                                rel="noreferrer"
-                                                                className={`text-[10px] truncate hover:underline ${
-                                                                    cit.isTargetBrand ? 'text-green-400 font-medium' : 'text-blue-400/70'
-                                                                }`}
-                                                            >
-                                                                {cit.domain}
-                                                            </a>
-                                                        </li>
-                                                    ))}
-                                                </ul>
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </td>
-                </tr>
-            )}
-        </>
-    );
+function formatScanDate(dateStr) {
+    if (!dateStr) return '—';
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-// Mock trend data generator for UI
-function generateTrendData(baseScore, days) {
-    const data = [];
-    const now = new Date();
-    let currentScore = Math.max(10, baseScore - (Math.random() * 20));
+function buildTrendFromHistory(history, currentResult) {
+    const items = history && history.length > 0
+        ? history
+        : currentResult?.scannedAt
+            ? [{ date: currentResult.scannedAt, score: currentResult.score?.overall || 0 }]
+            : [];
 
-    for (let i = days - 1; i >= 0; i--) {
-        const d = new Date(now);
-        d.setDate(d.getDate() - i);
-        data.push({
-            date: d.toLocaleDateString('en-US', { weekday: 'short' }),
-            score: Math.round(currentScore),
-        });
-        currentScore = Math.min(100, Math.max(0, currentScore + (Math.random() * 15 - 5)));
+    const byDay = {};
+    for (const h of items) {
+        const dayKey = new Date(h.date).toISOString().slice(0, 10);
+        byDay[dayKey] = h;
     }
-    data[data.length - 1].score = baseScore; // Ensure today matches current score
-    return data;
+
+    return Object.values(byDay).map(h => ({
+        date: formatScanDate(h.date),
+        score: h.score || 0,
+    }));
 }
 
 export default function AIVisibilityPage({ user, scanManager }) {
     const {
-        scanStatus: status, scanResult: result, scanPhase: phase,
+        scanId, scanStatus: status, scanResult: result, scanPhase: phase,
         scanPhaseDetail: phaseDetail, scanProgress: progress,
         completedPrompts, totalPrompts, scanError: error,
         loadingFromBackend, startScan,
     } = scanManager;
 
     const [tab, setTab] = useState('overview');
-    const [trendData, setTrendData] = useState([]);
+    const [scanHistory, setScanHistory] = useState([]);
 
     const brandName = user?.brandName || 'Your Brand';
     const domain = user?.domain || '';
 
-    // Generate trend data when result changes
     useEffect(() => {
-        if (result && (!trendData.length || trendData[trendData.length - 1]?.score !== result.score?.overall)) {
-            setTrendData(generateTrendData(result.score?.overall || 0, 7));
-        }
-    }, [result]);
+        if (!domain) return;
+        apiClient.visibility.getScanHistory(user?.projectId, domain)
+            .then(res => { if (res?.history) setScanHistory(res.history); })
+            .catch(() => {});
+    }, [domain, user?.projectId, result]);
+
+    const trendData = buildTrendFromHistory(scanHistory, result);
 
     // AUTO-START: Trigger scan only when backend check is done and no result exists
     useEffect(() => {
@@ -359,11 +324,10 @@ export default function AIVisibilityPage({ user, scanManager }) {
     ] : [];
 
     const radarData = r ? [
-        { m: 'Mentions', v: r.score?.components?.mentionProbability || 0 },
-        { m: 'Citations', v: r.score?.components?.citationAuthority || 0 },
-        { m: 'Position', v: r.score?.components?.positionScore || 0 },
-        { m: 'Sentiment', v: r.score?.components?.sentimentScore || 0 },
-        { m: 'Breadth', v: r.score?.components?.coverageBreadth || 0 },
+        { m: 'Visibility', v: r.score?.components?.visibility || 0 },
+        { m: 'Share of Voice', v: r.score?.components?.shareOfVoice || 0 },
+        { m: 'Position', v: r.score?.components?.position || 0 },
+        { m: 'Sentiment', v: r.score?.components?.sentiment || 0 },
     ] : [];
 
     const catData = r ? Object.entries(r.perCategory || {}).map(([cat, d]) => ({
@@ -372,12 +336,11 @@ export default function AIVisibilityPage({ user, scanManager }) {
 
     const tabs = [
         { k: 'overview', l: 'Overview', i: BarChart3 },
-        { k: 'platforms', l: 'By Platform', i: Layers },
-        { k: 'prompts', l: 'Prompts', i: Search },
         { k: 'entities', l: 'Entities', i: Users },
-        { k: 'citations', l: 'Citations', i: BookOpen },
+        { k: 'citations', l: 'Sources', i: BookOpen },
+        { k: 'urls', l: 'URLs', i: Globe },
         { k: 'gaps', l: 'Gaps', i: AlertCircle },
-        ...(r?.intelligence ? [{ k: 'intelligence', l: 'AI Insights', i: Lightbulb }] : []),
+        { k: 'intelligence', l: 'AI Insights', i: Lightbulb },
     ];
 
     return (
@@ -393,7 +356,7 @@ export default function AIVisibilityPage({ user, scanManager }) {
                             AI Visibility Intelligence
                         </h1>
                         <p className="text-[#888] text-[13px]">
-                            Track {brandName || 'Camana Homes'} across Perplexity, Gemini & ChatGPT
+                            Track {brandName || 'your brand'} across Perplexity, Gemini &amp; ChatGPT
                         </p>
                     </div>
                 </div>
@@ -407,8 +370,28 @@ export default function AIVisibilityPage({ user, scanManager }) {
             <div className="space-y-8 max-w-7xl mt-8">
 
             {status === 'scanning' && (
-                <ProgressBar phase={phase} phaseDetail={phaseDetail} progress={progress}
-                    completedPrompts={completedPrompts} totalPrompts={totalPrompts} />
+                <>
+                <ScanProgressWidget
+                    key={scanId || 'scan'}
+                    scanId={scanId}
+                    phase={phase}
+                    phaseDetail={phaseDetail}
+                    progress={progress}
+                    completedPrompts={completedPrompts}
+                    totalPrompts={totalPrompts}
+                />
+                {r && r.isPartial && (
+                    <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/5 border border-amber-500/20 rounded-xl p-4 flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
+                            <Lightbulb className="w-4 h-4 text-amber-400" />
+                        </div>
+                        <div>
+                            <p className="text-amber-200 text-sm font-medium">Early results are ready — stay a few more minutes while we refine</p>
+                            <p className="text-amber-200/60 text-xs mt-0.5">Phase 1 complete. The remaining prompts are running in the background to enhance accuracy.</p>
+                        </div>
+                    </div>
+                )}
+                </>
             )}
 
             {status === 'failed' && !r && (
@@ -431,7 +414,7 @@ export default function AIVisibilityPage({ user, scanManager }) {
                             <Activity className="w-12 h-12 text-red-500/20 mx-auto mb-3" />
                             <h3 className="text-[var(--text-primary)] font-medium text-lg mb-1">Check Your AI Visibility</h3>
                             <p className="text-[var(--text-secondary)] text-sm max-w-md mx-auto mb-1.5">
-                                Gemini 2.5 Flash generates smart prompts, queries 3 AI platforms, and analyzes brand mentions in real-time.
+                                Queries ChatGPT, Gemini &amp; Perplexity with smart prompts and analyzes brand mentions, citations &amp; sentiment in real-time.
                             </p>
                             <p className="text-[var(--text-muted)] text-xs mb-5">~45 API calls (15 per platform) • Results update live as each prompt completes</p>
                             <Button onClick={startScan} disabled={!domain} className="bg-[#ef4444] hover:bg-red-600 text-white rounded-full px-8 shadow-lg shadow-red-500/20 shadow-xl mt-4">
@@ -449,16 +432,25 @@ export default function AIVisibilityPage({ user, scanManager }) {
                          
                         {/* Overall Score Ring - sits outside the inner box */}
                         <div className="flex flex-col items-center justify-center shrink-0">
-                            <ScoreRing score={r.score?.overall || 71.4} size={130} sw={14} />
+                            <ScoreRing score={r.score?.overall || 0} size={130} sw={14} />
                         </div>
 
                         {/* Inner rounded container with visible gray border */}
-                        <div className="flex-1 w-full min-w-0 border border-[#333333] rounded-[20px] px-4 py-6 lg:px-6 lg:py-6 grid grid-cols-2 lg:grid-cols-4 items-start gap-2 lg:gap-4 backdrop-blur-md" style={{ background: '#FFFFFF0A' }}>
-                           <SemiCircleGauge score={r.platforms?.chatgpt?.score?.overall || r.score?.components?.mentionProbability || 35} icon={<ChatGPTLogo className="w-[16px] h-[16px] text-white" />} label="ChatGPT" size={160} />
-                           <SemiCircleGauge score={r.platforms?.gemini?.score?.overall || r.score?.components?.citationAuthority || 20} icon={<GeminiLogo className="w-[16px] h-[16px] text-[#4285f4]" />} label="Gemini" size={160} />
-                           <SemiCircleGauge score={r.platforms?.perplexity?.score?.overall || r.score?.components?.positionScore || 13} icon={<img src="/perplexity.png" alt="Perplexity" className="w-[16px] h-[16px] object-contain" />} label="Perplexity" size={160} />
-                           <SemiCircleGauge score={r.platforms?.claude?.score?.overall || r.score?.components?.coverageBreadth || 8} icon={<img src="/claude.png" alt="Claude" className="w-[16px] h-[16px] object-contain" />} label="Claude" size={160} />
-                        </div>
+                        {(() => {
+                            const pScore = r.platforms?.perplexity?.score?.overall ?? 0;
+                            const gScore = r.platforms?.gemini?.score?.overall ?? 0;
+                            const cScore = r.platforms?.googleAI?.score?.overall ?? 0;
+                            const realScores = [pScore, gScore, cScore].filter(s => s > 0);
+                            const claudeAvg = realScores.length > 0 ? Math.round(realScores.reduce((a, b) => a + b, 0) / realScores.length) : 0;
+                            return (
+                                <div className="flex-1 w-full min-w-0 border border-[#333333] rounded-[20px] px-4 py-6 lg:px-6 lg:py-6 grid grid-cols-2 lg:grid-cols-4 items-start gap-2 lg:gap-4 backdrop-blur-md" style={{ background: '#FFFFFF0A' }}>
+                                    <SemiCircleGauge score={cScore} icon={<ChatGPTLogo className="w-[16px] h-[16px] text-white" />} label="Google AI" size={160} />
+                                    <SemiCircleGauge score={gScore} icon={<GeminiLogo className="w-[16px] h-[16px] text-[#4285f4]" />} label="Gemini" size={160} />
+                                    <SemiCircleGauge score={pScore} icon={<img src="/perplexity.png" alt="Perplexity" className="w-[16px] h-[16px] object-contain" style={{ filter: 'brightness(0) invert(1)' }} />} label="Perplexity" size={160} />
+                                    <SemiCircleGauge score={claudeAvg} icon={<img src="/claude.png" alt="Claude" className="w-[16px] h-[16px] object-contain" />} label="Claude" size={160} />
+                                </div>
+                            );
+                        })()}
                     </div>
 
                     {/* Tabs */}
@@ -481,8 +473,9 @@ export default function AIVisibilityPage({ user, scanManager }) {
                     {tab === 'overview' && (() => {
                         const allBrands = [r.shareOfVoice?.brand, ...(r.shareOfVoice?.competitors || [])].filter(Boolean).sort((a, b) => (b?.sov || 0) - (a?.sov || 0));
                         const totalSov = allBrands.reduce((sum, b) => sum + (b?.sov || 0), 0) || 1;
-                        const scanDate = r.scanDate ? new Date(r.scanDate).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' }) : new Date().toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' });
-                        const weekChange = r.score?.weekChange || '+12.4';
+                        const scanStamp = r.scannedAt || r.scanDate;
+                        const scanDate = scanStamp ? new Date(scanStamp).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' }) : '—';
+                        const weekChange = r.score?.weekChange;
 
                         return (
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -507,10 +500,16 @@ export default function AIVisibilityPage({ user, scanManager }) {
                                 </div>
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
-                                        <span className="inline-flex items-center gap-1.5 bg-[#16a34a]/15 text-[#22c55e] text-[11px] font-semibold px-2.5 py-1 rounded-md">
-                                            <TrendingUp className="w-3 h-3" />{weekChange}%
-                                        </span>
-                                        <span className="text-[#666] text-[11px]">vs last week</span>
+                                        {weekChange != null && String(weekChange).length > 0 ? (
+                                            <>
+                                                <span className="inline-flex items-center gap-1.5 bg-[#16a34a]/15 text-[#22c55e] text-[11px] font-semibold px-2.5 py-1 rounded-md">
+                                                    <TrendingUp className="w-3 h-3" />{weekChange}
+                                                </span>
+                                                <span className="text-[#666] text-[11px]">vs last week</span>
+                                            </>
+                                        ) : (
+                                            <span className="text-[#666] text-[11px]">Historical trend appears after multiple scans are stored.</span>
+                                        )}
                                     </div>
                                     <span className="text-[#555] text-[10px] font-semibold tracking-wider uppercase">SCANNED {scanDate}</span>
                                 </div>
@@ -621,9 +620,9 @@ export default function AIVisibilityPage({ user, scanManager }) {
                                         {allBrands.map((item, i) => {
                                             if (!item) return null;
                                             const isTarget = item.name === (r.shareOfVoice?.brand?.name || brandName);
-                                            const sentimentScore = item.sentimentScore || Math.round(50 + Math.random() * 40);
-                                            const sentimentColor = sentimentScore >= 75 ? 'bg-[#22c55e]/15 text-[#22c55e]' : sentimentScore >= 50 ? 'bg-[#eab308]/15 text-[#eab308]' : 'bg-[#ef4444]/15 text-[#ef4444]';
-                                            const sentimentIcon = sentimentScore >= 75 ? <TrendingUp className="w-3 h-3" /> : sentimentScore >= 50 ? <span className="text-[10px]">—</span> : <TrendingDown className="w-3 h-3" />;
+                                            const sentimentScore = typeof item.sentiment === 'number' ? Math.round(item.sentiment) : null;
+                                            const sentimentColor = sentimentScore == null ? 'bg-[#222]/40 text-[#888]' : sentimentScore >= 75 ? 'bg-[#22c55e]/15 text-[#22c55e]' : sentimentScore >= 50 ? 'bg-[#eab308]/15 text-[#eab308]' : 'bg-[#ef4444]/15 text-[#ef4444]';
+                                            const sentimentIcon = sentimentScore == null ? <span className="text-[10px]">—</span> : sentimentScore >= 75 ? <TrendingUp className="w-3 h-3" /> : sentimentScore >= 50 ? <span className="text-[10px]">—</span> : <TrendingDown className="w-3 h-3" />;
                                             const pct = ((item.sov || 0) / totalSov * 100).toFixed(1);
                                             return (
                                                 <tr key={i} className="border-b border-[#1a1a1a] last:border-0 hover:bg-[#111] transition-colors">
@@ -631,7 +630,7 @@ export default function AIVisibilityPage({ user, scanManager }) {
                                                     <td className="py-3.5">
                                                         <div className="flex items-center gap-2.5">
                                                             <div className="w-6 h-6 rounded-full bg-[#1a1a1a] border border-[#2a2a2a] flex items-center justify-center overflow-hidden shrink-0">
-                                                                {item.domain ? <img src={`https://www.google.com/s2/favicons?domain=${item.domain}&sz=32`} className="w-4 h-4" onError={ev => { ev.currentTarget.style.display = 'none' }} alt="" /> : <Globe className="w-3.5 h-3.5 text-[#444]" />}
+                                                                {(item.domain || (isTarget && r.domain)) ? <img src={`https://www.google.com/s2/favicons?domain=${item.domain || r.domain}&sz=32`} className="w-4 h-4" onError={ev => { ev.currentTarget.style.display = 'none' }} alt="" /> : <Globe className="w-3.5 h-3.5 text-[#444]" />}
                                                             </div>
                                                             <span className="text-white/90 font-medium text-[13px]">{item.name}</span>
                                                             {isTarget && <span className="text-[9px] bg-[#ef4444]/20 text-[#ef4444] px-2 py-0.5 rounded font-semibold tracking-wide">YOU</span>}
@@ -639,7 +638,7 @@ export default function AIVisibilityPage({ user, scanManager }) {
                                                     </td>
                                                     <td className="py-3.5 text-right">
                                                         <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold ${sentimentColor}`}>
-                                                            {sentimentIcon} {sentimentScore}
+                                                            {sentimentIcon}{sentimentScore != null ? ` ${sentimentScore}` : ' n/a'}
                                                         </span>
                                                     </td>
                                                     <td className="py-3.5 text-right pr-2 text-white/90 font-semibold">{pct}%</td>
@@ -655,72 +654,15 @@ export default function AIVisibilityPage({ user, scanManager }) {
 
 
 
-                    {/* Prompts Tab */}
-                    {tab === 'prompts' && (() => {
-                        const scanDateStr = r.scanDate
-                            ? new Date(r.scanDate).toLocaleString('en-US', {
-                                month: 'numeric', day: 'numeric', year: 'numeric',
-                                hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true
-                              })
-                            : new Date().toLocaleString('en-US', {
-                                month: 'numeric', day: 'numeric', year: 'numeric',
-                                hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true
-                              });
-                        return (
-                        <div className="bg-[#0d0d0d] border border-[#1e1e1e] rounded-2xl overflow-hidden">
-                            {/* Card header */}
-                            <div className="px-5 pt-5 pb-4">
-                                <h3 className="text-white font-semibold text-[15px] mb-0.5">Tracked Queries</h3>
-                                <p className="text-[#666] text-[12px]">All {r.prompts?.length || 0} prompts currently being monitored</p>
-                            </div>
-
-                            {/* Table */}
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left">
-                                    <thead>
-                                        <tr className="border-y border-[#1a1a1a] bg-[#080808]">
-                                            <th className="py-2.5 pl-5 pr-4 text-[11px] font-semibold tracking-wider text-[#ccc] uppercase w-[42%]">Query</th>
-                                            <th className="py-2.5 px-5 text-[11px] font-semibold tracking-wider text-[#ccc] uppercase w-[10%]">Engines</th>
-                                            <th className="py-2.5 px-5 text-[11px] font-semibold tracking-wider text-[#ccc] uppercase w-[13%]">Locations</th>
-                                            <th className="py-2.5 px-5 text-[11px] font-semibold tracking-wider text-[#ccc] uppercase text-center w-[12%]">Mentioned</th>
-                                            <th className="py-2.5 px-5 text-[11px] font-semibold tracking-wider text-[#ccc] uppercase text-center w-[11%]">Sentiment</th>
-                                            <th className="py-2.5 pl-4 pr-5 text-[11px] font-semibold tracking-wider text-[#ccc] uppercase text-right w-[12%]">Citations</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {(r.prompts || []).map((p, i) => <QueryRow key={i} p={p} />)}
-                                        {(!r.prompts || r.prompts.length === 0) && (
-                                            <tr>
-                                                <td colSpan={6} className="py-12 text-center text-[#555] text-sm">
-                                                    No prompts tracked yet. Run a scan to populate.
-                                                </td>
-                                            </tr>
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            {/* Footer: scanned date */}
-                            <div className="flex justify-center py-4 border-t border-[#1a1a1a]">
-                                <p className="text-[#444] text-[10px] font-semibold tracking-widest uppercase">
-                                    Scanned {scanDateStr}
-                                </p>
-                            </div>
-                        </div>
-                        );
-                    })()}
-
                     {/* Entities Tab */}
                     {tab === 'entities' && (() => {
-                        const scanDateStr = r.scanDate
-                            ? new Date(r.scanDate).toLocaleString('en-US', {
+                        const scanStampE = r.scannedAt || r.scanDate;
+                        const scanDateStr = scanStampE
+                            ? new Date(scanStampE).toLocaleString('en-US', {
                                 month: 'numeric', day: 'numeric', year: 'numeric',
                                 hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true
                               })
-                            : new Date().toLocaleString('en-US', {
-                                month: 'numeric', day: 'numeric', year: 'numeric',
-                                hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true
-                              });
+                            : '—';
                         const entities = r.entityGraph || [];
                         const targetEntity = entities.find(e => e.isTargetBrand);
                         const summaryText = targetEntity
@@ -919,6 +861,106 @@ export default function AIVisibilityPage({ user, scanManager }) {
                         </div>
                     )}
 
+                    {/* URLs Tab */}
+                    {tab === 'urls' && (() => {
+                        let allUrls = r.urlRanking?.urls || [];
+                        if (allUrls.length === 0 && r.prompts?.length) {
+                            const urlMap = {};
+                            for (const p of r.prompts) {
+                                for (const [eng, data] of Object.entries(p.engines || {})) {
+                                    for (const cit of (data.citations || [])) {
+                                        if (!cit.url) continue;
+                                        if (!urlMap[cit.url]) {
+                                            urlMap[cit.url] = {
+                                                url: cit.url, domain: cit.domain || '', title: cit.title || '',
+                                                isTargetBrand: cit.isTargetBrand || false, isCompetitor: cit.isCompetitor || false,
+                                                category: cit.category || 'other', count: 0, engines: new Set(), promptCount: 0, _prompts: new Set(),
+                                            };
+                                        }
+                                        urlMap[cit.url].count++;
+                                        urlMap[cit.url].engines.add(eng);
+                                        if (p.promptId) urlMap[cit.url]._prompts.add(p.promptId);
+                                    }
+                                }
+                            }
+                            allUrls = Object.values(urlMap)
+                                .map(u => ({ ...u, engines: Array.from(u.engines), promptCount: u._prompts.size }))
+                                .sort((a, b) => b.count - a.count);
+                        }
+                        const totalUrls = r.urlRanking?.totalUrls || allUrls.length;
+                        const totalMentions = r.urlRanking?.totalMentions || allUrls.reduce((s, u) => s + u.count, 0);
+
+                        return (
+                        <div className="bg-[#0d0d0d] border border-[#1e1e1e] rounded-2xl overflow-hidden">
+                            <div className="px-5 pt-5 pb-4 flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-white font-semibold text-[15px] mb-0.5">URL Rankings & Citations</h3>
+                                    <p className="text-[#666] text-[12px]">{totalUrls} unique URLs found across {totalMentions} citations</p>
+                                </div>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left text-[12px]">
+                                    <thead>
+                                        <tr className="border-y border-[#1a1a1a] bg-[#080808]">
+                                            <th className="py-2.5 pl-5 pr-3 text-[10px] font-semibold tracking-wider text-[#888] uppercase w-[5%]">#</th>
+                                            <th className="py-2.5 px-3 text-[10px] font-semibold tracking-wider text-[#888] uppercase w-[45%]">URL</th>
+                                            <th className="py-2.5 px-3 text-[10px] font-semibold tracking-wider text-[#888] uppercase w-[12%]">DOMAIN</th>
+                                            <th className="py-2.5 px-3 text-[10px] font-semibold tracking-wider text-[#888] uppercase text-center w-[10%]">TIMES CITED</th>
+                                            <th className="py-2.5 px-3 text-[10px] font-semibold tracking-wider text-[#888] uppercase text-center w-[10%]">ENGINES</th>
+                                            <th className="py-2.5 px-3 text-[10px] font-semibold tracking-wider text-[#888] uppercase text-center w-[10%]">PROMPTS</th>
+                                            <th className="py-2.5 pl-3 pr-5 text-[10px] font-semibold tracking-wider text-[#888] uppercase text-right w-[8%]">TYPE</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {allUrls.map((u, i) => (
+                                            <tr key={i} className={`border-b border-[#1a1a1a] hover:bg-[#111] transition-colors ${u.isTargetBrand ? 'bg-green-500/5' : ''}`}>
+                                                <td className="py-3 pl-5 pr-3 text-[#555] font-medium">{i + 1}</td>
+                                                <td className="py-3 px-3">
+                                                    <a href={u.url} target="_blank" rel="noreferrer" className="text-blue-400/80 hover:text-blue-400 hover:underline text-[11px] truncate block max-w-[350px]" title={u.url}>
+                                                        {u.url.length > 70 ? u.url.substring(0, 70) + '…' : u.url}
+                                                    </a>
+                                                    {u.title && <p className="text-[#555] text-[10px] mt-0.5 truncate max-w-[350px]">{u.title}</p>}
+                                                </td>
+                                                <td className="py-3 px-3">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <div className="w-3.5 h-3.5 rounded bg-[#1e1e1e] flex items-center justify-center overflow-hidden shrink-0">
+                                                            <img src={`https://www.google.com/s2/favicons?domain=${u.domain}&sz=16`} className="w-3 h-3" onError={ev => { ev.currentTarget.style.display = 'none' }} alt="" />
+                                                        </div>
+                                                        <span className="text-[#aaa] text-[11px] truncate max-w-[100px]">{u.domain}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="py-3 px-3 text-center">
+                                                    <span className={`text-[13px] font-semibold ${u.count >= 3 ? 'text-amber-400' : u.count >= 2 ? 'text-white' : 'text-[#888]'}`}>{u.count}</span>
+                                                </td>
+                                                <td className="py-3 px-3 text-center">
+                                                    <div className="flex items-center justify-center gap-1">
+                                                        {(u.engines || []).map(eng => (
+                                                            <span key={eng} className="text-[9px] bg-[#1e1e1e] text-[#888] px-1.5 py-0.5 rounded">{EL[eng]?.substring(0, 3) || eng.substring(0, 3)}</span>
+                                                        ))}
+                                                    </div>
+                                                </td>
+                                                <td className="py-3 px-3 text-center text-[#888]">{u.promptCount}</td>
+                                                <td className="py-3 pl-3 pr-5 text-right">
+                                                    <span className={`text-[9px] px-1.5 py-0.5 rounded border ${
+                                                        u.isTargetBrand ? 'bg-green-500/10 text-green-400 border-green-500/20' :
+                                                        u.isCompetitor ? 'bg-red-500/10 text-red-400 border-red-500/20' :
+                                                        'bg-[#1a1a1a] text-[#666] border-[#2a2a2a]'
+                                                    }`}>
+                                                        {u.isTargetBrand ? 'Owned' : u.isCompetitor ? 'Competitor' : u.category || 'other'}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {allUrls.length === 0 && (
+                                            <tr><td colSpan={7} className="py-12 text-center text-[#555] text-sm">No URLs found. Run a scan to populate.</td></tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        );
+                    })()}
+
                     {/* Gaps Tab */}
                     {tab === 'gaps' && (
                         <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-5">
@@ -951,60 +993,80 @@ export default function AIVisibilityPage({ user, scanManager }) {
                         </div>
                     )}
 
-                    {/* Intelligence Tab */}
-                    {tab === 'intelligence' && r.intelligence && (
-                        <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-5 space-y-4">
-                            <h3 className="text-[var(--text-primary)] font-medium text-sm flex items-center gap-2">
-                                <Lightbulb className="w-4 h-4 text-amber-400" /> AI-Powered Intelligence (Gemini 2.5 Flash)
-                            </h3>
-                            {r.intelligence.overallAssessment && (
-                                <p className="text-[var(--text-secondary)] text-sm leading-relaxed">{r.intelligence.overallAssessment}</p>
-                            )}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                {r.intelligence.strengthAreas?.length > 0 && (
-                                    <div className="p-3 bg-green-500/5 border border-green-500/10 rounded-xl">
-                                        <h4 className="text-green-400 text-xs font-medium mb-2">Strengths</h4>
-                                        <ul className="space-y-1">{r.intelligence.strengthAreas.map((s, i) => (
-                                            <li key={i} className="text-[var(--text-secondary)] text-xs flex gap-1.5"><CheckCircle className="w-3 h-3 text-green-400 mt-0.5 shrink-0" />{s}</li>
+                    {/* Intelligence Tab — always visible; wait for scan/analysis when needed */}
+                    {tab === 'intelligence' && (
+                        status === 'scanning' ? (
+                            <div className="bg-[#0d0d0d] border border-[#2a2a2a] rounded-2xl p-10 text-center">
+                                <Loader2 className="w-10 h-10 text-[#E92A15] mx-auto mb-4 animate-spin" />
+                                <h3 className="text-white font-semibold text-[15px] mb-2">Wait for analysis to complete</h3>
+                                <p className="text-[#888] text-sm max-w-md mx-auto leading-relaxed">
+                                    AI Insights are generated after all responses are collected and scores are built. Stay on this page or return when the scan finishes — results will appear here automatically.
+                                </p>
+                                <p className="text-[#555] text-[11px] mt-4 font-mono">{phaseDetail || 'Analyzing…'}</p>
+                            </div>
+                        ) : !r.intelligence ? (
+                            <div className="bg-[#0d0d0d] border border-[#2a2a2a] rounded-2xl p-10 text-center">
+                                <Lightbulb className="w-10 h-10 text-[#444] mx-auto mb-4" />
+                                <h3 className="text-white font-semibold text-[15px] mb-2">No AI Insights yet</h3>
+                                <p className="text-[#888] text-sm max-w-md mx-auto leading-relaxed">
+                                    Run a scan to generate a strategic brief. If the last scan failed or AI analysis was unavailable, try again.
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-5 space-y-4">
+                                <h3 className="text-[var(--text-primary)] font-medium text-sm flex items-center gap-2">
+                                    <Lightbulb className="w-4 h-4 text-amber-400" /> AI-Powered Intelligence
+                                </h3>
+                                {r.intelligence.overallAssessment && (
+                                    <p className="text-[var(--text-secondary)] text-sm leading-relaxed">{r.intelligence.overallAssessment}</p>
+                                )}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    {r.intelligence.strengthAreas?.length > 0 && (
+                                        <div className="p-3 bg-green-500/5 border border-green-500/10 rounded-xl">
+                                            <h4 className="text-green-400 text-xs font-medium mb-2">Strengths</h4>
+                                            <ul className="space-y-1">{r.intelligence.strengthAreas.map((s, i) => (
+                                                <li key={i} className="text-[var(--text-secondary)] text-xs flex gap-1.5"><CheckCircle className="w-3 h-3 text-green-400 mt-0.5 shrink-0" />{s}</li>
+                                            ))}</ul>
+                                        </div>
+                                    )}
+                                    {r.intelligence.weaknessAreas?.length > 0 && (
+                                        <div className="p-3 bg-red-500/5 border border-red-500/10 rounded-xl">
+                                            <h4 className="text-red-400 text-xs font-medium mb-2">Weaknesses</h4>
+                                            <ul className="space-y-1">{r.intelligence.weaknessAreas.map((s, i) => (
+                                                <li key={i} className="text-[var(--text-secondary)] text-xs flex gap-1.5"><AlertCircle className="w-3 h-3 text-red-400 mt-0.5 shrink-0" />{s}</li>
+                                            ))}</ul>
+                                        </div>
+                                    )}
+                                </div>
+                                {r.intelligence.topOpportunities?.length > 0 && (
+                                    <div className="p-3 bg-purple-500/5 border border-purple-500/10 rounded-xl">
+                                        <h4 className="text-purple-400 text-xs font-medium mb-2">Top Opportunities</h4>
+                                        <ul className="space-y-1.5">{r.intelligence.topOpportunities.map((s, i) => (
+                                            <li key={i} className="text-[var(--text-secondary)] text-xs flex gap-1.5"><Star className="w-3 h-3 text-purple-400 mt-0.5 shrink-0" />{s}</li>
                                         ))}</ul>
                                     </div>
                                 )}
-                                {r.intelligence.weaknessAreas?.length > 0 && (
-                                    <div className="p-3 bg-red-500/5 border border-red-500/10 rounded-xl">
-                                        <h4 className="text-red-400 text-xs font-medium mb-2">Weaknesses</h4>
-                                        <ul className="space-y-1">{r.intelligence.weaknessAreas.map((s, i) => (
-                                            <li key={i} className="text-[var(--text-secondary)] text-xs flex gap-1.5"><AlertCircle className="w-3 h-3 text-red-400 mt-0.5 shrink-0" />{s}</li>
-                                        ))}</ul>
+                                {r.intelligence.engineInsights && (
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {Object.entries(r.intelligence.engineInsights).map(([eng, insight]) => (
+                                            <div key={eng} className="p-2.5 bg-[var(--surface-hover)] border border-[var(--border)] rounded-xl">
+                                                <span className="text-xs">{PI[eng]}</span>
+                                                <p className="text-[11px] text-[var(--text-secondary)] mt-1 leading-relaxed">{insight}</p>
+                                            </div>
+                                        ))}
                                     </div>
                                 )}
                             </div>
-                            {r.intelligence.topOpportunities?.length > 0 && (
-                                <div className="p-3 bg-purple-500/5 border border-purple-500/10 rounded-xl">
-                                    <h4 className="text-purple-400 text-xs font-medium mb-2">Top Opportunities</h4>
-                                    <ul className="space-y-1.5">{r.intelligence.topOpportunities.map((s, i) => (
-                                        <li key={i} className="text-[var(--text-secondary)] text-xs flex gap-1.5"><Star className="w-3 h-3 text-purple-400 mt-0.5 shrink-0" />{s}</li>
-                                    ))}</ul>
-                                </div>
-                            )}
-                            {r.intelligence.engineInsights && (
-                                <div className="grid grid-cols-3 gap-2">
-                                    {Object.entries(r.intelligence.engineInsights).map(([eng, insight]) => (
-                                        <div key={eng} className="p-2.5 bg-[var(--surface-hover)] border border-[var(--border)] rounded-xl">
-                                            <span className="text-xs">{PI[eng]}</span>
-                                            <p className="text-[11px] text-[var(--text-secondary)] mt-1 leading-relaxed">{insight}</p>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
+                        )
                     )}
 
                     <p className="text-[var(--text-muted)] text-[10px] text-center">
                         {r.scannedAt ? `Scanned ${new Date(r.scannedAt).toLocaleString()}` : ''} •
-                        {r.config?.totalCalls || '?'} API calls • Parsed with Cheerio • Intelligence by Gemini 2.5 Flash
+                        {r.config?.totalCalls || '?'} API calls across ChatGPT, Gemini &amp; Perplexity • Powered by our intelligence layer
                     </p>
                 </>
             )}
+
             </div>
         </div>
     );

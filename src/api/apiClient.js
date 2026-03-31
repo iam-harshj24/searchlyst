@@ -208,6 +208,16 @@ export const apiClient = {
       const q = params.toString() ? `?${params}` : '';
       return apiClient.get(`/visibility/latest${q}`);
     },
+    async getScanHistory(projectId, domain) {
+      const params = new URLSearchParams();
+      if (projectId) params.set('projectId', projectId);
+      if (domain) params.set('domain', domain);
+      const q = params.toString() ? `?${params}` : '';
+      return apiClient.get(`/visibility/history${q}`);
+    },
+    async runCustomPrompt(data) {
+      return apiClient.post('/visibility/run-prompt', data);
+    },
   },
 
   // Waitlist specific methods

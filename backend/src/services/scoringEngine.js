@@ -1,107 +1,76 @@
-// Per-query category weights (aligned with promptIntelligence)
-const CATEGORY_WEIGHTS = {
-    direct_brand: 0.8, industry_best: 2.0, problem_solution: 1.8, alternative: 1.5, social_proof: 1.3, general: 0.9,
-};
-function getQueryWeight(run) {
-    if (run.promptWeight != null && run.promptWeight > 0) return run.promptWeight;
-    return CATEGORY_WEIGHTS[run.category] ?? 0.9;
-}
+/**
+ * Scoring Engine — AI Visibility & Share of Voice
+ *
+ * Methodology:
+ *   1. Visibility Score  = (prompts where brand appeared / total prompts) × 100
+ *   2. Share of Voice     = (brand mentions / total mentions across all brands) × 100
+ *   3. Position Score     = Σ(1/rank) / total appearances, normalized to 0-100
+ *   4. Sentiment Score    = mention-type weighted average, normalized to 0-100
+ *   5. AI Presence Index  = Vis×0.30 + SOV×0.30 + Pos×0.20 + Sent×0.20
+ */
 
-// Position weights: 1st mentioned = 1.0, 2nd = 0.5, etc.
-// These are calibrated to produce realistic 15-30% visibility scores
-const POSITION_WEIGHTS = {
-    1: 1.00,  // First brand mentioned
-    2: 0.50,  // Second brand mentioned
-    3: 0.25,  // Third brand mentioned
-    4: 0.12,  // Fourth brand mentioned
-    5: 0.05,  // Fifth or later
-};
-
-function getPositionWeight(positionRank) {
-    if (!positionRank || positionRank < 1) return 0;
-    return POSITION_WEIGHTS[Math.min(positionRank, 5)] || 0.05;
-}
-
-const SENTIMENT_MULTIPLIERS = {
-    positive: 1.0,
-    neutral: 0.85,
-    negative: 0.60,
-};
+const SENTIMENT_VALUES = { positive: 1, neutral: 0, negative: -1 };
 
 export function computeVisibilityScore(allRunResults, brandName) {
     const totalResults = allRunResults.length;
-    if (totalResults === 0) return { overall: 0, components: {}, totalRuns: 0, uniquePrompts: 0 };
+    if (totalResults === 0) return { overall: 0, components: {}, totalRuns: 0, uniquePrompts: 0, mentionedIn: 0 };
 
-    let weightedMentionSum = 0;
-    let citationCount = 0;
-    let sentimentSum = 0;
-    let sentimentCount = 0;
-    const categoriesSeen = new Set();
-    const allCategories = new Set();
+    // 1. AI Visibility Score — binary appearance rate
+    const mentionedCount = allRunResults.filter(r => r.brandMentioned).length;
+    const visibilityScore = (mentionedCount / totalResults) * 100;
 
-    let totalQueryWeight = 0;
+    // 2. AI Share of Voice — brand mentions / total mentions
+    let brandMentionCount = 0;
+    let totalMentionCount = 0;
     for (const run of allRunResults) {
-        if (run.category) allCategories.add(run.category);
-        const qWeight = getQueryWeight(run);
-        totalQueryWeight += qWeight;
-
-        if (run.brandMentioned && run.brandEntity) {
-            // Use position rank-based weight (1st=1.0, 2nd=0.5, etc.) × query weight
-            const posWeight = getPositionWeight(run.brandEntity.positionRank);
-            const sentMult = SENTIMENT_MULTIPLIERS[run.brandEntity.sentiment] || 0.85;
-
-            weightedMentionSum += posWeight * sentMult * qWeight;
-
-            sentimentSum += sentMult;
-            sentimentCount++;
-
-            if (run.category) categoriesSeen.add(run.category);
-        }
-
-        if (run.citationStats?.brandCited) {
-            citationCount++;
+        for (const entity of (run.entities || [])) {
+            const mentions = entity.mentions || 1;
+            totalMentionCount += mentions;
+            if (entity.isTargetBrand) brandMentionCount += mentions;
         }
     }
+    const sovScore = totalMentionCount > 0 ? (brandMentionCount / totalMentionCount) * 100 : 0;
 
-    // Max possible = sum of (query weight × 1.0 position × 1.0 sentiment)
-    const maxPossible = totalQueryWeight;
+    // 3. Position Score — weighted 1/rank, normalized to 0-100
+    let positionWeightedSum = 0;
+    let positionCount = 0;
+    for (const run of allRunResults) {
+        if (run.brandMentioned && run.brandEntity?.positionRank) {
+            positionWeightedSum += 1 / run.brandEntity.positionRank;
+            positionCount++;
+        }
+    }
+    const positionScore = positionCount > 0 ? (positionWeightedSum / positionCount) * 100 : 0;
 
-    // Visibility Score = weighted mentions / max possible
-    const visibilityRaw = maxPossible > 0 ? (weightedMentionSum / maxPossible) * 100 : 0;
-    
-    // Mention rate (simple: how many results mentioned the brand)
-    const mentionedCount = allRunResults.filter(r => r.brandMentioned).length;
-    const mentionRate = (mentionedCount / totalResults) * 100;
-    
-    // Citation rate
-    const citationRate = (citationCount / totalResults) * 100;
-    
-    // Average sentiment (0-100 scale)
-    const avgSentiment = sentimentCount > 0 ? (sentimentSum / sentimentCount) * 100 : 50;
-    
-    // Coverage breadth
-    const breadth = allCategories.size > 0 ? (categoriesSeen.size / allCategories.size) * 100 : 0;
+    // 4. Sentiment Score — map to [-1,+1], normalize to [0,100]
+    let sentimentSum = 0;
+    let sentimentCount = 0;
+    for (const run of allRunResults) {
+        if (run.brandMentioned && run.brandEntity) {
+            sentimentSum += SENTIMENT_VALUES[run.brandEntity.sentiment] ?? 0;
+            sentimentCount++;
+        }
+    }
+    const sentimentRaw = sentimentCount > 0 ? sentimentSum / sentimentCount : 0;
+    const sentimentScore = ((sentimentRaw + 1) / 2) * 100;
 
-    // Final composite score (weighted)
-    // Using stricter weights to produce realistic 15-30% scores
+    // 5. AI Presence Index (composite)
     const overall = Math.round(
-        visibilityRaw * 0.50 +        // 50% weight on position-weighted mentions
-        citationRate * 0.20 +          // 20% weight on citations
-        avgSentiment * 0.15 +          // 15% weight on sentiment
-        breadth * 0.15                 // 15% weight on category coverage
+        visibilityScore * 0.30 +
+        sovScore * 0.30 +
+        positionScore * 0.20 +
+        sentimentScore * 0.20
     );
 
     const uniquePrompts = new Set(allRunResults.map(r => r.promptId)).size;
 
     return {
         overall: Math.min(100, Math.max(0, overall)),
-        visibilityPercent: Math.round(visibilityRaw * 10) / 10,
         components: {
-            mentionProbability: Math.round(mentionRate),
-            citationAuthority: Math.round(citationRate),
-            positionScore: Math.round(visibilityRaw),
-            sentimentScore: Math.round(avgSentiment),
-            coverageBreadth: Math.round(breadth),
+            visibility: Math.round(visibilityScore),
+            shareOfVoice: Math.round(sovScore),
+            position: Math.round(positionScore),
+            sentiment: Math.round(sentimentScore),
         },
         totalRuns: totalResults,
         uniquePrompts,
@@ -109,28 +78,26 @@ export function computeVisibilityScore(allRunResults, brandName) {
     };
 }
 
-export function computeShareOfVoice(allRunResults, brandName, competitors) {
-    // Calculate visibility score for brand and each competitor
+export function computeShareOfVoice(allRunResults, brandName, competitors, brandDomain) {
     const entityScores = {};
-    
-    // Initialize brand
+
     entityScores[brandName] = {
         name: brandName,
-        weightedScore: 0,
+        domain: (brandDomain || '').replace(/^www\./, ''),
         mentions: 0,
         totalPosition: 0,
         positionCount: 0,
         sentimentSum: 0,
         isTarget: true,
     };
-    
-    // Initialize competitors
+
     for (const comp of competitors) {
         const name = typeof comp === 'string' ? comp : comp.name;
+        const domain = typeof comp === 'string' ? comp : (comp.domain || '');
         if (name && !entityScores[name]) {
             entityScores[name] = {
                 name,
-                weightedScore: 0,
+                domain: domain.replace(/^www\./, ''),
                 mentions: 0,
                 totalPosition: 0,
                 positionCount: 0,
@@ -141,13 +108,12 @@ export function computeShareOfVoice(allRunResults, brandName, competitors) {
     }
 
     for (const run of allRunResults) {
-        const qWeight = getQueryWeight(run);
         for (const entity of (run.entities || [])) {
             const name = entity.name;
             if (!entityScores[name]) {
                 entityScores[name] = {
                     name,
-                    weightedScore: 0,
+                    domain: (entity.domain || '').replace(/^www\./, ''),
                     mentions: 0,
                     totalPosition: 0,
                     positionCount: 0,
@@ -155,68 +121,62 @@ export function computeShareOfVoice(allRunResults, brandName, competitors) {
                     isTarget: false,
                 };
             }
+            if (entity.domain && !entityScores[name].domain) {
+                entityScores[name].domain = entity.domain.replace(/^www\./, '');
+            }
             const score = entityScores[name];
-            const posWeight = getPositionWeight(entity.positionRank);
-            const sentMult = SENTIMENT_MULTIPLIERS[entity.sentiment] || 0.85;
-            score.weightedScore += posWeight * sentMult * qWeight;
-            score.mentions += 1;
-            
+            score.mentions += entity.mentions || 1;
             if (entity.positionRank) {
                 score.totalPosition += entity.positionRank;
                 score.positionCount++;
             }
-            
-            score.sentimentSum += sentMult;
+            score.sentimentSum += SENTIMENT_VALUES[entity.sentiment] ?? 0;
         }
     }
 
-    // Calculate totals and SOV
-    const allScores = Object.values(entityScores).filter(e => e.weightedScore > 0);
-    const totalWeight = allScores.reduce((sum, e) => sum + e.weightedScore, 0);
+    const allScores = Object.values(entityScores).filter(e => e.mentions > 0);
+    const totalMentions = allScores.reduce((sum, e) => sum + e.mentions, 0);
 
     const formatEntity = (e) => ({
         name: e.name,
-        sov: totalWeight > 0 ? Math.round((e.weightedScore / totalWeight) * 1000) / 10 : 0,
+        domain: e.domain || '',
+        sov: totalMentions > 0 ? Math.round((e.mentions / totalMentions) * 1000) / 10 : 0,
         mentions: e.mentions,
         avgPosition: e.positionCount > 0
             ? (Math.round((e.totalPosition / e.positionCount) * 10) / 10).toFixed(1)
             : '-',
-        sentiment: e.mentions > 0 ? Math.round((e.sentimentSum / e.mentions) * 100) : 50,
-        change: null, // Computed from real historical data when available
+        sentiment: e.mentions > 0
+            ? Math.round(((e.sentimentSum / e.mentions + 1) / 2) * 100)
+            : 50,
+        change: null,
     });
 
-    const brandData = entityScores[brandName] 
+    const brandData = entityScores[brandName]
         ? formatEntity(entityScores[brandName])
-        : { name: brandName, sov: 0, mentions: 0, avgPosition: '-', sentiment: 50, change: '0.0%' };
+        : { name: brandName, domain: '', sov: 0, mentions: 0, avgPosition: '-', sentiment: 50, change: '0.0%' };
 
     const compResults = allScores
         .filter(e => !e.isTarget && e.mentions > 0)
         .map(formatEntity)
         .sort((a, b) => b.sov - a.sov);
 
-    return { brand: brandData, competitors: compResults, total: totalWeight };
+    return { brand: brandData, competitors: compResults, total: totalMentions };
 }
 
 export function computePerEngine(allRunResults) {
     const engines = {};
     for (const run of allRunResults) {
-        if (!engines[run.engine]) engines[run.engine] = { runs: [], weightedScore: 0, totalWeight: 0 };
-        engines[run.engine].runs.push(run);
-        const qWeight = getQueryWeight(run);
-        engines[run.engine].totalWeight += qWeight;
-        if (run.brandMentioned && run.brandEntity) {
-            engines[run.engine].weightedScore += getPositionWeight(run.brandEntity.positionRank) * qWeight;
-        }
+        if (!engines[run.engine]) engines[run.engine] = { mentioned: 0, total: 0 };
+        engines[run.engine].total++;
+        if (run.brandMentioned) engines[run.engine].mentioned++;
     }
 
     const result = {};
     for (const [engine, data] of Object.entries(engines)) {
-        const mentioned = data.runs.filter(r => r.brandMentioned).length;
-        const maxScore = data.totalWeight || data.runs.length;
         result[engine] = {
-            score: maxScore > 0 ? Math.round((data.weightedScore / maxScore) * 100) : 0,
-            runs: data.runs.length,
-            mentions: mentioned,
+            score: data.total > 0 ? Math.round((data.mentioned / data.total) * 100) : 0,
+            runs: data.total,
+            mentions: data.mentioned,
         };
     }
     return result;
@@ -226,14 +186,9 @@ export function computePerCategory(allRunResults) {
     const categories = {};
     for (const run of allRunResults) {
         const cat = run.category || 'uncategorized';
-        const qWeight = getQueryWeight(run);
-        if (!categories[cat]) categories[cat] = { mentioned: 0, total: 0, weightedScore: 0, totalWeight: 0 };
+        if (!categories[cat]) categories[cat] = { mentioned: 0, total: 0 };
         categories[cat].total++;
-        categories[cat].totalWeight = (categories[cat].totalWeight || 0) + qWeight;
-        if (run.brandMentioned) {
-            categories[cat].mentioned++;
-            categories[cat].weightedScore += getPositionWeight(run.brandEntity?.positionRank) * qWeight;
-        }
+        if (run.brandMentioned) categories[cat].mentioned++;
     }
 
     return Object.fromEntries(
@@ -241,16 +196,13 @@ export function computePerCategory(allRunResults) {
             cat,
             {
                 ...data,
-                score: (data.totalWeight || data.total) > 0
-                    ? Math.round((data.weightedScore / (data.totalWeight || data.total)) * 100)
-                    : 0,
+                score: data.total > 0 ? Math.round((data.mentioned / data.total) * 100) : 0,
             },
         ])
     );
 }
 
 export function computeQueryTracking(allRunResults, brandName) {
-    // Group results by prompt/query
     const byQuery = {};
     for (const run of allRunResults) {
         const key = run.promptId ?? run.query;
@@ -264,7 +216,7 @@ export function computeQueryTracking(allRunResults, brandName) {
                 location: 'US',
             };
         }
-        
+
         byQuery[key].engines[run.engine] = {
             mentioned: run.brandMentioned,
             positionRank: run.brandEntity?.positionRank || null,
@@ -274,20 +226,19 @@ export function computeQueryTracking(allRunResults, brandName) {
         };
     }
 
-    // Calculate per-query metrics
     return Object.values(byQuery).map(q => {
         const engineList = Object.values(q.engines);
         const mentionedCount = engineList.filter(e => e.mentioned).length;
         const totalEngines = engineList.length;
-        
+
         const positions = engineList.filter(e => e.positionRank).map(e => e.positionRank);
-        const avgPosition = positions.length > 0 
+        const avgPosition = positions.length > 0
             ? (positions.reduce((a, b) => a + b, 0) / positions.length).toFixed(1)
             : 'N/A';
-        
+
         const sentiments = engineList.filter(e => e.sentiment && e.sentiment !== 'n/a');
         const positiveSentiments = sentiments.filter(s => s.sentiment === 'positive').length;
-        const sentimentScore = sentiments.length > 0 
+        const sentimentScore = sentiments.length > 0
             ? Math.round((positiveSentiments / sentiments.length) * 100)
             : null;
 
@@ -305,7 +256,7 @@ export function computeQueryTracking(allRunResults, brandName) {
 
 export function computeSourceDomains(allRunResults) {
     const domainStats = {};
-    
+
     for (const run of allRunResults) {
         for (const citation of (run.citations || [])) {
             const domain = citation.domain;
@@ -326,7 +277,6 @@ export function computeSourceDomains(allRunResults) {
         }
     }
 
-    // Convert to array and sort by count
     const domains = Object.values(domainStats)
         .map(d => ({
             domain: d.domain,
@@ -339,7 +289,6 @@ export function computeSourceDomains(allRunResults) {
         }))
         .sort((a, b) => b.count - a.count);
 
-    // Calculate category breakdown
     const byCategory = {};
     for (const d of domains) {
         byCategory[d.category] = (byCategory[d.category] || 0) + d.count;
@@ -357,9 +306,9 @@ export function computeCompetitorGap(allRunResults, brandName, competitors) {
     for (const run of allRunResults) {
         const key = run.promptId ?? run.query;
         if (!byQuery[key]) byQuery[key] = { query: run.query, brandMentioned: false, competitors: {} };
-        
+
         if (run.brandMentioned) byQuery[key].brandMentioned = true;
-        
+
         for (const entity of (run.entities || [])) {
             if (entity.isCompetitor && !entity.isTargetBrand) {
                 byQuery[key].competitors[entity.name] = (byQuery[key].competitors[entity.name] || 0) + 1;
@@ -367,7 +316,6 @@ export function computeCompetitorGap(allRunResults, brandName, competitors) {
         }
     }
 
-    // Find gaps: queries where competitors appeared but brand didn't
     const gaps = Object.values(byQuery)
         .filter(q => !q.brandMentioned && Object.keys(q.competitors).length > 0)
         .map(q => ({
@@ -405,10 +353,9 @@ export function computeSentimentBreakdown(allRunResults) {
     };
 }
 
-export function computeIndustryRanking(allRunResults, brandName, competitors) {
-    const sov = computeShareOfVoice(allRunResults, brandName, competitors);
-    
-    // Combine brand and competitors into one ranked list
+export function computeIndustryRanking(allRunResults, brandName, competitors, brandDomain) {
+    const sov = computeShareOfVoice(allRunResults, brandName, competitors, brandDomain);
+
     const allEntities = [sov.brand, ...sov.competitors]
         .filter(e => e.mentions > 0)
         .sort((a, b) => b.sov - a.sov)
@@ -419,4 +366,53 @@ export function computeIndustryRanking(allRunResults, brandName, competitors) {
         }));
 
     return allEntities;
+}
+
+/** Rank all unique URLs across all runs by frequency. */
+export function computeUrlRanking(allRunResults) {
+    const urlStats = {};
+
+    for (const run of allRunResults) {
+        for (const citation of (run.citations || [])) {
+            const url = citation.url;
+            if (!url) continue;
+            if (!urlStats[url]) {
+                urlStats[url] = {
+                    url,
+                    domain: citation.domain || '',
+                    title: citation.title || '',
+                    category: citation.category || 'other',
+                    isTargetBrand: citation.isTargetBrand || false,
+                    isCompetitor: citation.isCompetitor || false,
+                    count: 0,
+                    engines: new Set(),
+                    prompts: new Set(),
+                };
+            }
+            urlStats[url].count++;
+            urlStats[url].engines.add(run.engine);
+            if (run.promptId) urlStats[url].prompts.add(run.promptId);
+            if (!urlStats[url].title && citation.title) urlStats[url].title = citation.title;
+        }
+    }
+
+    const urls = Object.values(urlStats)
+        .map(u => ({
+            url: u.url,
+            domain: u.domain,
+            title: u.title,
+            category: u.category,
+            isTargetBrand: u.isTargetBrand,
+            isCompetitor: u.isCompetitor,
+            count: u.count,
+            engines: Array.from(u.engines),
+            promptCount: u.prompts.size,
+        }))
+        .sort((a, b) => b.count - a.count);
+
+    return {
+        urls,
+        totalUrls: urls.length,
+        totalMentions: urls.reduce((s, u) => s + u.count, 0),
+    };
 }

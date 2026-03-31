@@ -87,6 +87,12 @@ const startServer = async () => {
     // Verify email configuration
     await verifyEmailConfig();
 
+    // Cleanup orphaned scans from previous server crashes
+    try {
+      const { cleanupOrphanedScans } = await import('./controllers/visibilityController.js');
+      await cleanupOrphanedScans();
+    } catch (e) { console.warn('Orphan cleanup skipped:', e.message); }
+
     // Start listening
     app.listen(PORT, () => {
       console.log(`\n✓ Server is running on port ${PORT}`);

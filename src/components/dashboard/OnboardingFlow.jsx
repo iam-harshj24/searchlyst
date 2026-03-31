@@ -386,7 +386,7 @@ export default function OnboardingFlow({ userId, onComplete, mode = 'firstTime' 
                             <div className="flex items-start gap-3 p-3 bg-[#111]/40 rounded-xl border border-[#222]">
                                 <Zap className="w-4 h-4 text-[#888] mt-0.5 shrink-0" />
                                 <p className="text-[12px] text-[#888] leading-relaxed">
-                                    Our AI will use your domain to auto-discover competitors, analyze your market position, and set up tracking across <span className="font-semibold text-white">Perplexity, Gemini</span> & <span className="font-semibold text-white">Google AI</span>.
+                                    Our AI will use your domain to auto-discover competitors, analyze your market position, and set up tracking across <span className="font-semibold text-white">ChatGPT, Gemini</span> & <span className="font-semibold text-white">Perplexity</span>.
                                 </p>
                             </div>
                         </div>

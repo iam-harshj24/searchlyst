@@ -160,7 +160,9 @@ function useScanManager(user) {
             return false;
         };
 
-        if (loadFromStorage() || loadFromActiveScan()) return;
+        if (loadFromActiveScan()) return;
+
+        loadFromStorage();
 
         (async () => {
             try {
@@ -363,7 +365,7 @@ function DashboardInner() {
             case 'competitive-intel':
                 return <CompetitiveIntelPage user={contextUser} onTabChange={setActiveTab} />;
             case 'sentiment-geo':
-                return <SentimentGeoPage user={contextUser} />;
+                return <SentimentGeoPage user={contextUser} scanManager={scanManager} />;
             case 'audit-health':
                 return <AuditHealthPage user={contextUser} activeProject={activeProject} />;
             case 'prompt-intel':

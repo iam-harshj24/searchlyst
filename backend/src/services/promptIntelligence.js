@@ -1,9 +1,8 @@
-// Hardcoded Super 20 Prompts mapped to internal agent formats
+// Super 20 Compressed Prompts — exact user-specified templates with weights
 
 function fillVariables(promptTemplate, vars) {
     let result = promptTemplate;
     for (const [key, value] of Object.entries(vars)) {
-        // Replace all occurrences of {KEY}
         result = result.split(`{${key}}`).join(value);
     }
     return result;
@@ -34,105 +33,125 @@ export function generateSuperPrompts(brand, platform = 'general') {
         COMPETITOR_A: brandName || 'the brand',
         COMPETITOR_B: topComp,
         LOCATION: loc,
-        REACH: reach
+        REACH: reach,
     };
 
     const templates = [
-        // Layer 1 - Visibility
+        // Layer 1 — Visibility
         {
             id: 'P01', category: 'visibility', intent: 'organic_visibility',
-            text: `I am trying to find the best {INDUSTRY} option for my needs and I have not researched any specific names yet. Give me a ranked list of the top 10 options available right now. For each one tell me: what it does best, what it does worst, who it is most suitable for, and whether it is considered affordable or expensive relative to others in the space. Do not skip any major or well-known names.`
+            weight: 1.5, includesBrand: false,
+            text: `I'm researching {INDUSTRY} options with no names in mind yet. Give me a ranked top 10 right now. For each: what it does best, worst, who it suits, and whether it's affordable or expensive relative to peers. Include all major names.`,
         },
         {
             id: 'P02', category: 'visibility', intent: 'brand_knowledge',
-            text: `Tell me everything you know about {BRAND} and their website {DOMAIN}. I want to understand: what exactly they offer, who their typical customer or client is, what they are well known for doing well, what they are known for doing poorly, how they are generally perceived compared to others in the {INDUSTRY} space, what their pricing or cost reputation is, and where they sit in the market — are they a dominant leader, a strong challenger, a niche specialist, or an emerging name? Be thorough and honest. If you are uncertain about anything, say so.`
+            weight: 1.2, includesBrand: true,
+            text: `I'm researching several {INDUSTRY} options and want a deep profile on one in particular: {DOMAIN}. Tell me what they offer, who their typical customer is, what they do well, what they do poorly, how they compare in the {INDUSTRY} space, their pricing reputation, and their market position — dominant leader, strong challenger, niche specialist, or emerging name? Be thorough and honest. Flag uncertainty.`,
         },
         {
             id: 'P03', category: 'visibility', intent: 'conversational_intent',
-            text: `I need to find a good {INDUSTRY} option. My situation is: I am based in {LOCATION}, my operation is {REACH} in scope, and I am an early-stage operation with a very limited budget and a small team. I am not looking for the most expensive option and I do not need anything overly complicated. What are 3 to 5 realistic choices that would genuinely work well for someone in my situation? Explain briefly why each one fits.\n\n[Also run for established mid-size buyer wanting premium full-featured option, and for technically experienced buyer wanting maximum customisation.]`
+            weight: 1.0, includesBrand: false,
+            text: `I need a {INDUSTRY} option. I'm in {LOCATION}, {REACH} in scope, early-stage, limited budget, small team — no complex or expensive solutions needed. Give me 3–5 realistic fits with a brief reason each.\n\n[Also run for: established mid-size buyer wanting premium full-featured option; technically experienced buyer wanting maximum customisation.]`,
         },
-        // Layer 2 - Ranking
+        // Layer 2 — Ranking
         {
             id: 'P04', category: 'ranking', intent: 'competitive_tier',
-            text: `Give me a complete market overview of the {INDUSTRY} space. I want to understand where each major player stands.\n\nOrganize every significant name into four tiers: Leaders, Strong Performers, Contenders, and Niche or Emerging Players. For each company, explain in one or two sentences what specifically puts them in that tier — not just their general reputation, but what capability or market position justifies the placement.\n\nAfter the tiers, tell me: which names did you almost place one tier higher or lower, and why? Also flag any players who are rapidly moving between tiers right now.\n\nFactor in that the buyer scope is {REACH} and geography is {LOCATION}.`
+            weight: 1.8, includesBrand: false,
+            text: `Give me a full market overview of {INDUSTRY}. Sort every significant player into four tiers: Leaders, Strong Performers, Contenders, Niche/Emerging. For each, one or two sentences on what specifically earns that placement — not general reputation.\n\nThen: which names nearly landed a tier higher or lower, and why? Who is actively moving between tiers?\n\nBuyer scope: {REACH}. Geography: {LOCATION}.`,
         },
         {
             id: 'P05', category: 'ranking', intent: 'head_to_head',
-            text: `I am trying to decide between two options in the {INDUSTRY} space: {COMPETITOR_A} and {COMPETITOR_B}. Compare them across these dimensions: overall quality and capability, ease of getting started, pricing and value for money, reputation for reliability, ability to serve a {REACH} operation based in {LOCATION}, and long-term scalability.\n\nGive me a clear winner for each dimension. Then give me your single overall recommendation — if you could only choose one, which one and why? Do not hedge. Pick one.`
+            weight: 1.5, includesBrand: true,
+            text: `Compare {COMPETITOR_A} vs {COMPETITOR_B} in {INDUSTRY} across: overall quality, ease of onboarding, pricing and value, reliability reputation, suitability for a {REACH} operation in {LOCATION}, and long-term scalability.\n\nGive a clear winner per dimension. Then one overall recommendation — pick one, no hedging.`,
         },
         {
             id: 'P06', category: 'ranking', intent: 'forced_scorecard',
-            text: `I need to make a final decision in the {INDUSTRY} space. The options I am considering are: {COMPETITORS}, {BRAND}.\n\nFor each dimension below, rank ALL options from 1st to last. No ties. Commit to a winner and a loser for every dimension, even if the difference is small.\n\nDimensions:\n- Overall quality of what they offer\n- Ease of getting started and onboarding\n- Pricing and value relative to what you get\n- Reliability and track record\n- Strength of reputation and market trust\n- Speed of improvement and innovation\n- Depth of presence and support in {LOCATION}\n- Suitability for a {REACH} operation\n\nAfter all dimensions are ranked, calculate a combined overall ranking. Then tell me: who is the overall winner, who is the best value option, and who you would personally recommend to a growing {REACH} organisation entering this category for the first time.`
+            weight: 2.0, includesBrand: false,
+            text: `Rank ALL of these {INDUSTRY} options from 1st to last across every dimension below — no ties:\n\nOptions: {COMPETITORS}.\n\nDimensions:\n- Overall quality\n- Ease of onboarding\n- Pricing and value\n- Reliability and track record\n- Reputation and market trust\n- Innovation speed\n- Presence and support in {LOCATION}\n- Fit for a {REACH} operation\n\nAfter all rankings: overall winner, best value option, and your recommendation for a growing {REACH} organisation entering {INDUSTRY} for the first time.`,
         },
-        // Layer 3 - Share of Voice
+        // Layer 3 — Share of Voice
         {
             id: 'P07', category: 'share_of_voice', intent: 'share_of_voice',
-            text: `When someone says {INDUSTRY}, what brands, companies, or names come to mind? List every one you associate with {INDUSTRY}, starting with the most dominant and widely recognised, going all the way down to the least known. Do not leave anyone out — include niche players, regional names, and emerging options, not just the big names.\n\nAfter that complete list, tell me: which of these are not pure {INDUSTRY} players but are often used or considered for {INDUSTRY} purposes? Include adjacent options, broader platforms, or alternative categories that overlap with {INDUSTRY}.`
+            weight: 1.8, includesBrand: false,
+            text: `What brands come to mind when you hear {INDUSTRY}? List every one — from most dominant to least known. Include niche, regional, and emerging names, not just major players.\n\nThen flag: which of these aren't pure {INDUSTRY} players but are commonly used or considered for {INDUSTRY} purposes? Include adjacent platforms and overlapping categories.`,
         },
         {
             id: 'P08', category: 'share_of_voice', intent: 'segment_ownership',
-            text: `In the {INDUSTRY} space, I want segment-level clarity. Answer both sets of questions below. Name the single strongest option per row — not a list, not a tie.\n\nPart 1 — Best for:\n- Best for small or early-stage buyers\n- Best for mid-size buyers with growth ambitions\n- Best for large or enterprise-level buyers\n- Best for buyers with a limited budget\n- Best for buyers who are not experts in this category\n- Best for buyers based primarily in {LOCATION}\n- Best for buyers operating at {REACH} scale\n- Best overall value for money across the category\n\nPart 2 — Worth being cautious about (name ONE per row with reason):\n- Early-stage buyers should think carefully before choosing _____ because _____\n- Large enterprise buyers should be cautious about _____ because _____\n- Budget-conscious buyers should avoid _____ because _____\n- Buyers outside the US or EU should be aware that _____ may not serve them well because _____\n\nDo not limit yourself to any predefined list — name whoever genuinely belongs in each slot.`
+            weight: 1.5, includesBrand: false,
+            text: `In {INDUSTRY}, name one winner per row — no ties, no lists.\n\nBest for:\n- Small or early-stage buyers\n- Mid-size buyers with growth ambitions\n- Large/enterprise buyers\n- Limited-budget buyers\n- Non-expert buyers\n- Buyers based in {LOCATION}\n- Buyers at {REACH} scale\n- Best overall value\n\nWorth caution (one name + reason each):\n- Early-stage buyers should think twice before _____ because _____\n- Enterprise buyers should be cautious about _____ because _____\n- Budget-conscious buyers should avoid _____ because _____\n- Buyers outside US/EU should note _____ may not serve them because _____`,
         },
         {
             id: 'P09', category: 'share_of_voice', intent: 'use_case_visibility',
-            text: `In the {INDUSTRY} space, for each use case below name the single best option and explain why in one sentence. Be specific — do not distribute answers artificially if one option genuinely leads across multiple areas.\n\nUse cases:\n- When the buyer needs the highest overall quality\n- When the buyer needs the fastest or easiest start\n- When the buyer has very limited resources and needs maximum value for minimum spend\n- When the buyer is operating across multiple countries at {REACH} scale\n- When the buyer is based specifically in {LOCATION} and needs local support or compliance\n- When the buyer needs a well-established, trusted name with a long track record\n- When the buyer needs the most flexible or customisable option\n- When the buyer needs the strongest after-purchase support\n- When the buyer is likely to grow significantly and needs something that scales without switching\n\nName whoever genuinely belongs in each slot.`
+            weight: 1.5, includesBrand: false,
+            text: `In {INDUSTRY}, name the single best option per use case and explain why in one sentence. Don't distribute answers artificially if one option genuinely leads across multiple areas.\n\n- Highest overall quality\n- Fastest or easiest start\n- Maximum value on minimal spend\n- Multi-country {REACH} operations\n- Based in {LOCATION}, needing local support or compliance\n- Most established and trusted\n- Most flexible or customisable\n- Strongest post-purchase support\n- Best for significant growth without switching`,
         },
-        // Layer 4 - Geo + Context
+        // Layer 4 — Geo + Context
         {
             id: 'P10', category: 'geo_context', intent: 'geo_visibility',
-            text: `I am based in {LOCATION} and I am looking for the best {INDUSTRY} option that genuinely works well for people and organisations operating in {LOCATION}. I do not want options that are technically available globally but primarily built for US or Western European buyers — I want options that actually have meaningful presence, local understanding, or a strong track record in {LOCATION}.\n\nGive me the top 5 options for a buyer in {LOCATION} and for each one tell me: whether they have real local presence or operations, whether they are considered reliable in {LOCATION} specifically, and whether they understand the local market context. Are any of these companies originally from or primarily focused on {LOCATION}?`
+            weight: 1.3, includesBrand: false,
+            text: `I'm in {LOCATION} and want the best {INDUSTRY} option that genuinely works for buyers there — not technically global options built primarily for US or Western European markets.\n\nTop 5 for {LOCATION} buyers. For each: do they have real local presence? Are they considered reliable specifically in {LOCATION}? Do they understand the local market? Are any originally from or primarily focused on {LOCATION}?`,
         },
         {
             id: 'P11', category: 'geo_context', intent: 'multi_turn_persistence',
-            text: `TURN 1: "What are the best options in the {INDUSTRY} space for someone just starting their search?"\n\nTURN 2: "Which of those would still be relevant for an organisation that is growing quickly and needs something with strong long-term credibility?"\n\nTURN 3: "Of those remaining, which ones are genuinely well suited for a {REACH} operation with a presence in {LOCATION}?"\n\nTURN 4: "Between the top two you just mentioned, which one would you actually recommend and why? Give me a clear answer."\n\n[Send as 4 actual separate conversation turns — not one message. Record which brand survives all 4 turns and which is chosen at Turn 4.]`
+            weight: 1.2, includesBrand: false,
+            text: `TURN 1: "What are the best {INDUSTRY} options for someone just starting their search?"\n\nTURN 2: "Which of those would still fit an organisation growing quickly and needing strong long-term credibility?"\n\nTURN 3: "Of those remaining, which are genuinely suited for a {REACH} operation with a presence in {LOCATION}?"\n\nTURN 4: "Between the top two you just named, which do you actually recommend and why? Give a clear answer."\n\n[Send as 4 separate conversation turns. Record which brand survives all 4 turns and which is chosen at Turn 4.]`,
         },
         {
             id: 'P12', category: 'geo_context', intent: 'trend_momentum',
-            text: `How is the {INDUSTRY} space evolving right now? Which names in this space appear to be gaining momentum and growing stronger? Which ones seem to be stagnating, declining, or losing relevance?\n\nWhich company has made the most notable progress or improvement recently? Which would you predict to be the dominant name in this space three years from now, and what is your reasoning?\n\nDoes being based in or primarily serving {LOCATION} give any players a structural advantage or disadvantage as the market shifts?\n\nAfter your assessment, specifically tell me where you would place {BRAND} on the momentum curve — rising, stable, or declining — and what signals drive that view.`
+            weight: 1.3, includesBrand: false,
+            text: `How is {INDUSTRY} evolving right now? Who's gaining momentum? Who's stagnating or losing relevance?\n\nWhich player has made the most notable recent progress? Who do you predict will be dominant in three years, and why?\n\nDoes operating in or primarily serving {LOCATION} give any players a structural advantage or disadvantage as the market shifts?\n\nFor each of these options — {COMPETITORS} — place them on the momentum curve: rising, stable, or declining. What signals drive each view?`,
         },
-        // Layer 5 - Deep Probes
+        // Layer 5 — Deep Probes
         {
             id: 'P13', category: 'deep_probe', intent: 'competitor_extraction',
-            text: `I am building a complete map of every brand, company, product, or option that competes for buyer attention and budget in the {INDUSTRY} space. I need this to be exhaustive, not just a top 10.\n\nGive me competitors across all of these angles:\n\n1. Direct competitors — brands doing the core job of {INDUSTRY} and targeting the same primary buyer\n2. Indirect competitors — adjacent categories buyers often choose instead\n3. Regional or local competitors — names strong specifically in {LOCATION}\n4. Budget alternatives — lower-cost or free options when price drives the decision\n5. Premium or enterprise alternatives — higher-end options when budget is not the constraint\n6. Emerging or newer names — brands that have appeared or grown in the last 2 to 3 years, not yet household names but gaining ground\n7. DIY or no-vendor alternatives — how buyers avoid choosing any brand at all\n\nFor each name, state which angle it falls into and one sentence on why it belongs there. Then tell me: where does {BRAND} fit within this map, and are there any angles where it has no competition at all?`
+            weight: 1.5, includesBrand: false,
+            text: `Map every brand competing for buyer attention and budget in {INDUSTRY} — exhaustively, not just top 10.\n\nCover:\n1. Direct competitors — same core job, same primary buyer\n2. Indirect competitors — adjacent categories buyers choose instead\n3. Regional/local competitors — strong specifically in {LOCATION}\n4. Budget alternatives — lower-cost or free options\n5. Premium/enterprise alternatives — when price isn't the constraint\n6. Emerging names — appeared or grown in the last 2–3 years, not yet household names\n7. DIY or no-vendor alternatives — how buyers avoid choosing any brand\n\nFor each: which angle it falls into and one sentence why. Then for each of these specifically — {COMPETITORS} — identify where they fit in this map and whether there are angles where they face no competition.`,
         },
         {
             id: 'P14', category: 'deep_probe', intent: 'alternatives_switching',
-            text: `I am currently using {COMPETITORS} for {INDUSTRY} but I am looking for alternatives because I am not fully satisfied. What are the best options I should seriously consider switching to?\n\nFor each alternative, tell me: what it does better than {COMPETITORS}, what I would lose or trade off by switching, and whether the transition is typically straightforward or complicated.\n\nI am a {REACH} operation based in {LOCATION}, so availability, local support, and suitability for my context matter in your recommendations.`
+            weight: 1.3, includesBrand: false,
+            text: `I'm currently using {COMPETITORS} for {INDUSTRY} and looking to switch. What alternatives should I seriously consider?\n\nFor each: what it does better than {COMPETITORS}, what I'd lose by switching, and whether the transition is typically straightforward or complicated.\n\nI'm a {REACH} operation in {LOCATION} — availability, local support, and contextual fit matter.`,
         },
         {
             id: 'P15', category: 'deep_probe', intent: 'competitive_gap',
-            text: `I want a direct and honest competitive breakdown. For {BRAND} ({DOMAIN}) versus each of these specific competitors in the {INDUSTRY} space — {COMPETITORS} — answer exactly three questions:\n\n1. What is {BRAND}'s single most significant advantage over all of these competitors taken together? Not a general strength — something specific that distinguishes it.\n\n2. For each individual competitor, name the single thing that competitor does clearly better than {BRAND}. Be precise about the specific capability or area, not just a broad category.\n\n3. If {BRAND} could address one weakness to meaningfully increase its competitiveness against this group, what should that be?`
+            weight: 1.8, includesBrand: false,
+            text: `For this group of {INDUSTRY} options — {COMPETITORS} — answer exactly:\n\n1. Which single option has the most significant and specific advantage over the rest of the group? Not a broad strength — something precise that distinguishes it.\n\n2. For each option: name the one thing it does clearly better than all the others. Be specific about the capability.\n\n3. For each option: the one weakness it should address to most meaningfully improve its competitiveness against this group.`,
         },
         {
             id: 'P16', category: 'deep_probe', intent: 'reputation_sentiment',
-            text: `If someone were researching {BRAND} ({DOMAIN}) before making a decision in the {INDUSTRY} space, what would they typically find in terms of reputation?\n\nCover: what satisfied customers tend to praise, what dissatisfied ones tend to criticise, whether {BRAND} is generally considered trustworthy and reliable in the market, whether there have been any notable controversies or negative events, and how its reputation compares to {COMPETITORS}.\n\nFor each point you make, tell me where that perception typically comes from — for example review platforms, news coverage, social media, professional communities, or analyst opinions.`
+            weight: 1.5, includesBrand: false,
+            text: `I'm researching these {INDUSTRY} options before making a decision: {COMPETITORS}. For each one, what would I typically find in terms of reputation?\n\nCover: what satisfied customers praise, what dissatisfied ones criticise, whether it's seen as trustworthy and reliable, any notable controversies or negative events, and how its reputation compares to the others on this list.\n\nFor each point, name the source — review platforms, news, social media, professional communities, analyst opinions, etc.`,
         },
         {
             id: 'P17', category: 'deep_probe', intent: 'source_influence',
-            text: `If I want to thoroughly research {INDUSTRY} before making a decision, what sources should I consult?\n\nGive me your top 3 for each category:\n1. Most trusted review or comparison platforms for {INDUSTRY}\n2. Most trusted publications, newsletters, or analyst reports covering {INDUSTRY}\n3. Most trusted online communities, forums, or professional groups discussing {INDUSTRY}\n4. Most useful video or multimedia content sources covering {INDUSTRY}\n5. Brands or organisations within {INDUSTRY} considered genuine thought leaders — whose own published content is worth reading\n\nFor each source, name which {INDUSTRY} brands are most frequently featured, cited, or recommended there. Do not limit yourself to a fixed list — name whoever genuinely dominates each source.`
+            weight: 1.2, includesBrand: false,
+            text: `If I'm thoroughly researching {INDUSTRY}, what sources should I consult? Top 3 per category:\n\n1. Most trusted review or comparison platforms\n2. Most trusted publications, newsletters, or analyst reports\n3. Most trusted online communities, forums, or professional groups\n4. Most useful video or multimedia sources\n5. Brands considered genuine thought leaders — whose own content is worth reading\n\nFor each source, name which {INDUSTRY} brands are most frequently featured, cited, or recommended there.`,
         },
         {
             id: 'P18', category: 'deep_probe', intent: 'positioning_validation',
-            text: `In the {INDUSTRY} space, evaluate the following claim critically: that {BRAND} ({DOMAIN}) is a genuine market leader for {REACH} buyers.\n\n1. On a scale of strongly agree, partially agree, or disagree — where do you land on that claim? Give specific reasoning, not hedged generalities.\n\n2. Among all credible players in {INDUSTRY} right now, who has the strongest and most defensible claim to market leadership? What earns them that position?\n\n3. What specific changes — in product, reputation, or market presence — would {BRAND} need to make to be considered a clear, unambiguous leader in {INDUSTRY}, especially for buyers in {LOCATION}?\n\n4. Is there any positioning territory in {INDUSTRY} that {BRAND} could credibly own that no current leader is occupying?`
+            weight: 1.5, includesBrand: false,
+            text: `Among these {INDUSTRY} options — {COMPETITORS} — evaluate which has the strongest claim to market leadership for {REACH} buyers.\n\n1. For each, rate their leadership claim: strongly credible, partially credible, or weak — with specific reasoning, no hedging.\n\n2. Who currently has the strongest, most defensible claim overall, and what earns it?\n\n3. For each option: what specific changes — in product, reputation, or market presence — would it need to be considered a clear, unambiguous leader, especially for buyers in {LOCATION}?\n\n4. Is there positioning territory in {INDUSTRY} that any of these options could credibly own that no current leader occupies?`,
         },
         {
             id: 'P19', category: 'deep_probe', intent: 'semantic_cluster_gap',
-            text: `I want to map how different {INDUSTRY} brands occupy conceptual territory in this market.\n\nStep 1 — Association Mapping: For each of the following brands, list 20 words or phrases that come to mind — product attributes, emotional associations, customer types, use cases, or reputation signals. Brands: {COMPETITORS}, {BRAND}.\n\nStep 2 — Gap Identification: Which words or phrases appear frequently across multiple competitors but are absent or weak for {BRAND}? These are ownership gaps worth noting.\n\nStep 3 — Reverse Gaps: Which words or phrases appear strongly for {BRAND} but rarely for its competitors? These are potential differentiation assets.\n\nStep 4 — White Space: Which high-value terms in {INDUSTRY} are not strongly associated with ANY of these brands? These are unclaimed territory opportunities.\n\nStep 5 — Verdict: Where is {BRAND}'s semantic footprint weakest relative to the competitive set — and which 3 concepts should it most urgently try to own?`
+            weight: 1.5, includesBrand: false,
+            text: `Map how {INDUSTRY} brands occupy conceptual territory.\n\nStep 1 — Association mapping: For each brand below, list 20 words or phrases — attributes, emotional associations, customer types, use cases, reputation signals.\nBrands: {COMPETITORS}.\n\nStep 2 — Ownership gaps: Which words appear frequently across most brands but are absent or weak for one or more of them?\n\nStep 3 — Differentiation assets: Which words appear strongly for one brand but rarely for its competitors?\n\nStep 4 — White space: Which high-value {INDUSTRY} terms aren't strongly associated with ANY of these brands?\n\nStep 5 — Verdict: For each brand, where is its semantic footprint weakest — and which 3 concepts should it most urgently try to own?`,
         },
         {
             id: 'P20', category: 'deep_probe', intent: 'citation_benchmark',
-            text: `When explaining how the {INDUSTRY} space works — the different approaches, how options differ, and what separates strong from weak offerings — what real brands would you use as examples? Use actual names, not hypothetical ones.\n\nAnswer each of these:\n\n1. If you were explaining what best-in-class looks like in {INDUSTRY}, which specific brand would you point to as the gold standard and why?\n\n2. Which brand in {INDUSTRY} is the strongest reference point for value-for-money positioning?\n\n3. Which brand in {INDUSTRY} is the most cited cautionary example — and what is the lesson?\n\n4. If a buyer asked you to benchmark any {INDUSTRY} option against a reliable standard, which brand would you use as that benchmark, and why does it hold that status?\n\nAfter answering freely, tell me: does {BRAND} ({DOMAIN}) appear in any of the four citation roles above — and if not, what would need to change for it to earn one of those positions?`
-        }
+            weight: 1.5, includesBrand: false,
+            text: `When explaining how {INDUSTRY} works — different approaches, what separates strong from weak offerings — which real brands would you use as examples?\n\n1. The gold standard for best-in-class in {INDUSTRY} — which brand and why?\n2. The strongest reference point for value-for-money positioning?\n3. The most cited cautionary example — and what's the lesson?\n4. The benchmark you'd use to evaluate any {INDUSTRY} option — why does it hold that status?\n\nThen for each of these — {COMPETITORS} — does it appear in any of the four citation roles above? If not, what would it need to change to earn one?`,
+        },
     ];
 
-    return templates.map((t, idx) => ({
+    return templates.map((t) => ({
         id: t.id,
         core: fillVariables(t.text, vars),
         intent: t.intent,
         category: t.category,
         includesBrand: t.includesBrand,
         strategicValue: 10,
-        weight: t.weight
+        weight: t.weight,
     }));
 }
 
