@@ -82,8 +82,33 @@ export default function OnboardingFlow({ userId, onComplete, mode = 'firstTime' 
 
     // Step 1: Basic Info
     const [domain, setDomain] = useState('');
+    const [domainError, setDomainError] = useState('');
     const [brandName, setBrandName] = useState('');
     const [industry, setIndustry] = useState('');
+
+    /**
+     * Validate that a domain is a plain hostname or hostname+path — no protocol,
+     * no port, no query string. Returns an error string or empty string if valid.
+     */
+    const validateDomain = (raw) => {
+        if (!raw.trim()) return ''; // empty — caught by required check
+        // Strip protocol if user pasted a full URL
+        const stripped = raw.replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/\/+$/, '').trim();
+        // Must contain at least one dot and no spaces
+        if (stripped.includes(' ')) return 'Domain cannot contain spaces';
+        if (!/^[a-z0-9-]+(\.([a-z0-9-]+))+/i.test(stripped)) return 'Enter a valid domain (e.g. yourcompany.com)';
+        // Reject ports and query strings
+        if (/:[0-9]+/.test(stripped)) return 'Do not include a port number (e.g. use yourcompany.com)';
+        if (stripped.includes('?') || stripped.includes('#')) return 'Do not include query strings or anchors';
+        return '';
+    };
+
+    const handleDomainChange = (raw) => {
+        // Auto-strip protocol prefix so the field always shows a clean domain
+        const cleaned = raw.replace(/^https?:\/\//i, '').replace(/^www\./i, '');
+        setDomain(cleaned);
+        setDomainError(validateDomain(cleaned));
+    };
 
     // Step 2: Company Details
     const [companySize, setCompanySize] = useState('');
@@ -252,7 +277,7 @@ export default function OnboardingFlow({ userId, onComplete, mode = 'firstTime' 
 
     const canProceed = () => {
         switch (step) {
-            case 1: return domain.trim() && brandName.trim() && industry.trim();
+            case 1: return domain.trim() && !domainError && brandName.trim() && industry.trim();
             case 2: return companySize;
             case 3: return location.trim() && language && reach;
             case 4: return competitors.filter(c => c.trim()).length >= 1;
@@ -358,8 +383,21 @@ export default function OnboardingFlow({ userId, onComplete, mode = 'firstTime' 
                                 <label className="text-[12px] font-semibold text-[#aaa] mb-1.5 flex items-center gap-2">
                                     <Globe className="w-3.5 h-3.5" /> Website Domain
                                 </label>
-                                <Input value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="yourcompany.com"
-                                    className="h-[46px] border-[#222] bg-[#111]/50 focus:border-[#E92A15] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none text-white placeholder:text-[#555] rounded-xl text-[14px] px-4 transition-colors" />
+                                <Input
+                                    value={domain}
+                                    onChange={(e) => handleDomainChange(e.target.value)}
+                                    onBlur={() => setDomainError(validateDomain(domain))}
+                                    placeholder="yourcompany.com"
+                                    className={`h-[46px] border-[#222] bg-[#111]/50 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none text-white placeholder:text-[#555] rounded-xl text-[14px] px-4 transition-colors ${
+                                        domainError ? 'border-[#E92A15]/80 bg-[#1a0a0a]' : 'focus:border-[#E92A15]'
+                                    }`}
+                                />
+                                {domainError && (
+                                    <p className="text-[11px] text-[#E92A15] mt-1.5 ml-1 flex items-center gap-1.5">
+                                        <span className="inline-block w-3 h-3 rounded-full border border-[#E92A15] text-[9px] font-bold flex items-center justify-center shrink-0">!</span>
+                                        {domainError}
+                                    </p>
+                                )}
                             </div>
 
                             <div>

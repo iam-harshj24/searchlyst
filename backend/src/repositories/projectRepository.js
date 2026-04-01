@@ -1,12 +1,18 @@
 import { prisma } from '../lib/prisma.js';
 
 function serializeProject(data) {
-    return {
-        ...data,
-        competitors: data.competitors != null
+    const result = { ...data };
+    // Only set competitors if it was explicitly included in the payload.
+    // If competitors is absent from data, we delete it so Prisma skips it
+    // entirely and leaves the DB value untouched.
+    if ('competitors' in data) {
+        result.competitors = data.competitors != null
             ? (typeof data.competitors === 'string' ? data.competitors : JSON.stringify(data.competitors))
-            : null,
-    };
+            : null;
+    } else {
+        delete result.competitors;
+    }
+    return result;
 }
 
 function deserializeProject(project) {
