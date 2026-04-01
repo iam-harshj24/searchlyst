@@ -64,6 +64,15 @@ export async function updateProject(req, res) {
             return res.json({ success: true, message: 'Dev mode bypass' });
         }
 
+        // Normalize domain: strip protocol and trailing slash so we never
+        // store "https://camanahomes.com" — only "camanahomes.com"
+        const rawDomain = website_url || domain || '';
+        const normalizedDomain = rawDomain
+            .replace(/^https?:\/\//i, '')
+            .replace(/^www\./i, '')
+            .replace(/\/+$/, '')
+            .trim() || undefined;
+
         // Update Project specifically
         const updatedProject = await projectService.updateProject(id, {
             industry,
@@ -76,7 +85,7 @@ export async function updateProject(req, res) {
             social_instagram,
             social_substack,
             social_reddit,
-            domain: website_url || domain
+            ...(normalizedDomain ? { domain: normalizedDomain } : {}),
         });
 
         // Also update User's role_type since the Brand Hub manages it

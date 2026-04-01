@@ -56,7 +56,7 @@ export default function BrandHubPage({ user: userProp, authUserId }) {
             industry: merged?.industry || prev.industry || '',
             target_audience: merged?.target_audience || prev.target_audience || '',
             location: merged?.location || prev.location || '',
-            website_url: merged?.website_url || (merged?.domain ? `https://${merged.domain}` : prev.website_url || ''),
+            website_url: merged?.website_url || merged?.domain || prev.website_url || '',
             companySize: merged?.companySize || prev.companySize || '',
             language: merged?.language || prev.language || '',
             reach: merged?.reach || prev.reach || '',
