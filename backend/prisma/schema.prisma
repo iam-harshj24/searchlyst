@@ -69,6 +69,12 @@ model Project {
   social_instagram String?
   social_substack  String?
   social_reddit    String?
+  social_twitter   String?
+  social_youtube   String?
+  social_quora     String?
+  social_tiktok    String?
+  /// Last synced public social feed snapshot (YouTube / Substack / Reddit + OAuth hints for others)
+  socialIngestSnapshot Json?
   created_at       DateTime?        @default(now())
   updated_at       DateTime?        @default(now())
   user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)

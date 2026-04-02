@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid } from 'recharts';
 import { apiClient } from '../../api/apiClient.js';
+import { buildVisibilityTrendDaily, buildVisibilityTrendWeekly } from '@/lib/visibilityTrend';
 
 const getDomainColor = (domain) => {
     const colors = [
@@ -74,6 +75,9 @@ export default function OverviewPage({ domains, activeProject, onAddDomain, onTa
     const auditScore = auditData?.scores?.overall ?? null;
 
     const [dashboardMetrics, setDashboardMetrics] = useState(null);
+    const [overviewScanHistory, setOverviewScanHistory] = useState([]);
+    const [overviewTrendRange, setOverviewTrendRange] = useState(7);
+    const [overviewTrendGranularity, setOverviewTrendGranularity] = useState('daily');
 
     useEffect(() => {
         let mounted = true;
@@ -90,22 +94,45 @@ export default function OverviewPage({ domains, activeProject, onAddDomain, onTa
         return () => { mounted = false; };
     }, [user?.id, activeProject?.id]);
 
-    const visibilityTrend = React.useMemo(() => {
-        if (dashboardMetrics?.visibilityTrend?.length > 0) {
-            return dashboardMetrics.visibilityTrend.map(v => {
-                const date = new Date(v.date);
-                const dayStr = date.toLocaleDateString('en-US', { weekday: 'short' }); 
-                return {
-                    date: dayStr,
-                    score: Math.round(v.score || 0)
-                }
-            });
-        }
+    useEffect(() => {
+        if (!user?.domain) return;
+        const days = overviewTrendRange > 0 ? Math.max(overviewTrendRange, 30) : 365;
+        apiClient.visibility
+            .getScanHistory(user?.projectId, user.domain, { days, limit: 120 })
+            .then((res) => {
+                if (Array.isArray(res?.history)) setOverviewScanHistory(res.history);
+            })
+            .catch(() => setOverviewScanHistory([]));
+    }, [user?.domain, user?.projectId, overviewTrendRange]);
 
-        if (!visData) return [];
-        const score = visData?.score?.overall ?? 0;
-        return [{ date: 'Today', score }];
-    }, [visData?.score?.overall, !!visData]);
+    const visibilityTrend = React.useMemo(() => {
+        const fromApi = overviewScanHistory.length > 0
+            ? overviewScanHistory
+            : (dashboardMetrics?.visibilityTrend || []).map((v) => ({
+                  date: v.date,
+                  score: Number(v.score),
+              }));
+
+        const fallbackSingle =
+            fromApi.length === 0 && visData?.score?.overall != null && visData?.scannedAt
+                ? [{ date: visData.scannedAt, score: visData.score.overall }]
+                : fromApi.length === 0 && visData?.score?.overall != null
+                  ? [{ date: new Date().toISOString(), score: visData.score.overall }]
+                  : fromApi;
+
+        const opts = { extendToToday: true, filterDays: overviewTrendRange > 0 ? overviewTrendRange : 0 };
+        if (fallbackSingle.length === 0) return [];
+        return overviewTrendGranularity === 'weekly'
+            ? buildVisibilityTrendWeekly(fallbackSingle, opts)
+            : buildVisibilityTrendDaily(fallbackSingle, opts);
+    }, [
+        overviewScanHistory,
+        dashboardMetrics?.visibilityTrend,
+        visData?.score?.overall,
+        visData?.scannedAt,
+        overviewTrendRange,
+        overviewTrendGranularity,
+    ]);
 
     const getGreeting = () => {
         const hour = new Date().getHours();
@@ -124,30 +151,44 @@ export default function OverviewPage({ domains, activeProject, onAddDomain, onTa
     const displayBrandName = user?.brandName || activeProject?.name || 'Your Brand';
     
     const activeDomain = user?.domain || activeProject?.url || '';
-    const compDomains = allCompetitors.map(c => c.domain || c).filter(d => d && d !== activeDomain);
     const compsCount = allCompetitors.length;
     const projectDate = activeProject?.createdAt ? new Date(activeProject.createdAt).toLocaleDateString() : '—';
 
-    const analysisData = [
-        { 
-            domain: activeDomain, 
-            active: true, 
-            vis: visScore ?? null, 
-            trend: null, 
-            issues: auditScore ? (100 - auditScore) : null, 
-            date: projectDate, 
-            comps: compsCount 
-        },
-        ...compDomains.slice(0, 3).map((compDomain) => ({
-            domain: compDomain,
-            active: false,
-            vis: null,
-            trend: null,
-            issues: null,
-            date: projectDate,
-            comps: compsCount,
-        }))
-    ];
+    const projectList = projects?.length
+        ? projects
+        : activeProject
+            ? [activeProject]
+            : [];
+
+    const analysisData =
+        projectList.length > 0
+            ? projectList.map((p) => {
+                  const d = p.url || p.domain || '';
+                  const isActive =
+                      activeProject?.id != null ? p.id === activeProject.id : d === activeDomain;
+                  const created = p.createdAt ? new Date(p.createdAt).toLocaleDateString() : projectDate;
+                  const visFromApi = p.lastVisibilityScore;
+                  return {
+                      domain: d || '—',
+                      active: isActive,
+                      vis: visFromApi != null ? visFromApi : isActive ? visScore ?? null : null,
+                      trend: null,
+                      issues: isActive && auditScore != null ? 100 - auditScore : null,
+                      date: created,
+                      comps: compsCount,
+                  };
+              })
+            : [
+                  {
+                      domain: activeDomain || '—',
+                      active: true,
+                      vis: visScore ?? null,
+                      trend: null,
+                      issues: auditScore != null ? 100 - auditScore : null,
+                      date: projectDate,
+                      comps: compsCount,
+                  },
+              ];
 
     return (
         <div className="w-full pb-10">
@@ -281,25 +322,47 @@ export default function OverviewPage({ domains, activeProject, onAddDomain, onTa
             {/* Charts and Competitors */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 bg-[#111] border border-[#222] rounded-2xl p-6 relative overflow-hidden">
-                    <div className="flex items-start justify-between mb-6">
+                    <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
                         <div>
                             <h3 className="text-white text-[15px] font-semibold">AI Visibility Trend</h3>
-                            <p className="text-[#666] text-[12px] mt-1">Last 7 days for {displayBrandName}</p>
+                            <p className="text-[#666] text-[12px] mt-1">
+                                {overviewTrendRange > 0 ? `Last ${overviewTrendRange} days` : 'All stored scans'} · {overviewTrendGranularity} steps for {displayBrandName}
+                            </p>
                         </div>
-                        <button onClick={() => onTabChange?.('ai-visibility')} className="text-[#E92A15] text-[12px] font-medium hover:text-[#ff4433] flex items-center gap-1 transition-colors">
-                            View Full Report <ChevronRight className="w-3 h-3" />
-                        </button>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <select
+                                value={overviewTrendRange}
+                                onChange={(e) => setOverviewTrendRange(Number(e.target.value))}
+                                className="bg-[#1a1a1a] border border-[#333] text-[#ccc] text-[11px] rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-[#E92A15]/50"
+                            >
+                                <option value={7}>Last 7 days</option>
+                                <option value={30}>Last 30 days</option>
+                                <option value={90}>Last 90 days</option>
+                            </select>
+                            <select
+                                value={overviewTrendGranularity}
+                                onChange={(e) => setOverviewTrendGranularity(e.target.value)}
+                                className="bg-[#1a1a1a] border border-[#333] text-[#ccc] text-[11px] rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-[#E92A15]/50"
+                            >
+                                <option value="daily">Daily</option>
+                                <option value="weekly">Weekly</option>
+                            </select>
+                            <button onClick={() => onTabChange?.('ai-visibility')} className="text-[#E92A15] text-[12px] font-medium hover:text-[#ff4433] flex items-center gap-1 transition-colors">
+                                Full report <ChevronRight className="w-3 h-3" />
+                            </button>
+                        </div>
                     </div>
                     
                     <div className="flex items-center justify-between mb-8 z-10 relative">
                         <div className="flex items-center gap-3">
                             <div className="flex items-baseline">
-                                <span className="text-white text-[42px] font-bold tracking-tighter leading-none">{visScore ?? '—'}</span>
-                                {visScore != null && <span className="text-[#666] text-[16px] font-medium ml-1">/100</span>}
+                                <span className="text-white text-[42px] font-bold tracking-tighter leading-none tabular-nums">
+                                    {visScore != null ? (visScore / 10).toFixed(1) : '—'}
+                                </span>
                             </div>
                         </div>
                         {visScore != null && (
-                            <span className="text-[#666] text-[11px]">Current score for {user?.industry || activeProject?.industry || 'your industry'}</span>
+                            <span className="text-[#666] text-[11px]">Visibility index (0–10) · {user?.industry || activeProject?.industry || 'your industry'}</span>
                         )}
                     </div>
 
@@ -319,57 +382,124 @@ export default function OverviewPage({ domains, activeProject, onAddDomain, onTa
                     </div>
                 </div>
 
-                <div className="bg-[#111] border border-[#222] rounded-2xl p-6 flex flex-col">
-                    <div className="flex items-center justify-between mb-5">
-                        <h3 className="text-white text-[15px] font-semibold">Your Competitors</h3>
-                        <span className="px-2.5 py-1 bg-[#1A1A1A] border border-[#333] text-[#aaa] rounded-lg text-[10px] font-medium tracking-wide flex items-center gap-1">
-                            {allCompetitors.length} tracked
-                        </span>
-                    </div>
-                    {allCompetitors.length > 0 ? (
-                        <div className="flex-1 space-y-4">
-                            {allCompetitors.slice(0, 6).map((comp, i) => {
-                                const domain = comp.domain || comp;
-                                const name = comp.name || domain.replace('.com', '');
-                                return (
-                                    <div key={i} className="flex items-center gap-3 group">
-                                        <DomainLogo 
-                                            domain={domain} 
-                                            sizeClass="w-8 h-8" 
-                                            roundedClass="rounded-full" 
-                                            iconSizeClass="w-4 h-4"
-                                            fontSizeClass="text-[14px]"
-                                        />
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-white text-[13px] font-medium truncate capitalize">{name}</p>
-                                            <p className="text-[#666] text-[11px] truncate">{domain}</p>
-                                        </div>
-                                        <div className="flex items-center gap-3">
-                                            <a href={`https://${domain}`} target="_blank" rel="noopener noreferrer"
-                                                className="text-[#555] hover:text-white transition-colors">
-                                                <ExternalLink className="w-3.5 h-3.5" />
-                                            </a>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                            <button onClick={() => onTabChange?.('competitors')}
-                                className="w-full flex items-center justify-center gap-1.5 py-2 text-[#E92A15] text-[11px] font-medium hover:text-[#ff4433] transition-colors border-t border-[#222] mt-2 pt-3">
-                                Competitors & suggestions <ChevronRight className="w-3 h-3" />
-                            </button>
+                <div className="flex flex-col gap-4 min-h-0">
+                    {/* Tracked competitors — first, so you see competitive set before domains */}
+                    <div className="bg-[#111] border border-[#222] rounded-2xl p-5 flex flex-col max-h-[280px] shrink-0">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-white text-[15px] font-semibold">Tracked competitors</h3>
+                            <span className="px-2.5 py-1 bg-[#1A1A1A] border border-[#333] text-[#aaa] rounded-lg text-[10px] font-medium tracking-wide">
+                                {allCompetitors.length} rival{allCompetitors.length === 1 ? '' : 's'}
+                            </span>
                         </div>
-                    ) : (
-                        <div className="flex-1 flex flex-col items-center justify-center py-6 gap-3">
-                            <div className="w-12 h-12 rounded-full border border-[#333] bg-[#1A1A1A] flex items-center justify-center">
-                                <Target className="w-5 h-5 text-[#555]" />
+                        {allCompetitors.length > 0 ? (
+                            <div className="space-y-3 overflow-y-auto pr-1 custom-scrollbar flex-1 min-h-0">
+                                {allCompetitors.map((c, i) => {
+                                    const raw = typeof c === 'string' ? c : c.domain || c.name || '';
+                                    const dom = String(raw).replace(/^https?:\/\//i, '').replace(/^www\./i, '').split('/')[0];
+                                    const label = (typeof c === 'object' && c.name) ? c.name : dom.replace(/\.com$/i, '') || dom || 'Competitor';
+                                    return (
+                                        <div key={`${dom}-${i}`} className="flex items-center gap-3">
+                                            <DomainLogo domain={dom} sizeClass="w-8 h-8" roundedClass="rounded-full" iconSizeClass="w-4 h-4" fontSizeClass="text-[14px]" />
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-white text-[13px] font-medium truncate">{label}</p>
+                                                <p className="text-[#666] text-[11px] truncate">{dom || '—'}</p>
+                                            </div>
+                                            {dom ? (
+                                                <a href={`https://${dom}`} target="_blank" rel="noopener noreferrer" className="text-[#555] hover:text-white transition-colors shrink-0">
+                                                    <ExternalLink className="w-3.5 h-3.5" />
+                                                </a>
+                                            ) : null}
+                                        </div>
+                                    );
+                                })}
                             </div>
-                            <p className="text-[#666] text-[12px]">No competitors tracked yet</p>
-                            <button onClick={() => onTabChange?.('competitors')}
-                                className="text-[#E92A15] text-[11px] font-medium hover:text-[#ff4433] transition-colors">
-                                Open Competitors →
-                            </button>
+                        ) : (
+                            <div className="py-4 text-center">
+                                <Users className="w-8 h-8 text-[#444] mx-auto mb-2" />
+                                <p className="text-[#666] text-[12px]">No competitors tracked yet</p>
+                                <button type="button" onClick={() => onTabChange?.('competitors')} className="text-[#E92A15] text-[11px] font-medium mt-2 hover:text-[#ff4433]">
+                                    Add competitors →
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="bg-[#111] border border-[#222] rounded-2xl p-6 flex flex-col flex-1 min-h-0">
+                        <div className="flex items-center justify-between mb-5">
+                            <h3 className="text-white text-[15px] font-semibold">Tracked projects</h3>
+                            <span className="px-2.5 py-1 bg-[#1A1A1A] border border-[#333] text-[#aaa] rounded-lg text-[10px] font-medium tracking-wide flex items-center gap-1">
+                                {Math.max(projects?.length || 0, projectList.length || 1)} tracked domain{Math.max(projects?.length || 0, projectList.length || 1) === 1 ? '' : 's'}
+                            </span>
                         </div>
-                    )}
+                        {projectList.length > 0 ? (
+                            <div className="flex-1 space-y-4 overflow-y-auto pr-1 custom-scrollbar min-h-0 max-h-[320px]">
+                                {projectList.map((p, i) => {
+                                    const domain = p.url || p.domain || '';
+                                    const name = p.name || p.brandName || domain.replace(/\.com$/i, '') || 'Project';
+                                    const pid = p.id;
+                                    const isActive = activeProject?.id != null ? pid === activeProject.id : domain === activeDomain;
+                                    const v = p.lastVisibilityScore;
+                                    return (
+                                        <div key={pid ?? i} className="flex items-center gap-3 group">
+                                            <DomainLogo
+                                                domain={domain}
+                                                sizeClass="w-8 h-8"
+                                                roundedClass="rounded-full"
+                                                iconSizeClass="w-4 h-4"
+                                                fontSizeClass="text-[14px]"
+                                            />
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-white text-[13px] font-medium truncate capitalize flex items-center gap-2">
+                                                    {name}
+                                                    {isActive && (
+                                                        <span className="text-[9px] bg-[#E92A15]/20 text-[#E92A15] px-1.5 py-0.5 rounded font-semibold">ACTIVE</span>
+                                                    )}
+                                                </p>
+                                                <p className="text-[#666] text-[11px] truncate">{domain || '—'}</p>
+                                                <p className="text-[#888] text-[10px] mt-0.5">
+                                                    AI visibility:{' '}
+                                                    <span className="text-white/90 font-semibold">
+                                                        {v != null ? `${Math.round(v)}%` : '—'}
+                                                    </span>
+                                                </p>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                {domain ? (
+                                                    <a
+                                                        href={`https://${domain}`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-[#555] hover:text-white transition-colors"
+                                                    >
+                                                        <ExternalLink className="w-3.5 h-3.5" />
+                                                    </a>
+                                                ) : null}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                                <button
+                                    onClick={() => onTabChange?.('ai-visibility')}
+                                    className="w-full flex items-center justify-center gap-1.5 py-2 text-[#E92A15] text-[11px] font-medium hover:text-[#ff4433] transition-colors border-t border-[#222] mt-2 pt-3"
+                                >
+                                    Full AI visibility report <ChevronRight className="w-3 h-3" />
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="flex-1 flex flex-col items-center justify-center py-6 gap-3">
+                                <div className="w-12 h-12 rounded-full border border-[#333] bg-[#1A1A1A] flex items-center justify-center">
+                                    <Folder className="w-5 h-5 text-[#555]" />
+                                </div>
+                                <p className="text-[#666] text-[12px]">Add a project to track a domain</p>
+                                <button
+                                    onClick={onAddDomain}
+                                    className="text-[#E92A15] text-[11px] font-medium hover:text-[#ff4433] transition-colors"
+                                >
+                                    Add project →
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -395,15 +525,20 @@ export default function OverviewPage({ domains, activeProject, onAddDomain, onTa
                 </div>
             </div>
 
-            {/* Competitor Analysis */}
+            {/* Project analysis — domains you track + visibility */}
             <div className="bg-[#111] border border-[#222] rounded-2xl overflow-hidden mt-2">
                 <div className="flex justify-between items-center p-5 border-b border-[#222]">
-                    <h2 className="text-white text-[16px] font-semibold tracking-wide">Competitor Analysis</h2>
+                    <h2 className="text-white text-[16px] font-semibold tracking-wide">Project analysis</h2>
                     <button onClick={onAddDomain} className="text-[#E92A15] text-[13px] font-semibold flex items-center gap-1.5 hover:text-[#ff4433] transition-colors">
                         <Plus className="w-[18px] h-[18px]" /> Track a new Domain
                     </button>
                 </div>
-                <div className="grid grid-cols-4">
+                <div
+                    className="grid w-full"
+                    style={{
+                        gridTemplateColumns: `repeat(${Math.min(analysisData.length, 4)}, minmax(0, 1fr))`,
+                    }}
+                >
                     {analysisData.map((row, idx) => (
                         <div key={idx} className={`flex flex-col ${idx !== analysisData.length - 1 ? 'border-r border-[#222]' : ''}`}>
                             {/* DOMAIN ROW */}
@@ -467,9 +602,9 @@ export default function OverviewPage({ domains, activeProject, onAddDomain, onTa
                                 <span className="text-white text-[14px] font-semibold">{row.date}</span>
                             </div>
 
-                            {/* COMPETITORS ROW */}
+                            {/* BENCHMARKS ROW */}
                             <div className="p-5 flex justify-between items-center h-[72px]">
-                                <span className="text-[#666] text-[10px] font-bold uppercase tracking-wider">Competitors</span>
+                                <span className="text-[#666] text-[10px] font-bold uppercase tracking-wider">Benchmark brands</span>
                                 <span className="text-white text-[14px] font-semibold">{row.comps} tracked</span>
                             </div>
                         </div>

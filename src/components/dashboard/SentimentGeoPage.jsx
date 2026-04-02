@@ -78,6 +78,24 @@ function getSentimentColorBright(sentiment) {
     return '#ef4444';
 }
 
+/** Display weights for KPI only — neutral 62.5 matches backend (0.25 → ((0.25+1)/2)×100). */
+const SENTIMENT_DISPLAY_WEIGHTS = { positive: 100, neutral: 62.5, negative: 12 };
+
+function computeAvgSentimentKPI(summary) {
+    if (!summary) return 0;
+    const p = summary.rawCounts?.positive ?? summary.positive;
+    const n = summary.rawCounts?.neutral ?? summary.neutral;
+    const neg = summary.rawCounts?.negative ?? summary.negative;
+    const total = p + n + neg;
+    if (!total) return 0;
+    return Math.round(
+        (p * SENTIMENT_DISPLAY_WEIGHTS.positive +
+            n * SENTIMENT_DISPLAY_WEIGHTS.neutral +
+            neg * SENTIMENT_DISPLAY_WEIGHTS.negative) /
+            total,
+    );
+}
+
 function TrendTooltip({ active, payload, label }) {
     if (!active || !payload?.length) return null;
     return (
@@ -233,8 +251,7 @@ function deriveSentimentAndGeo(scanResult) {
     const totalCitations = citationDomains.reduce((s, c) => s + (c.count || 1), 0);
     const trackedPrompts = prompts.length;
     const activeRegions = Object.keys(regionMap).filter(g => g !== 'global').length;
-    const totalSent = (summary.positive || 0) + (summary.neutral || 0) + (summary.negative || 0);
-    const avgSentiment = totalSent > 0 ? Math.round(((summary.positive || 0) * 100 + (summary.neutral || 0) * 50 + (summary.negative || 0) * 0) / totalSent) : 0;
+    const avgSentiment = computeAvgSentimentKPI(summary);
     const negativePct = summary.negative || 0;
 
     return {

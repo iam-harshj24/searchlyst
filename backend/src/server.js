@@ -18,9 +18,20 @@ const PORT = process.env.PORT || 3000;
 // Middleware - allow localhost and 127.0.0.1 for local dev (CORS blocks if origin mismatch)
 const isLocalOrigin = (origin) => !origin || /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
 const allowedOrigin = process.env.FRONTEND_URL;
+const isDev = process.env.NODE_ENV === 'development';
 app.use(cors({
   origin: (origin, cb) => {
-    const ok = allowedOrigin ? origin === allowedOrigin : isLocalOrigin(origin);
+    // Production: only the configured frontend origin (or any local origin if unset).
+    // Development: if FRONTEND_URL is set, still allow any localhost / 127.0.0.1 port so Vite
+    // can hop ports (5173, 5174, …) and localhost vs 127.0.0.1 both work with the same .env.
+    let ok;
+    if (!allowedOrigin) {
+      ok = isLocalOrigin(origin);
+    } else if (isDev && isLocalOrigin(origin)) {
+      ok = true;
+    } else {
+      ok = origin === allowedOrigin;
+    }
     cb(null, ok);
   },
   credentials: true

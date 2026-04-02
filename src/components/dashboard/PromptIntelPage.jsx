@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { apiClient } from '@/api/apiClient';
 import {
-    Search, ChevronDown, EyeOff,
-    MessageSquare, CheckCircle, Target,
-    Terminal, Activity, Link2, AlertTriangle,
-    Plus, X, Send, Loader2, Lightbulb, Star, AlertCircle, Trash2
+    CheckCircle,
+    Terminal, Activity,
+    Plus, X, Send, Loader2, Lightbulb, Star, AlertCircle, Trash2,
+    ChevronDown, ChevronUp, Link2, Check, MessageSquare, Copy,
 } from 'lucide-react';
+import { ChatGPTLogo, GeminiLogo, PerplexityLogo } from '../landing/AILogos';
 
 function getVisibilityData(domain, projectId) {
     try {
@@ -18,103 +19,221 @@ function getVisibilityData(domain, projectId) {
     } catch { return null; }
 }
 
-const ENGINE_META = {
-    perplexity: { label: 'Perplexity', color: '#20B2AA', icon: () => <svg width={14} height={14} viewBox="0 0 24 24" fill="none"><path d="M12 2L4 7v10l8 5 8-5V7L12 2z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" /><path d="M4 7l8 5 8-5" stroke="currentColor" strokeWidth="1.5" /><path d="M12 12v10" stroke="currentColor" strokeWidth="1.5" /></svg> },
-    gemini: { label: 'Gemini', color: '#4285F4', icon: () => <svg width={14} height={14} viewBox="0 0 24 24" fill="none"><path d="M12 2v20M2 12h20" stroke="currentColor" strokeWidth="1.5" /><path d="M12 2C8 8 8 16 12 22C16 16 16 8 12 2z" fill="currentColor" opacity="0.6" /></svg> },
-    googleAI: { label: 'ChatGPT', color: '#10A37F', icon: () => <svg width={14} height={14} viewBox="0 0 24 24" fill="none"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" stroke="currentColor" strokeWidth="1.5" /><path d="M8 12l2.5 2.5L16 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg> },
-};
-
 const ENGINE_ORDER = ['perplexity', 'gemini', 'googleAI'];
+const ENGINE_LABELS = { perplexity: 'Perplexity', gemini: 'Gemini', googleAI: 'ChatGPT' };
 
+function promptDisplayId(index) {
+    return `P${String(index + 1).padStart(2, '0')}`;
+}
 
-function EngineColumn({ eng, data }) {
-    const meta = ENGINE_META[eng] || { label: eng, color: '#888', icon: () => null };
-    const Icon = meta.icon;
-    const tone = (data?.sentiment || 'neutral').toString().toLowerCase();
-    const toneLabel = tone.charAt(0).toUpperCase() + tone.slice(1);
-    const hasResponse = data?.status?.includes('✓');
+function citationCountEngine(e) {
+    if (!e) return 0;
+    return (e.citations || []).length || e.citationCount || 0;
+}
+
+function totalCitationsPrompt(p) {
+    return ENGINE_ORDER.reduce((sum, k) => sum + citationCountEngine(p.engines?.[k]), 0);
+}
+
+/** High: 2+ engines mention brand; Partial: exactly one; None: zero */
+function visibilityTier(p) {
+    const rows = ENGINE_ORDER.map((k) => p.engines?.[k]).filter(Boolean);
+    if (rows.length === 0) return 'none';
+    const m = rows.filter((e) => e.mentioned).length;
+    if (m === 0) return 'none';
+    if (m >= 2) return 'high';
+    return 'partial';
+}
+
+function citationHostLabel(c) {
+    try {
+        const h = new URL(c.url).hostname.replace(/^www\./, '');
+        return h || c.title || 'link';
+    } catch {
+        return c.domain || c.title || (c.url || '').slice(0, 36) || 'link';
+    }
+}
+
+function VisibilityBadge({ tier }) {
+    const styles = {
+        high: 'border-emerald-500/55 text-emerald-400 bg-emerald-950/25',
+        partial: 'border-amber-500/45 text-amber-400 bg-amber-950/15',
+        none: 'border-[#333] text-[#666] bg-[#141414]',
+    };
+    const labels = { high: 'High', partial: 'Partial', none: 'None' };
+    return (
+        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${styles[tier]}`}>
+            {labels[tier]}
+        </span>
+    );
+}
+
+function EngineIconBadge({ engineKey, active }) {
+    const box = active
+        ? 'border-emerald-500/70 bg-[#0a1810] shadow-[0_0_0_1px_rgba(34,197,94,0.15)]'
+        : 'border-[#2c2c2c] bg-[#121212] opacity-[0.55]';
+    const iconCls = 'w-[17px] h-[17px] object-contain text-white';
+    return (
+        <div
+            className={`w-8 h-8 rounded-md flex items-center justify-center border ${box} shrink-0`}
+            title={ENGINE_LABELS[engineKey]}
+        >
+            {engineKey === 'perplexity' && <PerplexityLogo className={iconCls} />}
+            {engineKey === 'gemini' && <GeminiLogo className={iconCls} />}
+            {engineKey === 'googleAI' && <ChatGPTLogo className={iconCls} />}
+        </div>
+    );
+}
+
+function EngineResponseCard({ engineKey, data }) {
+    const label = ENGINE_LABELS[engineKey];
+    const cites = data?.citations || [];
+    const n = cites.length || data?.citationCount || 0;
+    const body = String(data?.rawText || data?.snippet || '').trim();
+    const ok = !!(data && (body.length > 0 || n > 0 || (data.status && !String(data.status).startsWith('⚠'))));
+    const sentiment =
+        data?.sentiment && data.sentiment !== 'n/a' ? String(data.sentiment) : 'Neutral';
 
     return (
-        <div className="flex flex-col border border-[#1a1a1a] rounded-xl overflow-hidden bg-[#0d0d0d]">
-            <div className="px-4 py-3 bg-[#111] border-b border-[#1a1a1a] flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                    <div className="w-5 h-5 rounded flex items-center justify-center bg-[#1a1a1a] border border-[#2a2a2a]" style={{ color: meta.color }}><Icon /></div>
-                    <span className="text-[#eee] font-semibold text-[13px]">{meta.label}</span>
+        <div className="rounded-xl border border-[#262626] bg-[#0a0a0a] flex flex-col min-h-[300px] overflow-hidden">
+            <div className="flex items-center justify-between px-3 py-2.5 border-b border-[#262626]">
+                <div className="flex items-center gap-2 min-w-0">
+                    <EngineIconBadge engineKey={engineKey} active={!!data?.mentioned} />
+                    <span className="text-[13px] font-medium text-white truncate">{label}</span>
                 </div>
-                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${hasResponse ? 'bg-[#22c55e]/10 text-[#22c55e]' : 'bg-[#eab308]/10 text-[#eab308]'}`}>
-                    {hasResponse ? 'SUCCESS' : 'NO DATA'}
-                </span>
+                {ok ? (
+                    <span className="text-[9px] font-bold tracking-wide text-emerald-400 border border-emerald-500/35 px-2 py-0.5 rounded bg-emerald-950/30 shrink-0">
+                        SUCCESS
+                    </span>
+                ) : (
+                    <span className="text-[9px] font-bold uppercase text-[#555] border border-[#333] px-2 py-0.5 rounded shrink-0">
+                        No data
+                    </span>
+                )}
             </div>
-            <div className="px-4 py-2.5 border-b border-[#1a1a1a] bg-[#080808] flex items-center justify-between text-[11px] font-medium">
-                <span className={`flex items-center gap-1.5 ${data?.mentioned ? 'text-[#22c55e]' : 'text-[#888]'}`}>
-                    {data?.mentioned ? <CheckCircle className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-                    {data?.mentioned ? 'Brand Mentioned' : 'Not Mentioned'}
+            <div className="px-3 py-2 flex items-center justify-between border-b border-[#262626]">
+                <span
+                    className={`flex items-center gap-1.5 text-[11px] font-semibold ${data?.mentioned ? 'text-emerald-400' : 'text-[#555]'}`}
+                >
+                    <Check className="w-3.5 h-3.5 shrink-0" strokeWidth={2.5} />
+                    Brand Mentioned
                 </span>
-                <span className={`${tone === 'positive' ? 'text-[#22c55e]' : tone === 'negative' ? 'text-[#ef4444]' : 'text-[#888]'}`}>{toneLabel}</span>
+                <span className="text-[10px] text-[#9a9a9a] capitalize shrink-0">{sentiment}</span>
             </div>
-            <div className="p-4 flex-1 border-b border-[#1a1a1a]">
-                <h4 className="text-[10px] font-bold text-[#555] flex items-center gap-1.5 uppercase tracking-wider mb-2"><MessageSquare className="w-3 h-3" /> AI Response</h4>
-                <div className="max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
-                    <p className="text-[#bbb] text-[12px] leading-[1.7] whitespace-pre-wrap font-mono">{data?.rawText || 'No response captured.'}</p>
+            <div className="px-3 py-2 flex-1 flex flex-col min-h-0">
+                <div className="flex items-center gap-1.5 text-[10px] font-bold text-[#5a5a5a] uppercase tracking-wider mb-1.5">
+                    <MessageSquare className="w-3 h-3" />
+                    AI Response
+                </div>
+                <div className="flex-1 min-h-[120px] max-h-[220px] overflow-y-auto rounded-lg bg-[#060606] border border-[#1c1c1c] px-2.5 py-2 text-[11px] text-[#b4b4b4] leading-relaxed whitespace-pre-wrap">
+                    {body || '—'}
                 </div>
             </div>
-            <div className="p-4 bg-[#080808]">
-                <h4 className="text-[10px] font-bold text-[#555] flex items-center justify-between uppercase tracking-wider mb-3">
-                    <span className="flex items-center gap-1.5"><Link2 className="w-3 h-3" /> Sources & Citations</span>
-                    <span>{(data?.citations || []).length} cited</span>
-                </h4>
-                {(data?.citations || []).length > 0 ? (
-                    <div className="space-y-1.5 max-h-[200px] overflow-y-auto pr-1 custom-scrollbar">
-                        {(data?.citations || []).map((cite, idx) => (
-                            <div key={idx} className="flex items-center gap-2 p-2 bg-[#111] border border-[#1a1a1a] rounded-lg">
-                                <span className="text-[#444] text-[10px] font-mono font-bold shrink-0">[{idx + 1}]</span>
-                                <a href={cite.url} target="_blank" rel="noopener noreferrer" className="text-[#3b82f6] text-[11px] hover:underline truncate flex-1" title={cite.url}>{cite.domain || 'unknown'}</a>
-                                <div className="flex items-center gap-1 shrink-0">
-                                    {cite.isTargetBrand && <span className="px-1 py-0.5 rounded text-[8px] font-bold bg-[#22c55e]/10 text-[#22c55e]">YOU</span>}
-                                    {cite.isCompetitor && <span className="px-1 py-0.5 rounded text-[8px] font-bold bg-[#eab308]/10 text-[#eab308]">COMP</span>}
-                                </div>
-                            </div>
-                        ))}
+            <div className="px-3 py-2.5 border-t border-[#262626] mt-auto">
+                <div className="flex items-center justify-between mb-2 gap-2">
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-[#5a5a5a] uppercase tracking-wider">
+                        <Link2 className="w-3 h-3" />
+                        Sources &amp; Citations
                     </div>
-                ) : <p className="text-[#444] text-[11px] py-3 text-center">No sources returned.</p>}
+                    <span className="text-[10px] font-bold text-emerald-400 tabular-nums">{n} cited</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5 max-h-[100px] overflow-y-auto custom-scrollbar">
+                    {cites.length === 0 ? (
+                        <span className="text-[10px] text-[#555]">None extracted</span>
+                    ) : (
+                        cites.map((c, i) => (
+                            <a
+                                key={i}
+                                href={c.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-[10px] px-2 py-1 rounded-md bg-[#141414] border border-[#2a2a2a] text-[#ececec] hover:border-emerald-500/35 max-w-full truncate inline-block"
+                            >
+                                {citationHostLabel(c)}
+                            </a>
+                        ))
+                    )}
+                </div>
             </div>
         </div>
     );
 }
 
-function ExpandedPromptDetail({ prompt }) {
-    const gapDomains = new Set();
-    for (const eng of ENGINE_ORDER) {
-        const data = prompt.engines?.[eng];
-        if (data && !data.mentioned) {
-            (data.citations || []).filter(c => c.isCompetitor && c.domain).forEach(c => gapDomains.add(c.domain));
+function ExpandedPromptBronze({ prompt, displayId, onCollapse }) {
+    const [copied, setCopied] = useState(false);
+    const tier = visibilityTier(prompt);
+    const total = totalCitationsPrompt(prompt);
+    const q = String(prompt.query || prompt.prompt || '—').trim() || '—';
+
+    const copyPrompt = async () => {
+        if (!q || q === '—') return;
+        try {
+            await navigator.clipboard.writeText(q);
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 2000);
+        } catch {
+            /* ignore */
         }
-    }
+    };
 
     return (
-        <div className="border border-[#222] border-t-0 bg-[#0A0A0A] rounded-b-2xl p-6 mb-3">
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
-                {ENGINE_ORDER.map(eng => <EngineColumn key={eng} eng={eng} data={prompt.engines?.[eng] || null} />)}
-            </div>
-            {gapDomains.size > 0 && (
-                <div className="mt-5 pt-5 border-t border-[#1a1a1a]">
-                    <div className="flex items-center gap-2 mb-3">
-                        <AlertTriangle className="w-4 h-4 text-[#eab308]" />
-                        <h4 className="text-[13px] font-semibold text-white">Content Gaps — Competitors Cited, You're Not</h4>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {Array.from(gapDomains).map(comp => (
-                            <div key={comp} className="bg-[#2a0e0e]/50 border border-[#E92A15]/30 rounded-xl p-3 flex gap-3">
-                                <Target className="w-4 h-4 text-[#E92A15] shrink-0 mt-0.5" />
-                                <div>
-                                    <h5 className="text-[#fff] text-[12px] font-medium mb-0.5">{comp}</h5>
-                                    <p className="text-[#aaa] text-[11px] leading-relaxed">Competitor cited here but your brand was omitted.</p>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+        <div className="border-t border-[#1f1f1f] bg-[#030303]">
+            <div className="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-[#1f1f1f]">
+                <span className="text-[11px] font-mono text-[#666] w-9 shrink-0">{displayId}</span>
+                <div className="flex items-center gap-1 rounded-full border border-[#2a2a2a] bg-[#0f0f0f] px-2 py-1">
+                    {ENGINE_ORDER.map((ek) => (
+                        <EngineIconBadge key={ek} engineKey={ek} active={!!prompt.engines?.[ek]?.mentioned} />
+                    ))}
                 </div>
-            )}
+                <VisibilityBadge tier={tier} />
+                <span className="inline-flex items-center gap-1 text-[13px] text-white font-medium tabular-nums">
+                    <Link2 className="w-3.5 h-3.5 text-[#888]" />
+                    {total}
+                </span>
+                <button
+                    type="button"
+                    onClick={onCollapse}
+                    className="ml-auto p-1.5 rounded-lg text-[#888] hover:text-white hover:bg-[#1a1a1a] transition-colors"
+                    aria-label="Collapse row"
+                >
+                    <ChevronUp className="w-4 h-4" />
+                </button>
+            </div>
+            <div className="px-4 py-3 border-b border-[#1f1f1f]">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#737373]">Full prompt</span>
+                    <button
+                        type="button"
+                        onClick={copyPrompt}
+                        disabled={q === '—'}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-[#2a2a2a] bg-[#141414] px-2.5 py-1 text-[11px] font-medium text-[#ccc] hover:border-[#E92A15]/40 hover:text-white transition-colors disabled:opacity-40 disabled:pointer-events-none"
+                    >
+                        {copied ? (
+                            <>
+                                <Check className="w-3.5 h-3.5 text-emerald-400" strokeWidth={2.5} />
+                                Copied
+                            </>
+                        ) : (
+                            <>
+                                <Copy className="w-3.5 h-3.5" strokeWidth={2} />
+                                Copy
+                            </>
+                        )}
+                    </button>
+                </div>
+                <div
+                    className="rounded-xl bg-[#0a0a0a] border border-[#262626] px-3.5 py-3 text-[13px] text-[#e5e5e5] leading-relaxed whitespace-pre-wrap break-words max-h-[min(45vh,360px)] overflow-y-auto custom-scrollbar"
+                    role="region"
+                    aria-label="Complete prompt text"
+                >
+                    {q}
+                </div>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 p-4">
+                {ENGINE_ORDER.map((ek) => (
+                    <EngineResponseCard key={ek} engineKey={ek} data={prompt.engines?.[ek]} />
+                ))}
+            </div>
         </div>
     );
 }
@@ -197,10 +316,19 @@ function customPromptsStorageKey(domain) {
     return `searchlyst_custom_prompts_${domain || 'default'}`;
 }
 
+function targetPromptCoverage(scanData, brandName) {
+    const rows = scanData?.industryRanking;
+    if (!Array.isArray(rows) || !brandName) return null;
+    const t = rows.find(
+        (r) => r?.isTargetBrand || (r?.name && String(r.name).toLowerCase() === String(brandName).toLowerCase())
+    );
+    return t?.promptCoverage != null ? Number(t.promptCoverage) : null;
+}
+
 export default function PromptIntelPage({ user }) {
-    const [expandedPrompt, setExpandedPrompt] = useState(null);
-    const [searchQuery, setSearchQuery] = useState('');
+    const [expandedPromptKey, setExpandedPromptKey] = useState(null);
     const [showCustomPrompt, setShowCustomPrompt] = useState(false);
+    const [coverageHistory, setCoverageHistory] = useState([]);
     const [batchQueries, setBatchQueries] = useState(['']);
     const [batchLoading, setBatchLoading] = useState(false);
     const [batchError, setBatchError] = useState(null);
@@ -218,6 +346,16 @@ export default function PromptIntelPage({ user }) {
         } catch { /* ignore */ }
     }, [user?.domain]);
 
+    useEffect(() => {
+        if (!user?.domain) return;
+        apiClient.visibility
+            .getScanHistory(user?.projectId, user?.domain, { limit: 30 })
+            .then((res) => {
+                if (Array.isArray(res?.history)) setCoverageHistory(res.history);
+            })
+            .catch(() => setCoverageHistory([]));
+    }, [user?.domain, user?.projectId, user?.brandName]);
+
     const persistCustom = useCallback((list) => {
         setCustomPrompts(list);
         try { localStorage.setItem(customPromptsStorageKey(user?.domain), JSON.stringify(list)); } catch { /* ignore */ }
@@ -228,18 +366,28 @@ export default function PromptIntelPage({ user }) {
         const rows = scanData?.prompts?.length ? scanData.prompts : [];
         const stamp = scanData?.scannedAt;
         const day = stamp ? new Date(stamp).toISOString().slice(0, 10) : null;
-        return rows.map(p => ({ ...p, runDate: p.runDate || day })).slice(0, 20);
+        return rows.map((p) => ({ ...p, runDate: p.runDate || day }));
     }, [scanData]);
 
     const allPrompts = useMemo(() => [...promptsData, ...customPrompts], [promptsData, customPrompts]);
     const hasData = allPrompts.length > 0;
-    const filteredPrompts = allPrompts.filter(p => !searchQuery || p.query?.toLowerCase().includes(searchQuery.toLowerCase()));
 
     const mentionedCount = allPrompts.filter(p => Object.values(p.engines || {}).some(e => e.mentioned)).length;
     const totalSources = allPrompts.reduce((sum, p) => sum + Object.values(p.engines || {}).reduce((s, e) => s + (e.citations?.length || e.citationCount || 0), 0), 0);
     const gapCount = allPrompts.filter(p => Object.entries(p.engines || {}).some(([, e]) => !e.mentioned && (e.citations || []).some(c => c.isCompetitor))).length;
 
     const intelligence = scanData?.intelligence || null;
+
+    const currentCoverage = targetPromptCoverage(scanData, user?.brandName);
+    const prevCoverage = (() => {
+        if (!coverageHistory.length || currentCoverage == null) return null;
+        const sorted = [...coverageHistory].sort((a, b) => new Date(b.date) - new Date(a.date));
+        const withCov = sorted.filter((h) => h.promptCoverage != null && !Number.isNaN(Number(h.promptCoverage)));
+        if (withCov.length < 2) return null;
+        return Number(withCov[1].promptCoverage);
+    })();
+    const coverageDelta =
+        currentCoverage != null && prevCoverage != null ? Math.round((currentCoverage - prevCoverage) * 10) / 10 : null;
 
     const addBatchRow = () => {
         if (batchQueries.length < 10) setBatchQueries(prev => [...prev, '']);
@@ -310,6 +458,29 @@ export default function PromptIntelPage({ user }) {
             <div className="mt-8 space-y-5">
                 {intelligence && <IntelligencePanel intelligence={intelligence} />}
 
+                <div className="bg-[#0B0B0B] border border-[#E92A15]/25 rounded-2xl p-6">
+                    <p className="text-[#555] text-[10px] font-bold uppercase tracking-[0.14em] mb-2">Prompt coverage (your brand)</p>
+                    <div className="flex flex-wrap items-end gap-6">
+                        <div>
+                            <p className={`text-[42px] font-bold leading-none ${currentCoverage != null ? 'text-white' : 'text-[#444]'}`}>
+                                {currentCoverage != null ? `${Math.round(currentCoverage)}%` : '—'}
+                            </p>
+                            <p className="text-[#666] text-[12px] mt-2 max-w-md">
+                                Share of matrix prompts where your brand appeared in the latest scan. Run additional scans to compare over time.
+                            </p>
+                        </div>
+                        {coverageDelta != null && (
+                            <div className="flex items-center gap-2 rounded-xl border border-[#2a2a2a] bg-[#111] px-4 py-3">
+                                <span className="text-[#888] text-[11px] uppercase font-semibold tracking-wider">vs prior scan</span>
+                                <span className={`text-[20px] font-bold tabular-nums ${coverageDelta >= 0 ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
+                                    {coverageDelta >= 0 ? '+' : ''}
+                                    {coverageDelta}%
+                                </span>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                     <div className="bg-[#0B0B0B] border border-[#1e1e1e] rounded-2xl p-5">
                         <p className="text-[#555] text-[10px] font-bold uppercase tracking-[0.14em] mb-3">BRAND VISIBILITY</p>
@@ -327,59 +498,106 @@ export default function PromptIntelPage({ user }) {
                     </div>
                 </div>
 
-                <div className="relative">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#555]" />
-                    <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search prompts..." className="w-full pl-11 pr-4 py-3 bg-[#0B0B0B] border border-[#222] rounded-xl text-[#eee] text-[13px] placeholder:text-[#555] focus:outline-none focus:border-[#E92A15]/50 transition-colors" />
-                </div>
-
-                <div className="grid grid-cols-12 gap-4 px-6 py-3 text-[10px] font-bold text-[#555] uppercase tracking-wider bg-[#0f0f0f] rounded-xl border border-[#1a1a1a]">
-                    <div className="col-span-1">#</div>
-                    <div className="col-span-4">Prompt</div>
-                    <div className="col-span-2 text-center">Engines</div>
-                    <div className="col-span-2 text-center">Visibility</div>
-                    <div className="col-span-2 text-center">Sources</div>
-                    <div className="col-span-1 text-right">Expand</div>
-                </div>
-
-                <div className="space-y-0">
-                    {hasData ? filteredPrompts.map((p, idx) => {
-                        const isExpanded = expandedPrompt === (p.promptId || `custom_${idx}`);
-                        const engines = p.engines || {};
-                        const mentionedEngines = ENGINE_ORDER.filter(eng => engines[eng]?.mentioned).length;
-                        const visLabel = mentionedEngines >= 2 ? 'High' : mentionedEngines === 1 ? 'Partial' : 'None';
-                        const visColor = mentionedEngines >= 2 ? 'text-[#22c55e] bg-[#22c55e]/10 border-[#22c55e]/30' : mentionedEngines === 1 ? 'text-[#f59e0b] bg-[#f59e0b]/10 border-[#f59e0b]/30' : 'text-[#888] bg-[#222]/30 border-[#333]';
-                        const sourceCount = ENGINE_ORDER.reduce((s, eng) => s + (engines[eng]?.citations?.length || engines[eng]?.citationCount || 0), 0);
-                        const promptKey = p.promptId || `custom_${idx}`;
-
-                        return (
-                            <React.Fragment key={promptKey}>
-                                <button onClick={() => setExpandedPrompt(isExpanded ? null : promptKey)} className={`w-full grid grid-cols-12 gap-4 px-6 py-4 items-center text-left transition-colors ${isExpanded ? 'bg-[#0A0A0A] border border-[#E92A15]/30 rounded-t-2xl mt-2' : 'bg-[#0e0e0e] border border-[#1a1a1a] hover:bg-[#141414] hover:border-[#333]'}`}>
-                                    <div className="col-span-1">
-                                        <span className="text-[#555] text-[12px] font-mono">
-                                            {p.isCustom ? <span className="text-[#E92A15]">C</span> : (p.promptId || `P${String(idx + 1).padStart(2, '0')}`)}
-                                        </span>
-                                    </div>
-                                    <div className="col-span-4 pr-2"><p className="text-[#ddd] text-[13px] font-medium leading-snug line-clamp-2">{p.query}</p></div>
-                                    <div className="col-span-2 flex justify-center items-center gap-1.5">
-                                        {ENGINE_ORDER.map(eng => {
-                                            const eData = engines[eng];
-                                            const meta = ENGINE_META[eng];
-                                            const Icon = meta.icon;
-                                            const ok = eData?.status?.includes('✓');
-                                            return <div key={eng} className={`w-7 h-7 rounded-lg flex items-center justify-center border ${ok ? 'border-[#22c55e]/40 bg-[#22c55e]/5' : 'border-[#333] bg-[#1a1a1a]'}`} style={{ color: ok ? meta.color : '#555' }} title={`${meta.label}: ${ok ? 'Responded' : 'No response'}`}><Icon /></div>;
-                                        })}
-                                    </div>
-                                    <div className="col-span-2 flex justify-center"><span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${visColor}`}>{visLabel}</span></div>
-                                    <div className="col-span-2 flex justify-center"><span className="flex items-center gap-1 text-[#aaa] text-[12px]"><Link2 className="w-3 h-3" /> {sourceCount}</span></div>
-                                    <div className="col-span-1 flex justify-end"><ChevronDown className={`w-4 h-4 text-[#888] transition-transform ${isExpanded ? 'rotate-180' : ''}`} /></div>
-                                </button>
-                                {isExpanded && <ExpandedPromptDetail prompt={p} />}
-                            </React.Fragment>
-                        );
-                    }) : (
-                        <div className="flex flex-col items-center py-12">
-                            <Activity className="w-8 h-8 text-[#333] mb-3" />
-                            <p className="text-[#555] text-[13px]">Run a scan from AI Visibility to see per-prompt analysis across Perplexity, Gemini & ChatGPT</p>
+                <div className="bg-black border border-[#262626] rounded-2xl overflow-hidden">
+                    <div className="px-5 py-4 border-b border-[#262626] bg-[#0a0a0a]">
+                        <h3 className="text-white font-semibold text-[14px] tracking-tight">Prompt matrix</h3>
+                        <p className="text-[#666] text-[11px] mt-1">
+                            {allPrompts.length} prompt{allPrompts.length !== 1 ? 's' : ''}
+                            {customPrompts.length > 0 ? ` · ${customPrompts.length} custom` : ''}. Expand a row to read the full prompt, engine responses, and citations.
+                        </p>
+                    </div>
+                    {!hasData ? (
+                        <div className="px-5 py-12 text-center text-[#555] text-[13px]">Run a visibility scan to populate prompts and engine responses.</div>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-[12px] border-collapse">
+                                <thead>
+                                    <tr className="bg-[#141414] border-b border-[#262626]">
+                                        <th className="py-3 pl-4 pr-2 text-[10px] font-semibold text-[#737373] uppercase tracking-wider w-14">#</th>
+                                        <th className="py-3 px-3 text-[10px] font-semibold text-[#737373] uppercase tracking-wider">Prompt</th>
+                                        <th className="py-3 px-2 text-[10px] font-semibold text-[#737373] uppercase tracking-wider text-center whitespace-nowrap">
+                                            Engines
+                                        </th>
+                                        <th className="py-3 px-2 text-[10px] font-semibold text-[#737373] uppercase tracking-wider text-center whitespace-nowrap">
+                                            Visibility
+                                        </th>
+                                        <th className="py-3 px-2 text-[10px] font-semibold text-[#737373] uppercase tracking-wider text-center whitespace-nowrap">
+                                            Sources
+                                        </th>
+                                        <th className="py-3 pr-4 pl-2 text-[10px] font-semibold text-[#737373] uppercase tracking-wider text-center w-16">
+                                            Expand
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {allPrompts.map((p, i) => {
+                                        const rowKey = p.promptId || `${i}-${(p.query || '').slice(0, 24)}`;
+                                        const open = expandedPromptKey === rowKey;
+                                        const displayId = promptDisplayId(i);
+                                        const qtext = p.query || p.prompt || '—';
+                                        return (
+                                            <React.Fragment key={rowKey}>
+                                                <tr className="border-b border-[#1f1f1f] hover:bg-[#0a0a0a] transition-colors">
+                                                    <td className="py-3 pl-4 pr-2 align-middle text-[11px] font-mono text-[#737373]">
+                                                        {displayId}
+                                                    </td>
+                                                    <td className="py-3 px-3 align-middle max-w-[min(520px,52vw)]">
+                                                        <p className="text-[13px] text-[#e5e5e5] truncate" title={qtext}>
+                                                            {qtext}
+                                                        </p>
+                                                    </td>
+                                                    <td className="py-3 px-2 align-middle">
+                                                        <div className="flex items-center justify-center gap-1">
+                                                            {ENGINE_ORDER.map((ek) => (
+                                                                <EngineIconBadge
+                                                                    key={ek}
+                                                                    engineKey={ek}
+                                                                    active={!!p.engines?.[ek]?.mentioned}
+                                                                />
+                                                            ))}
+                                                        </div>
+                                                    </td>
+                                                    <td className="py-3 px-2 align-middle text-center">
+                                                        <VisibilityBadge tier={visibilityTier(p)} />
+                                                    </td>
+                                                    <td className="py-3 px-2 align-middle text-center">
+                                                        <span className="inline-flex items-center gap-1 text-[13px] text-white font-medium tabular-nums">
+                                                            <Link2 className="w-3.5 h-3.5 text-[#a3a3a3]" />
+                                                            {totalCitationsPrompt(p)}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-3 pr-4 pl-2 align-middle text-center">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setExpandedPromptKey(open ? null : rowKey)}
+                                                            className="p-2 rounded-lg text-[#737373] hover:text-white hover:bg-[#1a1a1a] transition-colors inline-flex"
+                                                            aria-expanded={open}
+                                                            aria-label={open ? 'Collapse' : 'Expand'}
+                                                        >
+                                                            {open ? (
+                                                                <ChevronUp className="w-4 h-4" />
+                                                            ) : (
+                                                                <ChevronDown className="w-4 h-4" />
+                                                            )}
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                                {open && (
+                                                    <tr className="bg-[#030303]">
+                                                        <td colSpan={6} className="p-0">
+                                                            <ExpandedPromptBronze
+                                                                prompt={p}
+                                                                displayId={displayId}
+                                                                onCollapse={() => setExpandedPromptKey(null)}
+                                                            />
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </React.Fragment>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
                         </div>
                     )}
                 </div>

@@ -2,16 +2,21 @@ import React, { useState, useEffect } from 'react';
 import { 
     UserCircle, Globe, Linkedin, Instagram, BookOpen, MessageCircle,
     Plus, CheckCircle, AlertCircle, Sparkles, PenTool, ChevronRight,
-    Save, Loader2, Box, Building2, MapPin, Users, Target, RefreshCw, BarChart3, Link2
+    Save, Loader2, Box, Building2, MapPin, Users, Target, RefreshCw, BarChart3, Link2,
+    Twitter, Youtube, MessageSquareQuote, Music2,
 } from 'lucide-react';
 import { apiClient } from '../../api/apiClient.js';
 import { getDashboardUser, setDashboardUser, getBrandHubData, setBrandHubData } from '@/pages/Dashboard';
 
 const socialPlatforms = [
     { id: 'linkedin', name: 'LinkedIn', icon: Linkedin, placeholder: 'linkedin.com/in/yourprofile', color: 'text-[#888]' },
+    { id: 'twitter', name: 'X (Twitter)', icon: Twitter, placeholder: '@yourbrand or x.com/yourbrand', color: 'text-[#888]' },
+    { id: 'youtube', name: 'YouTube', icon: Youtube, placeholder: 'youtube.com/@yourchannel', color: 'text-[#888]' },
     { id: 'instagram', name: 'Instagram', icon: Instagram, placeholder: '@yourhandle', color: 'text-[#888]' },
+    { id: 'quora', name: 'Quora', icon: MessageSquareQuote, placeholder: 'quora.com/profile/yourprofile', color: 'text-[#888]' },
     { id: 'substack', name: 'Substack', icon: BookOpen, placeholder: 'yourname.substack.com', color: 'text-[#888]' },
     { id: 'reddit', name: 'Reddit', icon: MessageCircle, placeholder: 'u/yourprofile', color: 'text-[#888]' },
+    { id: 'tiktok', name: 'TikTok', icon: Music2, placeholder: '@yourhandle', color: 'text-[#888]' },
 ];
 
 const styleTraits = [
@@ -36,13 +41,20 @@ export default function BrandHubPage({ user: userProp, authUserId }) {
         social_instagram: '',
         social_substack: '',
         social_reddit: '',
+        social_twitter: '',
+        social_youtube: '',
+        social_quora: '',
+        social_tiktok: '',
     });
     const [saving, setSaving] = useState(false);
     const [styleAnalyzed, setStyleAnalyzed] = useState(false);
+    const [socialSnapshot, setSocialSnapshot] = useState(null);
+    const [ingestLoading, setIngestLoading] = useState(false);
+    const [ingestError, setIngestError] = useState(null);
 
     useEffect(() => {
         loadUser();
-    }, [authUserId, userProp?.projectId, userProp?.domain, userProp?.brandName]);
+    }, [authUserId, userProp?.projectId, userProp?.domain, userProp?.brandName, userProp?.socialIngestSnapshot]);
 
     const loadUser = () => {
         const projectId = userProp?.projectId;
@@ -64,11 +76,22 @@ export default function BrandHubPage({ user: userProp, authUserId }) {
             social_instagram: merged?.social_instagram || prev.social_instagram || '',
             social_substack: merged?.social_substack || prev.social_substack || '',
             social_reddit: merged?.social_reddit || prev.social_reddit || '',
+            social_twitter: merged?.social_twitter || prev.social_twitter || '',
+            social_youtube: merged?.social_youtube || prev.social_youtube || '',
+            social_quora: merged?.social_quora || prev.social_quora || '',
+            social_tiktok: merged?.social_tiktok || prev.social_tiktok || '',
             role_type: merged?.role_type || prev.role_type || 'founder',
         }));
-        if (merged?.social_linkedin || merged?.social_instagram) {
-            setStyleAnalyzed(true);
-        }
+        const anySocial =
+            merged?.social_linkedin ||
+            merged?.social_instagram ||
+            merged?.social_substack ||
+            merged?.social_reddit ||
+            merged?.social_twitter ||
+            merged?.social_youtube ||
+            merged?.social_quora ||
+            merged?.social_tiktok;
+        if (anySocial) setStyleAnalyzed(true);
     };
 
     const handleSave = async () => {
@@ -299,12 +322,25 @@ export default function BrandHubPage({ user: userProp, authUserId }) {
 
                 {/* Social Accounts */}
                 <div className="bg-[#0B0B0B] border border-[#222] rounded-2xl p-7">
-                    <div className="mb-6">
-                        <h3 className="text-white font-semibold text-[18px]">Connected Accounts</h3>
-                        <p className="text-[#666] text-[13px] mt-1">We analyze your content to learn your writing style</p>
+                    <div className="mb-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                        <div>
+                            <h3 className="text-white font-semibold text-[18px]">Connected Accounts</h3>
+                            <p className="text-[#666] text-[13px] mt-1">Save your links, then sync — we pull public posts where APIs allow (YouTube, Substack, Reddit).</p>
+                        </div>
+                        {userProp?.projectId != null && (
+                            <button
+                                type="button"
+                                onClick={handleSyncSocial}
+                                disabled={ingestLoading}
+                                className="shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-full text-[13px] font-medium bg-[#1A1A1A] border border-[#333] text-white hover:border-[#E92A15]/50 hover:bg-[#222] disabled:opacity-50 transition-all"
+                            >
+                                {ingestLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                                Sync social data
+                            </button>
+                        )}
                     </div>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                         {socialPlatforms.map((platform) => (
                             <div key={platform.id} className="flex items-center gap-4 p-4 bg-[#111] border border-[#222] rounded-2xl group transition-all hover:bg-[#1A1A1A] hover:border-[#333]">
                                 <div className="w-12 h-12 bg-[#1A1A1A] border border-[#333] rounded-[14px] flex items-center justify-center shrink-0 transition-colors group-hover:border-[#555]">
@@ -330,9 +366,63 @@ export default function BrandHubPage({ user: userProp, authUserId }) {
                         ))}
                     </div>
 
+                    {ingestError && (
+                        <p className="text-red-400 text-[12px] mt-3">{ingestError}</p>
+                    )}
+
+                    {socialSnapshot?.fetchedAt && (
+                        <div className="mt-6 border border-[#2a2a2a] rounded-2xl bg-[#111] p-4 space-y-4">
+                            <div className="flex items-center justify-between gap-2">
+                                <p className="text-white text-[13px] font-semibold">Live pull results</p>
+                                <span className="text-[#666] text-[10px]">
+                                    Last sync: {new Date(socialSnapshot.fetchedAt).toLocaleString()}
+                                </span>
+                            </div>
+                            {Object.entries(socialSnapshot.platforms || {}).map(([key, block]) => (
+                                <div key={key} className="border-t border-[#222] pt-3 first:border-t-0 first:pt-0">
+                                    <p className="text-[#E92A15] text-[11px] font-bold uppercase tracking-wider mb-2">{key}</p>
+                                    {block?.channelTitle && (
+                                        <p className="text-[#aaa] text-[12px] mb-1">Channel: {block.channelTitle}</p>
+                                    )}
+                                    {block?.feedUrl && (
+                                        <p className="text-[#666] text-[11px] mb-1 truncate" title={block.feedUrl}>{block.feedUrl}</p>
+                                    )}
+                                    {block?.needsOAuth && (
+                                        <p className="text-[#eab308] text-[12px] leading-snug">{block.message}</p>
+                                    )}
+                                    {block?.needsConfig && (
+                                        <p className="text-amber-400/90 text-[12px] leading-snug">{block.message}</p>
+                                    )}
+                                    {block?.message && !block?.needsOAuth && !block?.needsConfig && block?.ok === false && (
+                                        <p className="text-[#888] text-[12px]">{block.message}</p>
+                                    )}
+                                    {Array.isArray(block?.items) && block.items.length > 0 && (
+                                        <ul className="mt-2 space-y-1.5 max-h-[200px] overflow-y-auto custom-scrollbar pr-1">
+                                            {block.items.map((it, idx) => (
+                                                <li key={idx} className="text-[12px] text-[#ccc] leading-snug">
+                                                    {it.url ? (
+                                                        <a href={it.url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
+                                                            {it.title || it.url}
+                                                        </a>
+                                                    ) : (
+                                                        <span>{it.title}</span>
+                                                    )}
+                                                    {it.pubDate && <span className="text-[#555] text-[10px] ml-1">({it.pubDate})</span>}
+                                                    {it.subreddit && <span className="text-[#555] text-[10px] ml-1">r/{it.subreddit}</span>}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
                     <div className="flex items-start gap-3 p-4 mt-6 border border-[#E92A15]/20 bg-[#E92A15]/5 rounded-xl">
                         <AlertCircle className="w-4 h-4 text-[#E92A15] shrink-0 mt-0.5" />
-                        <span className="text-[#aaa] text-[13px] leading-relaxed">Connect at least one account to enable writing-style analysis.</span>
+                        <span className="text-[#aaa] text-[13px] leading-relaxed">
+                            Save your profile after editing links, then use <strong className="text-[#ccc] font-semibold">Sync social data</strong>. YouTube needs <code className="text-[#888] text-[11px]">YOUTUBE_API_KEY</code> on the server. LinkedIn, X, Instagram, TikTok, and Quora need OAuth or partner APIs for real post data — we show clear status for those.
+                        </span>
                     </div>
                 </div>
 
@@ -341,14 +431,21 @@ export default function BrandHubPage({ user: userProp, authUserId }) {
                     <div className="flex items-center justify-between mb-8">
                         <div>
                             <h3 className="text-white font-semibold text-[18px]">Your Writing Style Signature</h3>
-                            <p className="text-[#666] text-[13px] mt-1">AI-analyzed from your connected accounts and content</p>
+                            <p className="text-[#666] text-[13px] mt-1">Placeholders until we run LLM on synced posts; use Sync above for real titles and links.</p>
                         </div>
-                        <button disabled className="px-6 py-2 border border-[#333] text-[#666] flex items-center gap-2 rounded-full text-[13px] font-medium transition-all opacity-50 cursor-not-allowed">
-                            <RefreshCw className="w-3.5 h-3.5" /> Analyze
+                        <button
+                            type="button"
+                            onClick={handleSyncSocial}
+                            disabled={ingestLoading || userProp?.projectId == null}
+                            className="px-6 py-2 border border-[#333] text-[#ccc] hover:border-[#E92A15]/40 flex items-center gap-2 rounded-full text-[13px] font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                            {ingestLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                            Sync for style context
                         </button>
                     </div>
 
-                    {styleAnalyzed && (profileData.social_linkedin || profileData.social_instagram) ? (
+                    {styleAnalyzed &&
+                    socialPlatforms.some((p) => String(profileData[`social_${p.id}`] || '').trim()) ? (
                         <div className="grid grid-cols-2 gap-4">
                             {styleTraits.map((trait, i) => (
                                 <div key={i} className="flex items-center justify-between p-5 bg-[#111] border border-[#222] rounded-2xl">

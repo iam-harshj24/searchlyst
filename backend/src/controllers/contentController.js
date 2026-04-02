@@ -112,7 +112,16 @@ export async function generateArticle(req, res) {
 export async function suggestTopics(req, res) {
     try {
         const { brandName, industry, location, domain, context } = req.body;
-        
+
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const todayLong = now.toLocaleDateString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+        });
+
         const model = getModel();
         const prompt = `ROLE: You are an expert SEO content strategist.
 TASK: Suggest 8 high-performing content topics for a company.
@@ -121,6 +130,8 @@ CONTEXT:
 - Domain: ${domain || 'Unknown'}
 - Industry: ${industry || 'General'}
 - Location: ${location || 'Dubai'}
+- Today's date: ${todayLong}
+- Current calendar year: ${currentYear} (use this year in titles like "… in ${currentYear}" or "… ${currentYear} guide" — do not use outdated years such as two or three years ago unless the topic is explicitly historical)
 ${context ? `- Additional Context: ${context}` : ''}
 
 REQUIREMENTS:
@@ -128,8 +139,8 @@ Return EXACTLY 8 topics as a JSON array of strings. Do not include any other tex
 Make them relevant to the core offerings and highly clickable.
 Combine a mix of "How-to", "Guides", and "Why..." formats.
 
-Example:
-["Top real estate developers in Dubai 2026", "Buying a family villa in Dubai — where to start"]`;
+Example (illustrative only — adapt to the brand's industry and location):
+["Top ${industry || 'service'} options in ${location || 'your market'} (${currentYear})", "Buying guide — where to start in ${currentYear}"]`;
 
         const result = await model.generateContent(prompt);
         const text = result.response.text().trim();

@@ -59,7 +59,33 @@ Ensure `VITE_API_BASE_URL` is set when building if the API is on a different dom
 
 ---
 
-## Quick Local Verify
+## Run the full product on localhost (one command)
+
+1. **Backend env:** Copy `backend/.env` from `backend/.env.example` (or your existing file). Ensure `DATABASE_URL`, `JWT_SECRET`, and `FRONTEND_URL=http://localhost:5173` (or whatever port Vite prints).
+
+2. **Frontend env:** Copy `.env.local.example` → `.env.local` in the **repo root** so the UI uses the local API:
+   ```bash
+   copy .env.local.example .env.local
+   ```
+   (Use `cp` on macOS/Linux.) This sets `VITE_API_BASE_URL=http://localhost:3000/api`.
+
+3. **Install & migrate (first time):**
+   ```bash
+   npm install
+   cd backend && npm install && npx prisma generate && npx prisma migrate deploy
+   cd ..
+   ```
+
+4. **Start API + Vite together:**
+   ```bash
+   npm run dev:local
+   ```
+
+5. Open **http://localhost:5173** (Vite default). API health: **http://localhost:3000/health**.
+
+---
+
+## Quick Local Verify (two terminals)
 
 ```bash
 # Terminal 1 - Backend

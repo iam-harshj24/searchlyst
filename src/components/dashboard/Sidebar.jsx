@@ -2,10 +2,9 @@ import React, { useState } from 'react';
 import {
     LayoutDashboard, Bot, Eye, BarChart3, Compass, PenTool,
     Activity, UserCircle, TrendingUp, User, LogOut,
-    FileSearch, Globe, Zap, Sun, Moon, Swords, Terminal, Bell, Users,
+    FileSearch, Globe, Swords, Terminal, Bell, Users,
 } from 'lucide-react';
 import ProjectSwitcher from './ProjectSwitcher';
-import { useTheme } from '@/lib/ThemeContext';
 
 const menuSections = [
     {
@@ -43,7 +42,6 @@ const menuSections = [
 
 export default function Sidebar({ activeTab, onTabChange, user, authUser, userRole, projects, activeProject, onProjectSwitch, onAddProject, onLogout, scanActive, auditActive }) {
     const [collapsed, setCollapsed] = useState(false);
-    const { theme, toggleTheme } = useTheme();
 
     return (
         <div className={`${collapsed ? 'w-16' : 'w-60'} shrink-0 bg-[#0B0B0B] border-r border-[#222] h-screen flex flex-col transition-all duration-300`}>
@@ -56,14 +54,6 @@ export default function Sidebar({ activeTab, onTabChange, user, authUser, userRo
                             <span className="bg-[#1e0a0a] text-[#E92A15] text-[10px] uppercase font-bold tracking-[0.1em] px-2 py-0.5 rounded border border-[#bb2525]/20">BETA</span>
                         )}
                     </div>
-                    {!collapsed && (
-                        <button
-                            onClick={toggleTheme}
-                            className="p-1.5 rounded-lg hover:bg-[#222] transition-colors text-[#666] hover:text-white"
-                        >
-                            <Sun className="w-[22px] h-[22px]" />
-                        </button>
-                    )}
                 </div>
             </div>
 
@@ -120,18 +110,6 @@ export default function Sidebar({ activeTab, onTabChange, user, authUser, userRo
                     </div>
                 ))}
             </nav>
-
-            {/* Upgrade Banner */}
-            {!collapsed && (
-                <div className="mx-4 mb-4 p-4 bg-[#110505] border border-[#331111] rounded-2xl cursor-pointer hover:shadow-lg hover:shadow-red-500/10 transition-shadow">
-                    <div className="flex flex-col items-start gap-1">
-                        <div className="flex items-center gap-2 text-[#E92A15] font-semibold text-sm">
-                            <Zap className="w-4 h-4" /> Pro Plan
-                        </div>
-                        <p className="text-[#888] text-[11px] leading-relaxed mt-1">Unlimited content generation & advanced analytics</p>
-                    </div>
-                </div>
-            )}
 
             {/* User */}
             <div className="p-3 border-t border-[#222]">

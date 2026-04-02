@@ -4,12 +4,32 @@
  * Methodology:
  *   1. Visibility Score  = (prompts where brand appeared / total prompts) × 100
  *   2. Share of Voice     = (brand mentions / total mentions across all brands) × 100
- *   3. Position Score     = Σ(1/rank) / total appearances, normalized to 0-100
- *   4. Sentiment Score    = mention-type weighted average, normalized to 0-100
+ *   3. Position Score     = avg(1/rank) on runs with positionRank, / MAX_RECIPROCAL_RANK → 0-100
+ *   4. Sentiment Score    = average of run-level brandEntity sentiment (one vote per engine run where brand appears), same labels as sentiment breakdown, mapped to 0-100
  *   5. AI Presence Index  = Vis×0.30 + SOV×0.30 + Pos×0.20 + Sent×0.20
  */
 
-const SENTIMENT_VALUES = { positive: 1, neutral: 0, negative: -1 };
+/**
+ * Raw weights mapped to 0–100 via ((avg + 1) / 2) * 100.
+ * Used for composite sentiment, SOV rows, and (via getSentimentWeight) per-run competitor sampling.
+ * Neutral is slightly above zero so “no opinion” is not a full penalty.
+ * Missing keys are not neutral — use getSentimentWeight (0) vs getSentimentBucket (neutral for charts).
+ */
+const SENTIMENT_VALUES = { positive: 1, neutral: 0.25, negative: -1 };
+
+/** Rank 1 ⇒ reciprocal 1.0 ⇒ 100 after scaling. */
+const MAX_RECIPROCAL_RANK = 1.0;
+
+function getSentimentWeight(label) {
+    return SENTIMENT_VALUES[label] ?? 0;
+}
+
+/** Breakdown / display only: unknown or missing → neutral bucket. */
+function getSentimentBucket(label) {
+    if (!label || label === 'unknown') return 'neutral';
+    if (label === 'positive' || label === 'neutral' || label === 'negative') return label;
+    return 'neutral';
+}
 
 function humanizeCategory(cat) {
     if (!cat) return '';
@@ -36,7 +56,7 @@ export function computeVisibilityScore(allRunResults, brandName) {
     }
     const sovScore = totalMentionCount > 0 ? (brandMentionCount / totalMentionCount) * 100 : 0;
 
-    // 3. Position Score — weighted 1/rank, normalized to 0-100
+    // 3. Position Score — avg reciprocal rank, scaled by MAX_RECIPROCAL_RANK (rank 1 → 100)
     let positionWeightedSum = 0;
     let positionCount = 0;
     for (const run of allRunResults) {
@@ -45,19 +65,23 @@ export function computeVisibilityScore(allRunResults, brandName) {
             positionCount++;
         }
     }
-    const positionScore = positionCount > 0 ? (positionWeightedSum / positionCount) * 100 : 0;
+    const avgReciprocalRank = positionCount > 0 ? positionWeightedSum / positionCount : 0;
+    const positionScore =
+        positionCount > 0
+            ? Math.min((avgReciprocalRank / MAX_RECIPROCAL_RANK) * 100, 100)
+            : 0;
 
-    // 4. Sentiment Score — map to [-1,+1], normalize to [0,100]
+    // 4. Sentiment Score — one sample per run from brandEntity (same basis as computeSentimentBreakdown + SOV target row)
     let sentimentSum = 0;
     let sentimentCount = 0;
     for (const run of allRunResults) {
         if (run.brandMentioned && run.brandEntity) {
-            sentimentSum += SENTIMENT_VALUES[run.brandEntity.sentiment] ?? 0;
-            sentimentCount++;
+            sentimentSum += getSentimentWeight(run.brandEntity.sentiment);
+            sentimentCount += 1;
         }
     }
     const sentimentRaw = sentimentCount > 0 ? sentimentSum / sentimentCount : 0;
-    const sentimentScore = ((sentimentRaw + 1) / 2) * 100;
+    const sentimentScore = Math.min(100, Math.max(0, ((sentimentRaw + 1) / 2) * 100));
 
     // 5. AI Presence Index (composite)
     const overall = Math.round(
@@ -75,7 +99,7 @@ export function computeVisibilityScore(allRunResults, brandName) {
             visibility: Math.round(visibilityScore),
             shareOfVoice: Math.round(sovScore),
             position: Math.round(positionScore),
-            sentiment: Math.round(sentimentScore),
+            sentiment: Math.round(Math.min(100, Math.max(0, sentimentScore))),
         },
         totalRuns: totalResults,
         uniquePrompts,
@@ -83,85 +107,184 @@ export function computeVisibilityScore(allRunResults, brandName) {
     };
 }
 
-export function computeShareOfVoice(allRunResults, brandName, competitors, brandDomain) {
-    const entityScores = {};
+/** Normalize brand/entity names so "Acme" and "acme" merge for SOV + sentiment. */
+function normEntityKey(name) {
+    return String(name || '').trim().toLowerCase();
+}
 
-    entityScores[brandName] = {
-        name: brandName,
-        domain: (brandDomain || '').replace(/^www\./, ''),
-        mentions: 0,
-        totalPosition: 0,
-        positionCount: 0,
-        sentimentSum: 0,
-        isTarget: true,
+function pickDominantEntityForKey(entities, entityKey) {
+    const matches = (entities || []).filter((e) => normEntityKey(e.name) === entityKey);
+    if (!matches.length) return null;
+    return [...matches].sort(
+        (a, b) => (b.mentions ?? b.mentionCount ?? 1) - (a.mentions ?? a.mentionCount ?? 1),
+    )[0];
+}
+
+export function computeShareOfVoice(allRunResults, brandName, competitors, brandDomain) {
+    const byKey = {};
+    const brandKey = normEntityKey(brandName);
+
+    const touchDisplay = (row, incoming) => {
+        const s = String(incoming || '').trim();
+        if (!s) return;
+        if (!row.displayName || s.length > row.displayName.length) row.displayName = s;
     };
 
-    for (const comp of competitors) {
-        const name = typeof comp === 'string' ? comp : comp.name;
-        const domain = typeof comp === 'string' ? comp : (comp.domain || '');
-        if (name && !entityScores[name]) {
-            entityScores[name] = {
-                name,
-                domain: domain.replace(/^www\./, ''),
+    const ensure = (rawName, defaults = {}) => {
+        const k = normEntityKey(rawName);
+        if (!k) return null;
+        if (!byKey[k]) {
+            byKey[k] = {
+                displayName: String(rawName || '').trim() || k,
+                domain: '',
                 mentions: 0,
                 totalPosition: 0,
                 positionCount: 0,
                 sentimentSum: 0,
                 isTarget: false,
+                ...defaults,
             };
+        } else {
+            if (defaults.domain && !byKey[k].domain) byKey[k].domain = defaults.domain;
+            if (defaults.isTarget) byKey[k].isTarget = true;
         }
+        return byKey[k];
+    };
+
+    ensure(brandName, {
+        domain: (brandDomain || '').replace(/^www\./, ''),
+        isTarget: true,
+    });
+
+    for (const comp of competitors) {
+        const name = typeof comp === 'string' ? comp : comp.name;
+        const domain = typeof comp === 'string' ? comp : (comp.domain || '');
+        if (!name) continue;
+        const row = ensure(name, {
+            domain: domain.replace(/^www\./, ''),
+            isTarget: false,
+        });
+        if (row && domain && !row.domain) row.domain = domain.replace(/^www\./, '');
+        touchDisplay(row, name);
     }
 
     for (const run of allRunResults) {
-        for (const entity of (run.entities || [])) {
-            const name = entity.name;
-            if (!entityScores[name]) {
-                entityScores[name] = {
-                    name,
-                    domain: (entity.domain || '').replace(/^www\./, ''),
-                    mentions: 0,
-                    totalPosition: 0,
-                    positionCount: 0,
-                    sentimentSum: 0,
-                    isTarget: false,
-                };
+        for (const entity of run.entities || []) {
+            const raw = entity.name;
+            if (!raw) continue;
+            const k = normEntityKey(raw);
+            const row = ensure(raw, { isTarget: k === brandKey });
+            if (k === brandKey) row.isTarget = true;
+            touchDisplay(row, raw);
+            if (entity.domain && !row.domain) {
+                row.domain = String(entity.domain).replace(/^www\./, '');
             }
-            if (entity.domain && !entityScores[name].domain) {
-                entityScores[name].domain = entity.domain.replace(/^www\./, '');
-            }
-            const score = entityScores[name];
-            score.mentions += entity.mentions || 1;
+            row.mentions += entity.mentions || 1;
             if (entity.positionRank) {
-                score.totalPosition += entity.positionRank;
-                score.positionCount++;
+                row.totalPosition += entity.positionRank;
+                row.positionCount++;
             }
-            score.sentimentSum += SENTIMENT_VALUES[entity.sentiment] ?? 0;
+            // Competitor sentiment: one vote per run from dominant entity row (see loop below).
         }
     }
 
-    const allScores = Object.values(entityScores).filter(e => e.mentions > 0);
+    const brandRowForSentiment = byKey[brandKey];
+    if (brandRowForSentiment) {
+        let runSentSum = 0;
+        let runSentCount = 0;
+        for (const run of allRunResults) {
+            if (run.brandMentioned && run.brandEntity) {
+                runSentSum += getSentimentWeight(run.brandEntity.sentiment);
+                runSentCount += 1;
+            }
+        }
+        if (runSentCount > 0) {
+            brandRowForSentiment.sentimentSum = runSentSum;
+            brandRowForSentiment.sentimentAvgDenominator = runSentCount;
+        } else {
+            let fs = 0;
+            let fm = 0;
+            for (const run of allRunResults) {
+                for (const entity of run.entities || []) {
+                    if (normEntityKey(entity.name) !== brandKey) continue;
+                    const w = entity.mentions || 1;
+                    fs += getSentimentWeight(entity.sentiment) * w;
+                    fm += w;
+                }
+            }
+            if (fm > 0) {
+                brandRowForSentiment.sentimentSum = fs;
+                brandRowForSentiment.sentimentAvgDenominator = fm;
+            }
+        }
+    }
+
+    // Competitors: one sentiment vote per run (dominant entity row for that key), same mapping as target brand.
+    for (const [k, row] of Object.entries(byKey)) {
+        if (k === brandKey || row.mentions <= 0) continue;
+        let runSentSum = 0;
+        let runSentCount = 0;
+        for (const run of allRunResults) {
+            const entity = pickDominantEntityForKey(run.entities, k);
+            if (!entity) continue;
+            runSentSum += getSentimentWeight(entity.sentiment);
+            runSentCount += 1;
+        }
+        if (runSentCount > 0) {
+            row.sentimentSum = runSentSum;
+            row.sentimentAvgDenominator = runSentCount;
+        }
+    }
+
+    const allScores = Object.values(byKey).filter((e) => e.mentions > 0);
     const totalMentions = allScores.reduce((sum, e) => sum + e.mentions, 0);
 
-    const formatEntity = (e) => ({
-        name: e.name,
-        domain: e.domain || '',
-        sov: totalMentions > 0 ? Math.round((e.mentions / totalMentions) * 1000) / 10 : 0,
-        mentions: e.mentions,
-        avgPosition: e.positionCount > 0
-            ? (Math.round((e.totalPosition / e.positionCount) * 10) / 10).toFixed(1)
-            : '-',
-        sentiment: e.mentions > 0
-            ? Math.round(((e.sentimentSum / e.mentions + 1) / 2) * 100)
-            : 50,
-        change: null,
-    });
+    const formatEntity = (e) => {
+        let sentimentOut = null;
+        if (e.isTarget) {
+            const sentDen = e.sentimentAvgDenominator ?? e.mentions;
+            sentimentOut =
+                sentDen > 0
+                    ? Math.min(100, Math.max(0, Math.round(((e.sentimentSum / sentDen + 1) / 2) * 100)))
+                    : null;
+        } else if (e.sentimentAvgDenominator > 0) {
+            sentimentOut = Math.min(
+                100,
+                Math.max(0, Math.round(((e.sentimentSum / e.sentimentAvgDenominator + 1) / 2) * 100)),
+            );
+        }
+        return {
+            name: e.displayName || brandName,
+            domain: e.domain || '',
+            sov: totalMentions > 0 ? Math.round((e.mentions / totalMentions) * 1000) / 10 : 0,
+            mentions: e.mentions,
+            avgPosition: e.positionCount > 0
+                ? (Math.round((e.totalPosition / e.positionCount) * 10) / 10).toFixed(1)
+                : '-',
+            sentiment: sentimentOut,
+            change: null,
+        };
+    };
 
-    const brandData = entityScores[brandName]
-        ? formatEntity(entityScores[brandName])
-        : { name: brandName, domain: '', sov: 0, mentions: 0, avgPosition: '-', sentiment: 50, change: '0.0%' };
+    const brandRow = byKey[brandKey];
+    const brandData = brandRow
+        ? formatEntity(brandRow)
+        : {
+              name: brandName,
+              domain: '',
+              sov: 0,
+              mentions: 0,
+              avgPosition: '-',
+              sentiment: null,
+              change: '0.0%',
+          };
+
+    if (brandData.sentiment == null && brandData.mentions === 0) {
+        brandData.sentiment = null;
+    }
 
     const compResults = allScores
-        .filter(e => !e.isTarget && e.mentions > 0)
+        .filter((e) => !e.isTarget && e.mentions > 0)
         .map(formatEntity)
         .sort((a, b) => b.sov - a.sov);
 
@@ -241,11 +364,20 @@ export function computeQueryTracking(allRunResults, brandName) {
             ? (positions.reduce((a, b) => a + b, 0) / positions.length).toFixed(1)
             : 'N/A';
 
-        const sentiments = engineList.filter(e => e.sentiment && e.sentiment !== 'n/a');
-        const positiveSentiments = sentiments.filter(s => s.sentiment === 'positive').length;
-        const sentimentScore = sentiments.length > 0
-            ? Math.round((positiveSentiments / sentiments.length) * 100)
-            : null;
+        const withLabel = engineList.filter((e) =>
+            e.sentiment && ['positive', 'neutral', 'negative'].includes(e.sentiment),
+        );
+        const totalL = withLabel.length;
+        let positiveRate = 0;
+        let neutralRate = 0;
+        let negativeRate = 0;
+        let sentimentScore = null;
+        if (totalL > 0) {
+            positiveRate = withLabel.filter((s) => s.sentiment === 'positive').length / totalL;
+            neutralRate = withLabel.filter((s) => s.sentiment === 'neutral').length / totalL;
+            negativeRate = withLabel.filter((s) => s.sentiment === 'negative').length / totalL;
+            sentimentScore = Math.round(positiveRate * 100 + neutralRate * 62.5 + negativeRate * 12);
+        }
 
         const totalCitations = engineList.reduce((sum, e) => sum + e.citations, 0);
 
@@ -254,6 +386,9 @@ export function computeQueryTracking(allRunResults, brandName) {
             mentionedIn: `${mentionedCount}/${totalEngines}`,
             avgPosition,
             sentimentScore,
+            sentimentPositivePct: totalL > 0 ? Math.round(positiveRate * 100) : null,
+            sentimentNeutralPct: totalL > 0 ? Math.round(neutralRate * 100) : null,
+            sentimentNegativePct: totalL > 0 ? Math.round(negativeRate * 100) : null,
             totalCitations,
         };
     });
@@ -378,14 +513,18 @@ export function computeCompetitorGap(allRunResults, brandName, competitors) {
     return gaps;
 }
 
+/**
+ * Counts engine-runs (brandMentioned + brandEntity) into display buckets via getSentimentBucket.
+ * Composite / SOV use getSentimentWeight on the raw label (missing → 0, not neutral’s 0.25).
+ */
 export function computeSentimentBreakdown(allRunResults) {
     const counts = { positive: 0, neutral: 0, negative: 0 };
     let total = 0;
 
     for (const run of allRunResults) {
         if (run.brandMentioned && run.brandEntity) {
-            const sent = run.brandEntity.sentiment || 'neutral';
-            counts[sent] = (counts[sent] || 0) + 1;
+            const bucket = getSentimentBucket(run.brandEntity.sentiment);
+            counts[bucket] += 1;
             total++;
         }
     }
@@ -396,6 +535,11 @@ export function computeSentimentBreakdown(allRunResults) {
             positive: total > 0 ? Math.round((counts.positive / total) * 100) : 0,
             neutral: total > 0 ? Math.round((counts.neutral / total) * 100) : 100,
             negative: total > 0 ? Math.round((counts.negative / total) * 100) : 0,
+            rawCounts: {
+                positive: counts.positive,
+                neutral: counts.neutral,
+                negative: counts.negative,
+            },
         },
         total,
     };

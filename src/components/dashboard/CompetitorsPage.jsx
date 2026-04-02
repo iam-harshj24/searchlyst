@@ -1,9 +1,8 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
-    Users, Plus, Target, Sparkles, ChevronRight, X, Loader2, MapPin, Building2,
-    Globe2, PenTool, Eye, LayoutGrid, Link2,
+    Users, Plus, Target, ChevronRight, X, MapPin, Building2,
+    Globe2, PenTool, Eye, LayoutGrid, Link2, BarChart3, TrendingUp,
 } from 'lucide-react';
-import { apiClient } from '@/api/apiClient';
 
 function getVisibilityData(domain, projectId) {
     try {
@@ -127,185 +126,62 @@ function inferGapsForCompetitorFromPrompts(prompts, selectedLabel) {
     return out;
 }
 
-function directTilesStorageKey(domain) {
-    return `searchlyst_direct_competitor_tiles_${domain || 'default'}`;
+function namesLikelyMatch(a, b) {
+    const norm = (s) => String(s || '').trim().toLowerCase();
+    const na = norm(a);
+    const nb = norm(b);
+    if (!na || !nb) return false;
+    if (na === nb) return true;
+    const root = (x) => x.replace(/\.(com|io|ai|net|co|org)$/i, '');
+    if (root(na) === root(nb)) return true;
+    if (na.includes(nb) || nb.includes(na)) return true;
+    return false;
 }
 
-/** Up to 20 unique brand names: onboarding competitors + manually tracked on this page only. */
-function buildCompetitorsListForPrompt({ onboardingList, extraTracked }) {
-    const out = [];
+/** Pull SOV / industry row / cited URLs for a tracked competitor from the latest scan payload. */
+function buildCompetitorProfile(scanData, selectedLabel) {
+    if (!scanData || !selectedLabel) return null;
+    const sovRows = [scanData.shareOfVoice?.brand, ...(scanData.shareOfVoice?.competitors || [])].filter(Boolean);
+    const sov =
+        sovRows.find(
+            (r) => namesLikelyMatch(r.name, selectedLabel) || namesLikelyMatch(r.domain, selectedLabel),
+        ) || null;
+    const ind =
+        (scanData.industryRanking || []).find(
+            (r) => namesLikelyMatch(r.name, selectedLabel) || namesLikelyMatch(r.domain, selectedLabel),
+        ) || null;
+
+    const citedUrls = [];
+    const domains = new Set();
+    for (const p of scanData.prompts || []) {
+        for (const [, eng] of Object.entries(p.engines || {})) {
+            for (const c of eng.citations || []) {
+                if (!c?.isCompetitor) continue;
+                const dom = normalizeDomain(c.domain || c.url || '');
+                if (!dom) continue;
+                const hit =
+                    namesLikelyMatch(selectedLabel, c.domain) ||
+                    namesLikelyMatch(selectedLabel, dom) ||
+                    namesLikelyMatch(selectedLabel, dom.split('.')[0]);
+                if (!hit) continue;
+                if (c.url) citedUrls.push({ url: c.url, domain: dom, title: c.title || '' });
+                domains.add(dom);
+            }
+        }
+    }
+    const dedupe = [];
     const seen = new Set();
-    const add = (raw) => {
-        const s = (raw || '').trim();
-        if (s.length < 2 || s.length > 80) return;
-        const k = s.toLowerCase();
-        if (seen.has(k)) return;
-        seen.add(k);
-        out.push(s);
+    for (const u of citedUrls) {
+        if (seen.has(u.url)) continue;
+        seen.add(u.url);
+        dedupe.push(u);
+    }
+    return {
+        sov,
+        ind,
+        citedUrls: dedupe.slice(0, 40),
+        sourceDomains: [...domains].sort(),
     };
-    for (const c of onboardingList) add(c.name || c.domain);
-    for (const x of extraTracked) {
-        const name = typeof x === 'string' ? x : x?.name;
-        const domain = typeof x === 'string' ? x : x?.domain;
-        add(name || domain);
-    }
-    return out.slice(0, 20);
-}
-
-function buildDirectCompetitorPrompt(user, competitorsList) {
-    const industry = user?.industry || 'your industry';
-    const brand = user?.brandName || 'your brand';
-    const domain = user?.domain || '—';
-    const targetAudience =
-        [user?.companySize, user?.reach].filter(Boolean).join('; ') ||
-        `Buyers and decision-makers in ${industry}`;
-    const geographicReach =
-        [user?.location, user?.reach].filter(Boolean).join(' · ') || 'Regional / as defined in brand profile';
-
-    // Cap at 20 names to keep prompt well within query limits
-    const capped = competitorsList.slice(0, 20);
-    const listLines = capped.map((name, i) => `${i + 1}. ${name}`).join('\n');
-
-    return `RESPONSE FORMAT (mandatory): End your reply with EXACTLY ONE line containing ONLY a valid JSON array — no markdown fences, no label, nothing else on that line. Each element: {"name":"string","rank":1,"whyDirect":"string","criteriaStrong":["..."],"criteriaPartial":["..."],"meaningfulDifference":"string"}. If none qualify output [].
-
-Task: From the list below, identify TRUE direct competitors to ${brand} (${domain}) in the ${industry} space.
-Target audience: ${targetAudience}
-Geographic reach: ${geographicReach}
-
-Criteria — a brand must match ALL 4 to qualify:
-1. Same industry or sub-category
-2. Same or highly overlapping target audience
-3. Same geographic reach or market scope
-4. Competing for the same buyer decision
-
-Brands to evaluate:
-${listLines}
-
-For each qualifying brand: explain why they qualify, which criteria are strong vs partial, and one meaningful difference vs ${brand}. Rank from most-direct to least-direct. Ignore any brand matching fewer than 3 of the 4 criteria.
-
-Remember: final line = JSON array only.`;
-}
-
-function extractLastJsonArray(text) {
-    let searchEnd = text.length;
-    while (searchEnd > 0) {
-        const idx = text.lastIndexOf('[', searchEnd - 1);
-        if (idx < 0) return null;
-        let depth = 0;
-        for (let i = idx; i < text.length; i++) {
-            const c = text[i];
-            if (c === '[') depth++;
-            else if (c === ']') {
-                depth--;
-                if (depth === 0) {
-                    try {
-                        const parsed = JSON.parse(text.slice(idx, i + 1));
-                        if (Array.isArray(parsed)) return parsed;
-                    } catch { /* try earlier [ */ }
-                    break;
-                }
-            }
-        }
-        searchEnd = idx;
-    }
-    return null;
-}
-
-/** Last ``` / ```json fenced block that parses as a JSON array. */
-function extractJsonArrayFromMarkdownFence(text) {
-    const lower = text.toLowerCase();
-    let searchFrom = text.length;
-    while (searchFrom > 0) {
-        const close = lower.lastIndexOf('```', searchFrom - 1);
-        if (close < 0) return null;
-        const open = lower.lastIndexOf('```', close - 1);
-        if (open < 0) return null;
-        const afterTick = text.slice(open + 3, close);
-        const nl = afterTick.indexOf('\n');
-        const inner = (nl >= 0 ? afterTick.slice(nl + 1) : afterTick).trim();
-        if (inner.startsWith('[')) {
-            try {
-                const parsed = JSON.parse(inner);
-                if (Array.isArray(parsed)) return parsed;
-            } catch { /* continue */ }
-        }
-        searchFrom = open;
-    }
-    return null;
-}
-
-function tryParseCompetitorJsonArray(text) {
-    if (!text?.trim()) return null;
-    const t = text.trim();
-
-    // 1. Try markdown fenced blocks first (Gemini SDK often wraps in ```json ... ```)
-    const fenced = extractJsonArrayFromMarkdownFence(t);
-    if (fenced?.length) return fenced;
-
-    // 2. Scan lines bottom-up for a line that is itself a JSON array
-    const lines = t.split('\n');
-    for (let i = lines.length - 1; i >= 0; i--) {
-        let line = lines[i].trim();
-        if (line.startsWith('```')) line = line.replace(/^```(?:json)?\s*/i, '').trim();
-        if (line.endsWith('```')) line = line.slice(0, -3).trim();
-        if (!line.startsWith('[')) continue;
-        try {
-            const parsed = JSON.parse(line);
-            if (Array.isArray(parsed)) return parsed;
-        } catch { /* continue */ }
-    }
-
-    // 3. Scan for the last [ ... ] block (backward)
-    const fromLastBracket = extractLastJsonArray(t);
-    if (Array.isArray(fromLastBracket) && fromLastBracket.length > 0) return fromLastBracket;
-
-    // 4. Scan for the FIRST [ ... ] block (forward) — Gemini sometimes puts it early
-    const firstIdx = t.indexOf('[');
-    if (firstIdx >= 0) {
-        let depth = 0;
-        for (let i = firstIdx; i < t.length; i++) {
-            const ch = t[i];
-            if (ch === '[') depth++;
-            else if (ch === ']') {
-                depth--;
-                if (depth === 0) {
-                    try {
-                        const parsed = JSON.parse(t.slice(firstIdx, i + 1));
-                        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-                    } catch { /* not valid */ }
-                    break;
-                }
-            }
-        }
-    }
-
-    // 5. Last resort: try parsing the whole trimmed text as JSON array
-    try {
-        const parsed = JSON.parse(t);
-        if (Array.isArray(parsed)) return parsed;
-    } catch { /* not JSON */ }
-
-    return null;
-}
-
-
-
-function parseDirectCompetitorJsonFromEngines(engines) {
-    if (!engines || typeof engines !== 'object') return [];
-
-    for (const row of Object.values(engines)) {
-        const raw = row?.rawText?.trim();
-        if (!raw) continue;
-        const parsed = tryParseCompetitorJsonArray(raw);
-        if (Array.isArray(parsed)) return parsed;
-    }
-
-    const combined = Object.values(engines)
-        .map((row) => row?.rawText?.trim())
-        .filter(Boolean)
-        .join('\n');
-    const merged = tryParseCompetitorJsonArray(combined);
-    return Array.isArray(merged) ? merged : [];
 }
 
 function BrandAvatar({ name }) {
@@ -356,16 +232,6 @@ export default function CompetitorsPage({ user, onTabChange }) {
         }
         return rows;
     }, [onboardingList, extraTracked]);
-
-    const competitorsListForPrompt = useMemo(
-        () => buildCompetitorsListForPrompt({ onboardingList, extraTracked }),
-        [onboardingList, extraTracked],
-    );
-
-    const competitorsForApi = useMemo(
-        () => allTracked.map((c) => ({ name: c.name, domain: c.domain || c.name })),
-        [allTracked],
-    );
 
     /** Topics to cover ahead of competitors: scan gaps + cited competitor URLs (Prompt Intelligence / URLs). */
     const winTopicTiles = useMemo(() => {
@@ -434,72 +300,12 @@ export default function CompetitorsPage({ user, onTabChange }) {
         return tiles.slice(0, 18);
     }, [gaps, scanData, user?.brandName, user?.industry]);
 
-    const [directTiles, setDirectTiles] = useState([]);
-    const [directLoading, setDirectLoading] = useState(false);
-    const [directErr, setDirectErr] = useState(null);
     const [selectedCompetitor, setSelectedCompetitor] = useState(null);
 
-    useEffect(() => {
-        const d = user?.domain;
-        if (!d) return;
-        try {
-            const raw = localStorage.getItem(directTilesStorageKey(d));
-            if (!raw) return;
-            const arr = JSON.parse(raw);
-            if (Array.isArray(arr) && arr.length) setDirectTiles(arr);
-        } catch { /* ignore */ }
-    }, [user?.domain]);
-
-    const runDirectCompetitorPrompt = async () => {
-        if (!competitorsListForPrompt.length) return;
-        const query = buildDirectCompetitorPrompt(user, competitorsListForPrompt);
-        setDirectLoading(true);
-        setDirectErr(null);
-        try {
-            const res = await apiClient.visibility.runCustomPrompt({
-                query,
-                brandName: user?.brandName || '',
-                domain: user?.domain || '',
-                competitors: competitorsForApi,
-                country: '',
-                useGeminiDirect: true,
-            });
-            const engines = res?.prompt?.engines;
-            const hadAnyRaw =
-                engines &&
-                typeof engines === 'object' &&
-                Object.values(engines).some((r) => (r?.rawText || '').trim().length > 0);
-            let rawTiles = parseDirectCompetitorJsonFromEngines(engines);
-            const normalized = rawTiles
-                .filter((t) => t && (t.name || '').trim())
-                .map((t, i) => ({
-                    name: String(t.name || '').trim(),
-                    rank: typeof t.rank === 'number' && !Number.isNaN(t.rank) ? t.rank : i + 1,
-                    whyDirect: String(t.whyDirect || '').trim(),
-                    criteriaStrong: Array.isArray(t.criteriaStrong) ? t.criteriaStrong.map(String) : [],
-                    criteriaPartial: Array.isArray(t.criteriaPartial) ? t.criteriaPartial.map(String) : [],
-                    meaningfulDifference: String(t.meaningfulDifference || '').trim(),
-                }))
-                .sort((a, b) => a.rank - b.rank);
-            setDirectTiles(normalized);
-            try {
-                localStorage.setItem(directTilesStorageKey(user?.domain), JSON.stringify(normalized));
-            } catch { /* ignore */ }
-            if (normalized.length === 0) {
-                setDirectErr(
-                    hadAnyRaw
-                        ? 'No competitor tiles were produced. The models may have returned prose only, an empty list, or JSON the app could not read — open Prompt Intelligence and inspect the raw responses.'
-                        : 'No text came back from the engines. Check your API key and try again.',
-                );
-            } else {
-                setDirectErr(null);
-            }
-        } catch (e) {
-            setDirectErr(e?.message || 'Analysis failed');
-        } finally {
-            setDirectLoading(false);
-        }
-    };
+    const competitorProfile = useMemo(
+        () => (selectedCompetitor ? buildCompetitorProfile(scanData, selectedCompetitor) : null),
+        [scanData, selectedCompetitor],
+    );
 
     const addTracked = (name, domain) => {
         const label = domain || name;
@@ -642,7 +448,7 @@ export default function CompetitorsPage({ user, onTabChange }) {
                     <div className="space-y-2">
                         {allTracked.length === 0 ? (
                             <p className="text-[#555] text-[13px] py-6 text-center">
-                                Add competitors in Brand Hub, or use Track on direct-competitor results after you run the analysis.
+                                Add competitors in Brand Hub or from this page to compare AI visibility.
                             </p>
                         ) : (
                             allTracked.map((c, i) => (
@@ -687,137 +493,112 @@ export default function CompetitorsPage({ user, onTabChange }) {
 
                 {/* Per-competitor gap drill-down */}
                 {selectedCompetitor && (
-                    <div className="bg-[#0B0B0B] border border-[#E92A15]/25 rounded-2xl p-6">
-                        <div className="flex items-center justify-between mb-2">
-                            <h3 className="text-white font-semibold text-[15px] flex items-center gap-2">
-                                <Eye className="w-4 h-4 text-[#E92A15]" /> Where {selectedCompetitor} leads in AI visibility
-                            </h3>
-                            <button type="button" onClick={() => setSelectedCompetitor(null)} className="text-[#555] hover:text-white">
-                                <X className="w-4 h-4" />
-                            </button>
-                        </div>
-                        <p className="text-[#666] text-[12px] mb-4">
-                            Prompt topics where they appear and you don&apos;t — matched by brand name, domain (e.g. puma.com →
-                            Puma), or competitor citations in your scan.
-                        </p>
-                        {competitorGapsForSelected.length === 0 ? (
-                            <p className="text-[#555] text-[13px]">
-                                {!scanData?.prompts?.length && gaps.length === 0
-                                    ? 'Run an AI visibility scan first. Then open a tracked competitor here to see where they lead.'
-                                    : 'No prompts in this scan tie to this competitor under our rules. Try another tracked name, add the brand name you see in AI answers, or run a fresh scan.'}
-                            </p>
-                        ) : (
-                            <div className="space-y-2">
-                                {competitorGapsForSelected.map((gap, i) => (
-                                    <div
-                                        key={`${gap.query || gap.contentTopic || i}-${gap.inferredFromCitations ? 'c' : 'g'}`}
-                                        className="p-3 rounded-xl border border-[#222] bg-[#111]"
-                                    >
-                                        <div className="flex items-start justify-between gap-2 mb-0.5">
-                                            <p className="text-[#eee] text-[13px] font-medium flex-1">{gap.contentTopic || gap.query}</p>
-                                            {gap.inferredFromCitations ? (
-                                                <span className="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-[#888] border border-[#333] rounded px-1.5 py-0.5">
-                                                    Citations
-                                                </span>
-                                            ) : null}
-                                        </div>
-                                        {gap.contentAngle && <p className="text-[#777] text-[11px] mt-1">{gap.contentAngle}</p>}
-                                    </div>
-                                ))}
+                    <div className="space-y-4">
+                        <div className="bg-[#0B0B0B] border border-[#E92A15]/25 rounded-2xl p-6">
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className="text-white font-semibold text-[15px] flex items-center gap-2">
+                                    <BarChart3 className="w-4 h-4 text-[#E92A15]" /> {selectedCompetitor} — scan profile
+                                </h3>
+                                <button type="button" onClick={() => setSelectedCompetitor(null)} className="text-[#555] hover:text-white">
+                                    <X className="w-4 h-4" />
+                                </button>
                             </div>
-                        )}
+                            {!scanData?.prompts?.length && !scanData?.shareOfVoice ? (
+                                <p className="text-[#555] text-[13px]">Run an AI visibility scan to populate competitor metrics, citations, and URLs.</p>
+                            ) : (
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+                                    <div className="rounded-xl border border-[#222] bg-[#111] p-3">
+                                        <p className="text-[9px] text-[#666] uppercase font-bold tracking-wider mb-1">Share of voice</p>
+                                        <p className="text-white text-[20px] font-bold tabular-nums">
+                                            {competitorProfile?.sov?.sov != null ? `${Number(competitorProfile.sov.sov).toFixed(1)}%` : '—'}
+                                        </p>
+                                    </div>
+                                    <div className="rounded-xl border border-[#222] bg-[#111] p-3">
+                                        <p className="text-[9px] text-[#666] uppercase font-bold tracking-wider mb-1">Sentiment index</p>
+                                        <p className="text-white text-[20px] font-bold tabular-nums">
+                                            {competitorProfile?.sov?.sentiment != null ? Math.round(competitorProfile.sov.sentiment) : '—'}
+                                        </p>
+                                    </div>
+                                    <div className="rounded-xl border border-[#222] bg-[#111] p-3">
+                                        <p className="text-[9px] text-[#666] uppercase font-bold tracking-wider mb-1">Prompts hit</p>
+                                        <p className="text-white text-[20px] font-bold tabular-nums">
+                                            {competitorProfile?.ind?.promptsReached ?? '—'}
+                                        </p>
+                                    </div>
+                                    <div className="rounded-xl border border-[#222] bg-[#111] p-3">
+                                        <p className="text-[9px] text-[#666] uppercase font-bold tracking-wider mb-1">Coverage</p>
+                                        <p className="text-white text-[20px] font-bold tabular-nums">
+                                            {competitorProfile?.ind?.promptCoverage != null ? `${Math.round(competitorProfile.ind.promptCoverage)}%` : '—'}
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+                            {competitorProfile?.sourceDomains?.length > 0 && (
+                                <div className="mb-5">
+                                    <p className="text-[10px] font-bold text-[#666] uppercase tracking-wider mb-2">Cited source domains</p>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {competitorProfile.sourceDomains.map((d) => (
+                                            <span key={d} className="text-[11px] px-2 py-1 rounded-lg bg-[#1a1a1a] border border-[#333] text-[#ccc]">
+                                                {d}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            {competitorProfile?.citedUrls?.length > 0 && (
+                                <div className="mb-5">
+                                    <p className="text-[10px] font-bold text-[#666] uppercase tracking-wider mb-2">URLs cited for this competitor</p>
+                                    <ul className="space-y-1.5 max-h-[200px] overflow-y-auto pr-1 text-[12px]">
+                                        {competitorProfile.citedUrls.map((u) => (
+                                            <li key={u.url}>
+                                                <a href={u.url} target="_blank" rel="noreferrer" className="text-blue-400 hover:underline break-all">
+                                                    {u.url}
+                                                </a>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="bg-[#0B0B0B] border border-[#222] rounded-2xl p-6">
+                            <div className="flex items-center justify-between mb-2">
+                                <h3 className="text-white font-semibold text-[15px] flex items-center gap-2">
+                                    <TrendingUp className="w-4 h-4 text-[#E92A15]" /> Where they lead (content gaps)
+                                </h3>
+                            </div>
+                            <p className="text-[#666] text-[12px] mb-4">
+                                Prompts where they appear and you don&apos;t — matched by name, domain, or competitor citations.
+                            </p>
+                            {competitorGapsForSelected.length === 0 ? (
+                                <p className="text-[#555] text-[13px]">
+                                    {!scanData?.prompts?.length && gaps.length === 0
+                                        ? 'Run a scan first to see gap prompts.'
+                                        : 'No gap prompts matched this competitor for this scan.'}
+                                </p>
+                            ) : (
+                                <div className="space-y-2">
+                                    {competitorGapsForSelected.map((gap, i) => (
+                                        <div
+                                            key={`${gap.query || gap.contentTopic || i}-${gap.inferredFromCitations ? 'c' : 'g'}`}
+                                            className="p-3 rounded-xl border border-[#222] bg-[#111]"
+                                        >
+                                            <div className="flex items-start justify-between gap-2 mb-0.5">
+                                                <p className="text-[#eee] text-[13px] font-medium flex-1">{gap.contentTopic || gap.query}</p>
+                                                {gap.inferredFromCitations ? (
+                                                    <span className="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-[#888] border border-[#333] rounded px-1.5 py-0.5">
+                                                        Citations
+                                                    </span>
+                                                ) : null}
+                                            </div>
+                                            {gap.contentAngle && <p className="text-[#777] text-[11px] mt-1">{gap.contentAngle}</p>}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
-
-                {/* Direct competitors — user-defined research prompt via runCustomPrompt */}
-                <div className="bg-[#0B0B0B] border border-[#222] rounded-2xl p-6">
-                    <div className="flex items-center gap-2 mb-1">
-                        <Sparkles className="w-4 h-4 text-[#a78bfa]" />
-                        <h2 className="text-white font-semibold text-[16px]">Direct competitor matches</h2>
-                    </div>
-                    <p className="text-[#666] text-[12px] mb-2">
-                        Runs your four-criteria brief across Perplexity, Gemini &amp; ChatGPT. Only names you already track — from onboarding and competitors added on this page — are sent (up to 20).
-                    </p>
-                    <p className="text-[#555] text-[11px] mb-4">
-                        Names queued: <strong className="text-[#888]">{competitorsListForPrompt.length}</strong>
-                        {competitorsListForPrompt.length === 0
-                            ? ' — add competitors in Brand Hub / onboarding or track names from the tiles above first.'
-                            : ''}
-                    </p>
-                    <button
-                        type="button"
-                        disabled={directLoading || competitorsListForPrompt.length === 0}
-                        onClick={runDirectCompetitorPrompt}
-                        className="flex items-center gap-2 px-4 py-2.5 bg-[#1a1a1a] border border-[#333] text-white text-[12px] font-semibold rounded-xl hover:border-[#E92A15]/50 disabled:opacity-50"
-                    >
-                        {directLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                        {directLoading ? 'Analyzing…' : 'Run direct competitor analysis'}
-                    </button>
-                    {directErr && <p className="text-red-400 text-[12px] mt-3">{directErr}</p>}
-                    {directTiles.length > 0 && (
-                        <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {directTiles.map((row) => (
-                                <div
-                                    key={`${row.rank}-${row.name}`}
-                                    className="rounded-2xl border border-[#1e1e1e] bg-[#111] p-5 flex flex-col gap-3"
-                                >
-                                    <div className="flex items-start justify-between gap-2">
-                                        <div className="flex items-center gap-3 min-w-0">
-                                            <BrandAvatar name={row.name} />
-                                            <div className="min-w-0">
-                                                <p className="text-white text-[15px] font-semibold truncate">{row.name}</p>
-                                                <p className="text-[#E92A15] text-[11px] font-bold uppercase tracking-wide">Rank #{row.rank}</p>
-                                            </div>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => addTracked(row.name, row.name)}
-                                            className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold rounded-lg bg-[#E92A15]/15 text-[#E92A15] border border-[#E92A15]/30 hover:bg-[#E92A15]/25"
-                                        >
-                                            <Plus className="w-3 h-3" /> Track
-                                        </button>
-                                    </div>
-                                    {row.whyDirect ? (
-                                        <div>
-                                            <p className="text-[10px] font-bold uppercase text-[#555] mb-1">Why a direct competitor</p>
-                                            <p className="text-[#bbb] text-[12px] leading-relaxed">{row.whyDirect}</p>
-                                        </div>
-                                    ) : null}
-                                    {(row.criteriaStrong?.length > 0 || row.criteriaPartial?.length > 0) && (
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                            {row.criteriaStrong?.length > 0 && (
-                                                <div className="rounded-xl border border-green-500/20 bg-green-500/5 p-3">
-                                                    <p className="text-[10px] font-bold uppercase text-green-400/90 mb-1.5">Strong match</p>
-                                                    <ul className="text-[11px] text-[#aaa] space-y-1 list-disc list-inside">
-                                                        {row.criteriaStrong.map((s, i) => (
-                                                            <li key={i}>{s}</li>
-                                                        ))}
-                                                    </ul>
-                                                </div>
-                                            )}
-                                            {row.criteriaPartial?.length > 0 && (
-                                                <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">
-                                                    <p className="text-[10px] font-bold uppercase text-amber-400/90 mb-1.5">Partial match</p>
-                                                    <ul className="text-[11px] text-[#aaa] space-y-1 list-disc list-inside">
-                                                        {row.criteriaPartial.map((s, i) => (
-                                                            <li key={i}>{s}</li>
-                                                        ))}
-                                                    </ul>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-                                    {row.meaningfulDifference ? (
-                                        <div className="rounded-xl border border-[#2a2a2a] bg-[#0a0a0a] p-3">
-                                            <p className="text-[10px] font-bold uppercase text-[#666] mb-1">Difference vs your brand</p>
-                                            <p className="text-[#999] text-[11px] leading-relaxed">{row.meaningfulDifference}</p>
-                                        </div>
-                                    ) : null}
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
 
             </div>
         </div>

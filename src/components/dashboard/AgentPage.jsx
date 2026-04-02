@@ -5,7 +5,49 @@ import { Input } from "@/components/ui/input";
 import ReactMarkdown from 'react-markdown';
 import { apiClient } from '@/api/apiClient';
 
-export default function AgentPage({ user }) {
+function buildAnalyticsSnapshot(user, scanResult) {
+    const lines = [];
+    lines.push(
+        `Brand: ${user?.brandName || 'n/a'} | Domain: ${user?.domain || 'n/a'} | Industry: ${user?.industry || 'n/a'} | Market: ${user?.location || 'n/a'}`,
+    );
+    const comps = (user?.competitors || [])
+        .slice(0, 12)
+        .map((c) => (typeof c === 'string' ? c : c?.name || c?.domain))
+        .filter(Boolean);
+    if (comps.length) lines.push(`Tracked competitors: ${comps.join(', ')}`);
+
+    const r = scanResult;
+    if (!r) {
+        lines.push('No AI visibility scan is loaded in this session — suggest running a scan for live scores.');
+        return lines.join('\n');
+    }
+    if (r.score?.overall != null) {
+        lines.push(`AI visibility index (0–10): ${(Number(r.score.overall) / 10).toFixed(1)}`);
+    }
+    if (r.score?.components) {
+        const c = r.score.components;
+        lines.push(
+            `Score components (0–100 scale): visibility ${c.visibility}, share of voice ${c.shareOfVoice}, position ${c.position}, sentiment ${c.sentiment}`,
+        );
+    }
+    if (r.shareOfVoice?.brand) {
+        lines.push(`Your brand SOV (engine raw): ${r.shareOfVoice.brand.sov}`);
+    }
+    const pc = (r.shareOfVoice?.competitors || []).slice(0, 6);
+    if (pc.length) {
+        lines.push(
+            `Competitor SOV snapshot: ${pc.map((x) => `${x.name}: ${x.sov}${x.sentiment != null ? `, sentiment ${Math.round(x.sentiment)}` : ''}`).join('; ')}`,
+        );
+    }
+    const np = r.prompts?.length;
+    if (np) lines.push(`Prompts in latest scan: ${np}`);
+    const ng = (r.competitorGaps || []).length;
+    if (ng) lines.push(`Competitor content-gap topics: ${ng}`);
+    if (r.scannedAt) lines.push(`Scan timestamp: ${r.scannedAt}`);
+    return lines.join('\n');
+}
+
+export default function AgentPage({ user, scanManager }) {
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -45,7 +87,8 @@ export default function AgentPage({ user }) {
                 location: user?.location,
                 competitors: user?.competitors,
             };
-            const reply = await apiClient.agent.chat(chatMessages, brandContext);
+            const analyticsSnapshot = buildAnalyticsSnapshot(user, scanManager?.scanResult);
+            const reply = await apiClient.agent.chat(chatMessages, brandContext, analyticsSnapshot);
             setMessages(prev => [...prev, { role: 'assistant', content: reply || 'I could not generate a response. Please try again.' }]);
         } catch (err) {
             const errorMsg = err.message?.includes('503') || err.message?.includes('not configured')
@@ -97,8 +140,8 @@ export default function AgentPage({ user }) {
                         </h1>
                         <p className="text-[var(--text-secondary)] text-center mb-8">
                             {user?.brandName
-                                ? `I'm your AI assistant for ${user.brandName}. Ask about content, analytics, or audits.`
-                                : 'Ask about your content, analytics, audits, or get writing help.'}
+                                ? `I'm your analytics manager for ${user.brandName}. Ask for visibility, share of voice, citations, prompts, or competitors — I'll use your latest scan when it's available.`
+                                : 'Ask about visibility, citations, competitors, or content — tied to your account when you pick a brand.'}
                         </p>
 
                         {/* Input Area - Centered */}
@@ -108,7 +151,7 @@ export default function AgentPage({ user }) {
                                     value={input}
                                     onChange={(e) => setInput(e.target.value)}
                                     onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                                    placeholder="Ask about content, audits, visibility, or writing help..."
+                                    placeholder="e.g. What is my brand visibility index and how does it compare to competitors?"
                                     className="bg-[var(--surface-hover)] border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] pr-12 h-12 rounded-xl"
                                 />
                                 <Button

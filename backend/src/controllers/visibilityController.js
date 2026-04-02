@@ -179,7 +179,10 @@ function buildOverviewFromPlatforms(platformResults, allRuns, brandName, domain,
             promptMap[key] = { promptId: run.promptId, query: run.query, category: run.category, intent: run.intent, engines: {} };
         }
         
-        const hasResponse = !!(run.rawText && run.rawText.trim().length > 0);
+        const hasResponse = !!(
+            (run.rawText && run.rawText.trim().length > 0)
+            || (Array.isArray(run.citations) && run.citations.length > 0)
+        );
         
         promptMap[key].engines[run.engine] = {
             mentioned: run.brandMentioned,
@@ -279,9 +282,9 @@ function assembleResult(overview, platformResults, intelligence, brandName, doma
 }
 
 /**
- * Two-phase scan execution:
- * Phase 1 — first 10 prompts across 3 engines → save early results (frontend can start rendering)
- * Phase 2 — remaining 10 prompts → merge with Phase 1, run deep analysis, save final results
+ * Scan execution with 3 dedicated parallel pipelines.
+ * Early results fire at ~50% completion so the frontend can start rendering.
+ * Final results saved after all pipelines finish + deep analysis.
  */
 async function executeScan(scanId, brandName, domain, industry, competitors, location, country, language) {
     const expandedCompetitors = (competitors || []).map(c => typeof c === 'string' ? { name: c, domain: c } : c);
@@ -289,7 +292,7 @@ async function executeScan(scanId, brandName, domain, industry, competitors, loc
     try {
         await prisma.visibilityScan.update({
             where: { id: scanId },
-            data: { progress: JSON.stringify({ phase: 'agents_running', detail: '3 parallel agents (Perplexity, Gemini, ChatGPT) querying...', completed: 0, total: 0 }) }
+            data: { progress: JSON.stringify({ phase: 'agents_running', detail: '3 dedicated pipelines: Perplexity(×2) + Gemini(×3) + GoogleAI(×3) racing in parallel', completed: 0, total: 0 }) }
         });
 
         const agentConfig = { brandName, domain, industry, competitors: expandedCompetitors, location, country, language };
@@ -309,7 +312,7 @@ async function executeScan(scanId, brandName, domain, industry, competitors, loc
                     });
                 } catch (_) { /* ignore */ }
             },
-            // Early results callback — fires after Phase 1 (first 10 prompts)
+            // Early results callback — fires at ~50% completion across all 3 pipelines
             async (phase1Runs, allPrompts) => {
                 try {
                     const earlyOverview = buildOverviewFromPlatforms({}, phase1Runs, brandName, domain, industry, expandedCompetitors);
@@ -489,11 +492,49 @@ export async function getLatestScan(req, res) {
     }
 }
 
-/** Score history for the overview chart (dates on X-axis). */
+/** Extract target brand prompt coverage % from stored scan results (for trend / Prompt Intel delta). */
+/** Compact mention counts per brand for historical charts (entities / SOV). */
+function extractMentionLeaders(results, defaultBrandName) {
+    try {
+        const sov = results?.shareOfVoice;
+        if (!sov?.brand && !(sov?.competitors?.length)) return [];
+        const rows = [];
+        if (sov.brand) {
+            rows.push({
+                name: String(sov.brand.name || defaultBrandName || 'Your brand'),
+                mentions: Number(sov.brand.mentions) || 0,
+                isYou: true,
+            });
+        }
+        for (const c of sov.competitors || []) {
+            if (c?.name) {
+                rows.push({
+                    name: String(c.name),
+                    mentions: Number(c.mentions) || 0,
+                    isYou: false,
+                });
+            }
+        }
+        return rows.sort((a, b) => b.mentions - a.mentions).slice(0, 12);
+    } catch {
+        return [];
+    }
+}
+
+function extractTargetPromptCoverage(results, brandName) {
+    const rows = results?.industryRanking;
+    if (!Array.isArray(rows) || !brandName) return null;
+    const target = rows.find(
+        (r) => r?.isTargetBrand === true || (r?.name && String(r.name).toLowerCase() === String(brandName).toLowerCase())
+    );
+    return target?.promptCoverage != null && target?.promptCoverage !== undefined ? Number(target.promptCoverage) : null;
+}
+
+/** Score history for charts (chronological). Returns most recent N scans by default. */
 export async function getScanHistory(req, res) {
     try {
         const userId = req.user.id;
-        const { projectId, domain } = req.query;
+        const { projectId, domain, days, limit: limitRaw } = req.query;
         const where = { userId, status: 'completed' };
         if (projectId) {
             const pid = parseInt(projectId, 10);
@@ -501,23 +542,38 @@ export async function getScanHistory(req, res) {
         }
         if (domain) where.domain = domain;
 
+        const daysNum = parseInt(days, 10);
+        if (!Number.isNaN(daysNum) && daysNum > 0) {
+            const since = new Date(Date.now() - daysNum * 86400000);
+            where.created_at = { gte: since };
+        }
+
+        const limit = Math.min(Math.max(parseInt(limitRaw, 10) || 60, 1), 200);
+
         const scans = await prisma.visibilityScan.findMany({
             where,
-            orderBy: { created_at: 'asc' },
-            take: 30,
+            orderBy: { created_at: 'desc' },
+            take: limit,
         });
 
-        const history = scans.map(s => {
+        const chronological = [...scans].reverse();
+
+        const history = chronological.map((s) => {
             try {
                 const results = typeof s.results === 'string' ? JSON.parse(s.results) : s.results;
+                const overall =
+                    results?.score?.overall ??
+                    (typeof results?.score === 'number' ? results.score : 0);
                 return {
                     id: s.id,
                     date: s.created_at,
-                    score: results?.score?.overall || 0,
+                    score: overall,
                     components: results?.score?.components || {},
+                    promptCoverage: extractTargetPromptCoverage(results, s.brandName || results?.brandName),
+                    mentionLeaders: extractMentionLeaders(results, s.brandName || results?.brandName),
                 };
             } catch {
-                return { id: s.id, date: s.created_at, score: 0, components: {} };
+                return { id: s.id, date: s.created_at, score: 0, components: {}, promptCoverage: null, mentionLeaders: [] };
             }
         });
 
@@ -533,7 +589,7 @@ export async function getScanHistory(req, res) {
  */
 export async function runCustomPrompt(req, res) {
     try {
-        const { query, brandName, domain, competitors, country, useGeminiDirect } = req.body;
+        const { query, brandName, domain, competitors, country, language, useGeminiDirect } = req.body;
         if (!query?.trim()) return res.status(400).json({ success: false, message: 'query is required' });
 
         const expandedCompetitors = (competitors || []).map(c => typeof c === 'string' ? { name: c, domain: c } : c);
@@ -593,10 +649,12 @@ export async function runCustomPrompt(req, res) {
             { key: 'googleAI', fn: queryGoogleAI, label: 'ChatGPT' },
         ];
 
+        const hasData = (raw) => raw && (raw.text || raw.html || (Array.isArray(raw.sources) && raw.sources.length > 0));
+
         const results = await Promise.allSettled(
             engines.map(async ({ key, fn }) => {
-                const raw = await fn(query, country || '');
-                if (raw && (raw.text || raw.html)) {
+                const raw = await fn(query, country || '', language || '');
+                if (hasData(raw)) {
                     const parsed = parseResponse(raw, brandName || '', domain || '', expandedCompetitors, key);
                     return { engine: key, success: true, ...parsed };
                 }
@@ -639,7 +697,7 @@ export async function runCustomPrompt(req, res) {
  */
 export async function runCustomPromptsBatch(req, res) {
     try {
-        const { queries, brandName, domain, competitors, country } = req.body;
+        const { queries, brandName, domain, competitors, country, language } = req.body;
         if (!Array.isArray(queries) || queries.length === 0) {
             return res.status(400).json({ success: false, message: 'queries[] is required and must be non-empty' });
         }
@@ -656,6 +714,7 @@ export async function runCustomPromptsBatch(req, res) {
             { key: 'gemini', fn: queryGemini },
             { key: 'googleAI', fn: queryGoogleAI },
         ];
+        const hasData = (raw) => raw && (raw.text || raw.html || (Array.isArray(raw.sources) && raw.sources.length > 0));
 
         const prompts = [];
         for (const query of queries) {
@@ -665,8 +724,8 @@ export async function runCustomPromptsBatch(req, res) {
             const engineResults = {};
             const settled = await Promise.allSettled(
                 engines.map(async ({ key, fn }) => {
-                    const raw = await fn(q, country || '');
-                    if (raw && (raw.text || raw.html)) {
+                    const raw = await fn(q, country || '', language || '');
+                    if (hasData(raw)) {
                         const parsed = parseResponse(raw, brandName || '', domain || '', expandedCompetitors, key);
                         return { engine: key, success: true, ...parsed };
                     }
@@ -716,6 +775,7 @@ export async function suggestCompetitors(req, res) {
             reach = '',
             competitors = [],
             country = '',
+            language = '',
             citedDomains = [],
         } = req.body || {};
 
@@ -759,7 +819,7 @@ Rules:
         let combinedText = '';
         for (const fn of engines) {
             try {
-                const raw = await fn(prompt, country || '');
+                const raw = await fn(prompt, country || '', language || '');
                 const chunk = plainFromInfatica(raw);
                 if (chunk.length > 80) {
                     combinedText = combinedText ? `${combinedText}\n${chunk}` : chunk;

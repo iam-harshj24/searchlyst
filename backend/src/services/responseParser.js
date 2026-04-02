@@ -95,9 +95,12 @@ function extractAIAnswerFromRenderedPage(html, engine) {
         const parts = [];
 
         if (engine === 'perplexity') {
-            $('[class*="prose"], [class*="answer"], [class*="markdown"], [class*="response"], article, .pb-lg').each((_, el) => {
+            $(
+                'main, [role="main"], article, [class*="prose"], [class*="answer"], [class*="markdown"], '
+                + '[class*="response"], [class*="Message"], [class*="query-text"], [data-testid*="answer"], .pb-lg'
+            ).each((_, el) => {
                 const t = $(el).text().replace(/\s+/g, ' ').trim();
-                if (t.length > 100) parts.push(t);
+                if (t.length > 80) parts.push(t);
             });
         } else if (engine === 'gemini') {
             $('[class*="response"], [class*="answer"], [class*="markdown"], [class*="model-response"], .response-content, main article').each((_, el) => {
@@ -113,7 +116,8 @@ function extractAIAnswerFromRenderedPage(html, engine) {
         }
 
         const merged = parts.join('\n\n').trim();
-        return merged.length > 100 ? merged : '';
+        const minLen = engine === 'perplexity' ? 60 : 100;
+        return merged.length > minLen ? merged : '';
     } catch {
         return '';
     }
