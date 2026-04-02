@@ -208,10 +208,12 @@ export const apiClient = {
       const q = params.toString() ? `?${params}` : '';
       return apiClient.get(`/visibility/latest${q}`);
     },
-    async getScanHistory(projectId, domain) {
+    async getScanHistory(projectId, domain, opts = {}) {
       const params = new URLSearchParams();
       if (projectId) params.set('projectId', projectId);
       if (domain) params.set('domain', domain);
+      if (opts.days != null && opts.days > 0) params.set('days', String(opts.days));
+      if (opts.limit != null) params.set('limit', String(opts.limit));
       const q = params.toString() ? `?${params}` : '';
       return apiClient.get(`/visibility/history${q}`);
     },
@@ -276,6 +278,10 @@ export const apiClient = {
     async update(projectId, data) {
       return apiClient.put(`/projects/${projectId}`, data);
     },
+    /** Fetch public posts from YouTube (API key), Substack (RSS), Reddit (.json); stores snapshot on project */
+    async ingestSocial(projectId) {
+      return apiClient.post(`/projects/${projectId}/social-ingest`, {});
+    },
   },
 
   // Content generation methods
@@ -295,8 +301,8 @@ export const apiClient = {
 
   // AI Assistant / Agent chat
   agent: {
-    async chat(messages, brandContext) {
-      const res = await apiClient.post('/agent/chat', { messages, brandContext });
+    async chat(messages, brandContext, analyticsSnapshot) {
+      const res = await apiClient.post('/agent/chat', { messages, brandContext, analyticsSnapshot });
       return res?.reply ?? '';
     },
   },

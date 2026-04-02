@@ -1,5 +1,6 @@
 import { projectService } from '../services/projectService.js';
 import { prisma } from '../lib/prisma.js';
+import { buildSocialIngestSnapshot } from '../services/socialIngestService.js';
 
 export async function createProject(req, res) {
     try {
@@ -47,7 +48,46 @@ export async function getProjects(req, res) {
             return res.json({ success: true, projects: [] });
         }
         const projects = await projectService.getUserProjects(userId);
-        res.json({ success: true, projects });
+        const projectIds = projects.map((p) => p.id).filter((id) => id != null);
+        let latestByProjectId = new Map();
+        if (projectIds.length > 0) {
+            const scans = await prisma.visibilityScan.findMany({
+                where: {
+                    userId,
+                    status: 'completed',
+                    projectId: { in: projectIds },
+                },
+                orderBy: { created_at: 'desc' },
+                select: { projectId: true, results: true, created_at: true },
+            });
+            for (const s of scans) {
+                if (s.projectId == null || latestByProjectId.has(s.projectId)) continue;
+                latestByProjectId.set(s.projectId, s);
+            }
+        }
+
+        const enriched = projects.map((p) => {
+            const scan = latestByProjectId.get(p.id);
+            let lastVisibilityScore = null;
+            let lastVisibilityScanAt = null;
+            if (scan?.results) {
+                try {
+                    const r = typeof scan.results === 'string' ? JSON.parse(scan.results) : scan.results;
+                    lastVisibilityScore =
+                        r?.score?.overall ?? (typeof r?.score === 'number' ? r.score : null);
+                    lastVisibilityScanAt = scan.created_at;
+                } catch {
+                    /* ignore */
+                }
+            }
+            return {
+                ...p,
+                lastVisibilityScore,
+                lastVisibilityScanAt,
+            };
+        });
+
+        res.json({ success: true, projects: enriched });
     } catch (error) {
         console.error('Get projects error:', error.message);
         res.status(500).json({ success: false, message: 'Failed to fetch projects' });
@@ -58,7 +98,12 @@ export async function updateProject(req, res) {
     try {
         const { id } = req.params;
         const userId = req.user.id;
-        const { role_type, industry, companySize, location, language, reach, target_audience, social_linkedin, social_instagram, social_substack, social_reddit, website_url, domain } = req.body;
+        const {
+            role_type, industry, companySize, location, language, reach, target_audience,
+            social_linkedin, social_instagram, social_substack, social_reddit,
+            social_twitter, social_youtube, social_quora, social_tiktok,
+            website_url, domain,
+        } = req.body;
 
         if (userId === -1) {
             return res.json({ success: true, message: 'Dev mode bypass' });
@@ -85,6 +130,10 @@ export async function updateProject(req, res) {
             social_instagram,
             social_substack,
             social_reddit,
+            social_twitter,
+            social_youtube,
+            social_quora,
+            social_tiktok,
             ...(normalizedDomain ? { domain: normalizedDomain } : {}),
         });
 
@@ -100,6 +149,55 @@ export async function updateProject(req, res) {
     } catch (error) {
         console.error('Update project error:', error);
         res.status(500).json({ success: false, message: 'Failed to update project data' });
+    }
+}
+
+/** Pull public data from saved social_* fields (YouTube API, Substack RSS, Reddit JSON). */
+export async function ingestSocialSnapshot(req, res) {
+    try {
+        const { id } = req.params;
+        const userId = req.user.id;
+        const projectId = parseInt(id, 10);
+        if (Number.isNaN(projectId)) {
+            return res.status(400).json({ success: false, message: 'Invalid project id' });
+        }
+
+        if (userId === -1) {
+            return res.json({
+                success: true,
+                snapshot: {
+                    fetchedAt: new Date().toISOString(),
+                    platforms: {
+                        demo: {
+                            ok: true,
+                            source: 'demo',
+                            message: 'Dev mode: connect a real account to test ingest.',
+                            items: [{ title: 'Example post', url: 'https://example.com' }],
+                        },
+                    },
+                },
+            });
+        }
+
+        const project = await projectService.getProjectById(projectId);
+        if (!project || project.userId !== userId) {
+            return res.status(404).json({ success: false, message: 'Project not found' });
+        }
+
+        const snapshot = await buildSocialIngestSnapshot(project);
+        const updated = await prisma.project.update({
+            where: { id: projectId },
+            data: { socialIngestSnapshot: snapshot, updated_at: new Date() },
+        });
+
+        res.json({
+            success: true,
+            snapshot,
+            project: updated,
+        });
+    } catch (error) {
+        console.error('Social ingest error:', error);
+        res.status(500).json({ success: false, message: error.message || 'Social ingest failed' });
     }
 }
 
@@ -167,7 +265,9 @@ export async function getDashboardMetrics(req, res) {
             if (scan.results) {
                 try {
                     const results = typeof scan.results === 'string' ? JSON.parse(scan.results) : scan.results;
-                    score = results?.score || 0;
+                    score =
+                        results?.score?.overall ??
+                        (typeof results?.score === 'number' ? results.score : null);
                 } catch(e) {}
             }
             return {

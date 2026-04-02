@@ -201,7 +201,7 @@ try {
     const ranking = computeIndustryRanking(mockAllRuns, 'Brand', []);
 
     assert(score.overall !== undefined, 'score.overall');
-    assert(score.components?.mentionProbability !== undefined, 'score.components');
+    assert(score.components?.visibility !== undefined, 'score.components.visibility');
     assert(sov.brand?.sov !== undefined, 'shareOfVoice.brand');
     assert(perEngine.perplexity?.score !== undefined, 'perEngine.perplexity');
     assert(typeof perCategory === 'object', 'perCategory object');

@@ -112,23 +112,29 @@ function parseCompetitorResponse(text, competitorNames, domain) {
 }
 
 // Agent Chat — powered by Gemini
-export async function chatWithAgent({ messages, brandContext }) {
+export async function chatWithAgent({ messages, brandContext, analyticsSnapshot }) {
     const client = getClient();
     const model = client.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
     const { brandName, domain, industry, location, competitors } = brandContext || {};
+    const snapshotBlock =
+        analyticsSnapshot && String(analyticsSnapshot).trim().length > 0
+            ? `\n\n---\nLive analytics for this account (from the product — treat as ground truth; do not invent numbers):\n${String(analyticsSnapshot).trim()}\n---\n`
+            : '';
+
     const contextBlock = (brandName || domain || industry) ? `
-You are an AI assistant for ${brandName || 'the user'}'s content and visibility strategy. You help with:
-- AI search visibility and how to appear in ChatGPT, Perplexity, Gemini responses
-- Content strategy, writing, and optimization
-- Competitor analysis and market trends
-- Website audits and citation gaps
+You are the user's analytics account manager inside Searchlyst. Answer using the brand context and any live analytics below. If a number is in the analytics block, quote it; if something is missing, say you don't have that metric yet and suggest running a scan.
+
+You help with:
+- AI visibility scores, trends, share of voice, citations, and prompts
+- Content strategy and closing citation gaps
+- Competitor positioning using scan data
 
 Brand context: ${brandName || 'N/A'} | ${domain || 'N/A'} | ${industry || 'N/A'}${location ? ` | ${location}` : ''}
-${competitors?.length ? `Competitors: ${competitors.slice(0, 5).map(c => typeof c === 'string' ? c : c.name).join(', ')}` : ''}
-
-Be concise, actionable, and professional. Use markdown for lists and formatting when helpful.
-` : 'You are a helpful AI assistant for content strategy and AI search visibility. Be concise and actionable. Use markdown when helpful.\n';
+${competitors?.length ? `Competitors: ${competitors.slice(0, 12).map(c => typeof c === 'string' ? c : c.name).join(', ')}` : ''}
+${snapshotBlock}
+Be concise, actionable, and professional. Use markdown for lists when helpful.
+` : `You are a helpful AI assistant for content strategy and AI search visibility.${snapshotBlock}\nBe concise and actionable. Use markdown when helpful.\n`;
 
     const history = (messages || []).map(m => {
         const role = m.role === 'user' ? 'User' : 'Assistant';

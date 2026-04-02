@@ -4,10 +4,18 @@ export function getPromptForPlatform({ platform, topic, brandName, industry, dom
     const safeDomain = domain || 'ourwebsite.com';
     const safeIndustry = industry || 'our industry';
     const safeKeywords = keywords ? `\nTarget Keywords: ${keywords}` : '';
-    
+    const currentYear = new Date().getFullYear();
+    const todayLong = new Date().toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+    });
+
     // Universal JSON wrapper added to the end of EVERY prompt
     const JSON_OUTPUT_WRAPPER = `
 ---
+TODAY'S DATE (recency): ${todayLong}. Use ${currentYear} / "this year" for timely framing, stats, and titles unless the piece is explicitly historical — avoid defaulting to old years.
 CRITICAL JSON COMPLIANCE:
 All your generated content (including the post, hooks, formatting, metadata) MUST be delivered inside a strict JSON object. Do not output raw markdown outside of this JSON wrapper.
 
@@ -158,7 +166,7 @@ A: [Direct answer starting with the key information...]
 6. **Include entity references.** Mention known brands, tools, people, and organizations.
 7. **Use structured formatting.** Headers, sub-headers, bold text, bullet points, numbered lists, tables.
 8. **Source attribution style.** Use "(Source: [Organization/Study Name, Year])" format for all statistics and claims.
-9. **Recency signals.** Reference current year (${new Date().getFullYear()}), recent developments, etc.
+9. **Recency signals.** Reference current year (${currentYear}), recent developments, etc.
 
 ---
 

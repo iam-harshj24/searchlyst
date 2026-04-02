@@ -486,7 +486,7 @@ function DashboardInner() {
 
     const renderContent = () => {
         if (activeTab === 'brand-hub') return <BrandHubPage user={contextUser} authUserId={authUser?.id} />;
-        if (activeTab === 'agent') return <AgentPage user={contextUser} />;
+        if (activeTab === 'agent') return <AgentPage user={contextUser} scanManager={scanManager} />;
 
         if (!activeProject) {
             return <EmptyProjectState onAddProject={() => setShowAddProjectOnboarding(true)} />;

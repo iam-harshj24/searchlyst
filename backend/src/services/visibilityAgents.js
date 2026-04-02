@@ -1,12 +1,16 @@
 /**
- * Visibility Agents — Two-Phase Parallel Execution
+ * Visibility Agents — Dedicated parallel pipelines per engine
  *
  * Architecture:
- * - Generate 20 compressed prompts once
- * - Phase 1: First 10 prompts across 3 engines in parallel → emit early results
- * - Phase 2: Remaining 10 prompts in parallel → final results
- * - Larger batch sizes (perplexity=2, gemini=3, googleAI=3) to cut wall-clock time
- * - Target: ~1.5 min per phase, ~3 min total
+ * - 3 independent pipelines: Perplexity, Gemini, GoogleAI
+ * - Each pipeline owns ALL 20 prompts and processes them at its own pace
+ * - Worker-pool concurrency within each pipeline:
+ *     Perplexity : 2 concurrent (slower endpoint)
+ *     Gemini     : 3 concurrent
+ *     GoogleAI   : 3 concurrent
+ * - Total peak concurrency: 2+3+3 = 8 simultaneous Infatica calls
+ * - No prompt blocks another engine — if Perplexity is slow, Gemini races ahead
+ * - Early results fire at 50% completion across all pipelines
  */
 
 import { queryPerplexity, queryGemini, queryGoogleAI } from './infaticaService.js';
@@ -24,106 +28,139 @@ import {
 
 const ENGINES = ['perplexity', 'gemini', 'googleAI'];
 const PLATFORM_NAMES = { perplexity: 'Perplexity', gemini: 'Gemini', googleAI: 'ChatGPT' };
-const BATCH_SIZES = { perplexity: 2, gemini: 3, googleAI: 3 };
-const PHASE1_SIZE = 10;
+
+const PIPELINE_CONCURRENCY = { perplexity: 2, gemini: 3, googleAI: 3 };
+
+const HARD_TIMEOUT_MS = Math.max(
+    60_000,
+    Number(process.env.VISIBILITY_ENGINE_HARD_TIMEOUT_MS) || 100_000,
+);
+
+function sleep(ms) {
+    return ms > 0 ? new Promise(r => setTimeout(r, ms)) : Promise.resolve();
+}
+
+function withHardTimeout(promise, ms, label) {
+    let timer;
+    const deadline = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label}: hard timeout ${ms / 1000}s`)), ms);
+    });
+    return Promise.race([promise, deadline]).finally(() => clearTimeout(timer));
+}
 
 function queryFn(engine) {
-    switch (engine) {
-        case 'perplexity': return queryPerplexity;
-        case 'gemini':     return queryGemini;
-        case 'googleAI':   return queryGoogleAI;
+    if (engine === 'perplexity') return queryPerplexity;
+    if (engine === 'gemini') return queryGemini;
+    if (engine === 'googleAI') return queryGoogleAI;
+    return queryGemini;
+}
+
+function emptyRun(engine, prompt) {
+    return {
+        promptId: prompt.id,
+        query: prompt.core,
+        engine,
+        promptWeight: prompt.weight ?? 1.0,
+        category: prompt.category,
+        intent: prompt.intent,
+        strategicValue: prompt.strategicValue ?? 10,
+        includesBrand: prompt.includesBrand ?? false,
+        brandMentioned: false,
+        brandEntity: null,
+        entities: [],
+        citations: [],
+        citationStats: { total: 0, byCategory: {}, brandCited: false, competitorsCited: [] },
+        textLength: 0,
+        rawText: null,
+    };
+}
+
+/**
+ * Single engine × single prompt. Never throws — returns { run, success }.
+ */
+async function callOne(engine, prompt, brandName, domain, competitors, country, language, tag) {
+    const fn = queryFn(engine);
+    const t0 = Date.now();
+    try {
+        const infResult = await withHardTimeout(
+            fn(prompt.core, country, language),
+            HARD_TIMEOUT_MS,
+            `${tag}[${engine}]`,
+        );
+        const elapsed = Date.now() - t0;
+        const hasContent = infResult && (infResult.text || infResult.html);
+        const hasSources = infResult && Array.isArray(infResult.sources) && infResult.sources.length > 0;
+
+        if (!hasContent && !hasSources) {
+            console.warn(`[${engine}] ${tag} empty ${elapsed}ms`);
+            const run = emptyRun(engine, prompt);
+            run._errorReason = 'empty_response';
+            return { run, success: false };
+        }
+
+        const parsed = parseResponse(infResult, brandName, domain, competitors, engine);
+        const gotData = (parsed.textLength > 0) || (parsed.citations?.length > 0);
+        console.log(`[${engine}] ${tag} ✓ ${elapsed}ms text=${parsed.textLength} cit=${parsed.citations?.length || 0}`);
+        return {
+            run: {
+                promptId: prompt.id, query: prompt.core, engine,
+                promptWeight: prompt.weight ?? 1.0, category: prompt.category,
+                intent: prompt.intent, strategicValue: prompt.strategicValue ?? 10,
+                includesBrand: prompt.includesBrand ?? false,
+                ...parsed,
+            },
+            success: gotData,
+        };
+    } catch (err) {
+        const elapsed = Date.now() - t0;
+        const reason = err.message || 'unknown';
+        console.warn(`[${engine}] ${tag} ✗ ${elapsed}ms — ${reason}`);
+        const run = emptyRun(engine, prompt);
+        run._errorReason = reason;
+        return { run, success: false };
     }
 }
 
 /**
- * Run a single engine agent: process prompts in batches per BATCH_SIZES[engine].
+ * Worker-pool pipeline for a single engine.
+ * N workers pull from a shared prompt index. Each worker processes one prompt at a time.
  */
-async function runEngineAgent(engine, prompts, brandName, domain, competitors, country, onResult) {
-    const fn = queryFn(engine);
-    const runs = [];
-    let successCount = 0;
-    let failCount = 0;
-    const batchSize = BATCH_SIZES[engine] || 2;
-    const totalBatches = Math.ceil(prompts.length / batchSize);
+async function runPipeline(engine, prompts, concurrency, ctx, onCallDone) {
+    let nextIdx = 0;
+    const results = new Array(prompts.length);
+    const { brandName, domain, competitors, country, language } = ctx;
 
-    console.log(`[Agent:${engine}] Starting ${prompts.length} prompts in ${totalBatches} batches (size=${batchSize})`);
-
-    for (let i = 0; i < prompts.length; i += batchSize) {
-        const batch = prompts.slice(i, i + batchSize);
-        const batchNum = Math.floor(i / batchSize) + 1;
-
-        const results = await Promise.allSettled(
-            batch.map(async (prompt) => {
-                try {
-                    const infResult = await fn(prompt.core, country);
-                    if (infResult && (infResult.text || infResult.html)) {
-                        const parsed = parseResponse(infResult, brandName, domain, competitors, engine);
-                        return { success: true, data: parsed, prompt };
-                    }
-                    return { success: false, prompt };
-                } catch (err) {
-                    console.warn(`  [Agent:${engine}] Call failed: ${err.message}`);
-                    return { success: false, prompt };
-                }
-            })
-        );
-
-        for (const r of results) {
-            const val = r.status === 'fulfilled' ? r.value : { success: false, prompt: batch[0] };
-            const prompt = val.prompt;
-            const runData = val.success ? val.data : {
-                engine,
-                brandMentioned: false, brandEntity: null, entities: [],
-                citations: [], citationStats: { total: 0, byCategory: {}, brandCited: false, competitorsCited: [] },
-                textLength: 0, rawText: null,
-            };
-
-            const run = {
-                promptId: prompt.id,
-                query: prompt.core,
-                engine,
-                promptWeight: prompt.weight ?? 1.0,
-                category: prompt.category,
-                intent: prompt.intent,
-                strategicValue: prompt.strategicValue ?? 10,
-                includesBrand: prompt.includesBrand ?? false,
-                ...runData,
-            };
-            runs.push(run);
-            if (val.success) successCount++; else failCount++;
-            if (onResult) onResult(run, val.success);
-        }
-
-        console.log(`[Agent:${engine}] Batch ${batchNum}/${totalBatches} done (running: ${successCount} ok, ${failCount} fail)`);
-    }
-
-    console.log(`[Agent:${engine}] Finished: ${successCount}/${prompts.length} with data, ${failCount} empty`);
-    return { runs, successCount, failCount };
-}
-
-/** Collect runs from Promise.allSettled results */
-function collectPhaseRuns(settledResults, errors) {
-    const runs = [];
-    for (let i = 0; i < settledResults.length; i++) {
-        const engine = ENGINES[i];
-        if (settledResults[i].status === 'fulfilled') {
-            runs.push(...settledResults[i].value.runs);
-        } else {
-            console.error(`[Agent:${engine}] Fatal:`, settledResults[i].reason?.message);
-            if (!errors.find(e => e.engine === engine)) {
-                errors.push({ engine, error: settledResults[i].reason?.message });
-            }
+    async function worker(workerId) {
+        while (nextIdx < prompts.length) {
+            const idx = nextIdx++;
+            const prompt = prompts[idx];
+            const tag = `P${idx + 1}/${prompts.length} w${workerId}`;
+            const { run, success } = await callOne(
+                engine, prompt, brandName, domain, competitors, country, language, tag,
+            );
+            results[idx] = run;
+            onCallDone(run, success, engine, idx);
         }
     }
-    return runs;
+
+    const numWorkers = Math.min(concurrency, prompts.length);
+    const workers = [];
+    for (let w = 0; w < numWorkers; w++) {
+        workers.push(worker(w));
+    }
+    await Promise.all(workers);
+    return results;
 }
 
-/** Build per-platform result objects */
+function runHasData(r) {
+    return (r.textLength > 0) || (Array.isArray(r.citations) && r.citations.length > 0);
+}
+
 function buildPlatformResults(allRuns, prompts, brandName, competitors, domain) {
     const platformResults = {};
     for (const engine of ENGINES) {
         const engineRuns = allRuns.filter(r => r.engine === engine);
-        const dataRuns = engineRuns.filter(r => r.textLength > 0);
+        const dataRuns = engineRuns.filter(runHasData);
         platformResults[engine] = {
             engine,
             platformName: PLATFORM_NAMES[engine],
@@ -148,15 +185,10 @@ function buildPlatformResults(allRuns, prompts, brandName, competitors, domain) 
 }
 
 /**
- * Main entry: two-phase parallel execution.
+ * Main entry point.
  *
- * Phase 1 — first 10 prompts → calls onEarlyResults so the controller can
- *           save intermediate data and the frontend can start rendering.
- * Phase 2 — remaining 10 prompts → merged with Phase 1 for final results.
- *
- * @param {object}   agentConfig     - brandName, domain, industry, etc.
- * @param {function} onAgentProgress - (p) => void, called per completed call
- * @param {function} onEarlyResults  - async (phase1Runs, prompts) => void
+ * Runs 3 engine pipelines fully in parallel. Each pipeline independently processes
+ * all prompts with its own concurrency level.
  */
 export async function runAllAgentsInParallel(agentConfig, onAgentProgress, onEarlyResults) {
     const { brandName, domain, industry, competitors, location, country, language } = agentConfig;
@@ -164,79 +196,70 @@ export async function runAllAgentsInParallel(agentConfig, onAgentProgress, onEar
     let prompts;
     try {
         prompts = await generatePromptMatrixForPlatform(
-            { brandName, domain, industry, competitors, location, language },
-            'general'
+            { brandName, domain, industry, competitors, location, language }, 'general',
         );
     } catch (err) {
-        console.warn(`[Agents] Prompt generation failed, using fallback:`, err.message);
+        console.warn('[Agents] Prompt generation failed, using fallback:', err.message);
         prompts = generateFallbackPrompts(brandName, domain, industry, competitors, location);
     }
 
-    const phase1Prompts = prompts.slice(0, PHASE1_SIZE);
-    const phase2Prompts = prompts.slice(PHASE1_SIZE);
     const totalCalls = prompts.length * ENGINES.length;
     let completedCalls = 0;
     let successCalls = 0;
+    let earlyFired = false;
+    const allRuns = [];
 
-    const progressCb = (_run, wasSuccess) => {
+    const earlyThreshold = Math.floor(totalCalls * 0.5);
+
+    console.log(`[Agents] ═══ START: ${prompts.length} prompts × 3 engines = ${totalCalls} calls ═══`);
+    console.log(`[Agents] Pipelines: Perplexity(×${PIPELINE_CONCURRENCY.perplexity}), Gemini(×${PIPELINE_CONCURRENCY.gemini}), GoogleAI(×${PIPELINE_CONCURRENCY.googleAI})`);
+    console.log(`[Agents] Hard timeout per call: ${HARD_TIMEOUT_MS / 1000}s`);
+
+    const scanStart = Date.now();
+
+    const onCallDone = (run, success, engine, promptIdx) => {
+        allRuns.push(run);
         completedCalls++;
-        if (wasSuccess) successCalls++;
+        if (success) successCalls++;
+
         if (onAgentProgress) {
             onAgentProgress({ completed: completedCalls, total: totalCalls, successful: successCalls });
         }
+
+        if (!earlyFired && completedCalls >= earlyThreshold && onEarlyResults) {
+            earlyFired = true;
+            const snapshot = [...allRuns];
+            onEarlyResults(snapshot, prompts).catch(e =>
+                console.warn('[Agents] Early results callback error:', e.message),
+            );
+        }
     };
 
-    console.log(`[Agents] ${prompts.length} prompts × ${ENGINES.length} engines = ${totalCalls} total calls (batch sizes: ${JSON.stringify(BATCH_SIZES)})`);
-    console.log(`[Agents] Phase 1: ${phase1Prompts.length} prompts | Phase 2: ${phase2Prompts.length} prompts`);
+    const [perplexityRuns, geminiRuns, googleRuns] = await Promise.all([
+        runPipeline('perplexity', prompts, PIPELINE_CONCURRENCY.perplexity,
+            { brandName, domain, competitors, country, language }, onCallDone),
+        runPipeline('gemini', prompts, PIPELINE_CONCURRENCY.gemini,
+            { brandName, domain, competitors, country, language }, onCallDone),
+        runPipeline('googleAI', prompts, PIPELINE_CONCURRENCY.googleAI,
+            { brandName, domain, competitors, country, language }, onCallDone),
+    ]);
 
-    // ── Phase 1: first 10 prompts across all engines in parallel ─────────────
-    const phase1Settled = await Promise.allSettled(
-        ENGINES.map(engine =>
-            runEngineAgent(engine, phase1Prompts, brandName, domain, competitors, country, progressCb)
-        )
-    );
+    const elapsed = ((Date.now() - scanStart) / 1000).toFixed(1);
 
-    const errors = [];
-    const phase1Runs = collectPhaseRuns(phase1Settled, errors);
-
-    console.log(`[Agents] Phase 1 complete: ${phase1Runs.filter(r => r.textLength > 0).length}/${phase1Runs.length} runs with data`);
-
-    // Emit early results so frontend can start rendering
-    if (onEarlyResults && phase1Runs.length > 0) {
-        try {
-            await onEarlyResults(phase1Runs, prompts);
-        } catch (e) {
-            console.warn('[Agents] Early results callback error:', e.message);
-        }
-    }
-
-    // ── Phase 2: remaining prompts across all engines in parallel ────────────
-    let phase2Runs = [];
-    if (phase2Prompts.length > 0) {
-        const phase2Settled = await Promise.allSettled(
-            ENGINES.map(engine =>
-                runEngineAgent(engine, phase2Prompts, brandName, domain, competitors, country, progressCb)
-            )
-        );
-        phase2Runs = collectPhaseRuns(phase2Settled, errors);
-        console.log(`[Agents] Phase 2 complete: ${phase2Runs.filter(r => r.textLength > 0).length}/${phase2Runs.length} runs with data`);
-    }
-
-    // ── Merge and return ─────────────────────────────────────────────────────
-    const allRuns = [...phase1Runs, ...phase2Runs];
-    const platformResults = buildPlatformResults(allRuns, prompts, brandName, competitors, domain);
+    const mergedRuns = [...perplexityRuns, ...geminiRuns, ...googleRuns];
+    const platformResults = buildPlatformResults(mergedRuns, prompts, brandName, competitors, domain);
 
     const stats = {};
     for (const engine of ENGINES) {
-        const engineRuns = allRuns.filter(r => r.engine === engine);
-        const dataRuns = engineRuns.filter(r => r.textLength > 0);
-        stats[engine] = { success: dataRuns.length, fail: engineRuns.length - dataRuns.length };
+        const engineRuns = mergedRuns.filter(r => r.engine === engine);
+        const dataRuns = engineRuns.filter(runHasData);
+        stats[engine] = { ok: dataRuns.length, fail: engineRuns.length - dataRuns.length };
     }
 
-    console.log(`[Agents] Complete: ${successCalls}/${totalCalls} calls returned data`);
+    console.log(`[Agents] ═══ DONE in ${elapsed}s: ${successCalls}/${totalCalls} with data ═══`);
     for (const [eng, s] of Object.entries(stats)) {
-        console.log(`  ${eng}: ${s.success} ok, ${s.fail} empty`);
+        console.log(`  ${eng}: ${s.ok} ok, ${s.fail} empty/fail`);
     }
 
-    return { platformResults, allRuns, errors };
+    return { platformResults, allRuns: mergedRuns, errors: [] };
 }
