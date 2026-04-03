@@ -2,11 +2,11 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
     Bell, Search, Globe, Bot, BookOpen,
     Activity, CheckCircle2, Circle, ChevronRight,
-    Clock, CheckCheck, Trash2, Eye, X,
+    CheckCheck, Trash2, Eye, X,
     ExternalLink, AlertTriangle, XCircle, FileSearch,
-    ArrowRight, Zap, Target, TrendingUp, Shield,
-    Plus, Users, FileText, Lightbulb, ChevronDown,
-    Sparkles, BarChart3, Crosshair, Layers, PenTool
+    ArrowRight, TrendingUp, Shield,
+    FileText, Lightbulb,
+    Sparkles, BarChart3
 } from 'lucide-react';
 
 const CATEGORY_META = {
@@ -58,11 +58,6 @@ const INSIGHT_PRIORITY_MAP = {
 };
 
 const FILTER_TABS = ['All', 'Critical', 'High', 'Medium', 'Low'];
-const SECTION_TABS = [
-    { key: 'tasks', label: 'Tasks', icon: CheckCircle2 },
-    { key: 'competitors', label: 'Competitors', icon: Users },
-    { key: 'content-roadmap', label: 'Content Roadmap', icon: PenTool },
-];
 
 function readAuditActions(domain) {
     try {
@@ -169,59 +164,6 @@ function buildInsightActions(visData) {
     });
 
     return actions;
-}
-
-function extractSuggestedCompetitors(visData, userDomain, userCompetitors) {
-    if (!visData) return [];
-    const known = new Set([
-        ...(userCompetitors || []).map(d => d.toLowerCase()),
-        userDomain?.toLowerCase(),
-    ].filter(Boolean));
-
-    const domainCounts = {};
-
-    (visData.citationSummary || []).forEach(c => {
-        if (!c.domain || c.isTargetBrand) return;
-        const d = c.domain.toLowerCase().replace(/^www\./, '');
-        if (known.has(d)) return;
-        if (!domainCounts[d]) domainCounts[d] = { domain: d, count: 0, uniqueUrls: 0 };
-        domainCounts[d].count += c.count || 0;
-        domainCounts[d].uniqueUrls += c.uniqueUrls || 0;
-    });
-
-    (visData.entityGraph || []).forEach(e => {
-        if (!e.domain || e.isTargetBrand) return;
-        const d = e.domain.toLowerCase().replace(/^www\./, '');
-        if (known.has(d)) return;
-        if (!domainCounts[d]) domainCounts[d] = { domain: d, count: 0, uniqueUrls: 0 };
-        domainCounts[d].count += e.totalMentions || 0;
-    });
-
-    return Object.values(domainCounts)
-        .filter(d => d.count >= 2)
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 15);
-}
-
-function buildContentRoadmap(visData) {
-    if (!visData?.competitorGaps?.length) return [];
-    const byCompetitor = {};
-
-    visData.competitorGaps.forEach(gap => {
-        (gap.competitorsPresent || []).forEach(comp => {
-            const name = comp.name || comp.domain || 'Unknown';
-            if (!byCompetitor[name]) byCompetitor[name] = { name, topics: [] };
-            byCompetitor[name].topics.push({
-                query: gap.query,
-                contentTopic: gap.contentTopic,
-                contentAngle: gap.contentAngle,
-                count: comp.count || 1,
-            });
-        });
-    });
-
-    return Object.values(byCompetitor)
-        .sort((a, b) => b.topics.length - a.topics.length);
 }
 
 // ── Action Card (audit + insight) ────────────────────────────────────────────
@@ -375,113 +317,6 @@ function ActionCard({ action, done, onToggleDone, onDismiss }) {
     );
 }
 
-// ── Competitor Card ──────────────────────────────────────────────────────────
-function CompetitorCard({ domain, count, uniqueUrls, isAdded, onAdd }) {
-    return (
-        <div className="flex items-center justify-between p-4 bg-[#0B0B0B] border border-[#1e1e1e] rounded-2xl hover:border-[#2a2a2a] transition-all">
-            <div className="flex items-center gap-3 min-w-0">
-                <div className="w-9 h-9 rounded-xl bg-[#111] border border-[#222] flex items-center justify-center shrink-0">
-                    <Globe className="w-4 h-4 text-[#555]" />
-                </div>
-                <div className="min-w-0">
-                    <p className="text-white text-[13px] font-semibold truncate">{domain}</p>
-                    {(count > 0 || uniqueUrls > 0) && (
-                        <p className="text-[#555] text-[11px] mt-0.5">
-                            {count > 0 && <span>{count} mention{count !== 1 ? 's' : ''}</span>}
-                            {count > 0 && uniqueUrls > 0 && <span> · </span>}
-                            {uniqueUrls > 0 && <span>{uniqueUrls} unique URL{uniqueUrls !== 1 ? 's' : ''}</span>}
-                        </p>
-                    )}
-                </div>
-            </div>
-            {isAdded ? (
-                <span className="flex items-center gap-1.5 px-3 py-1.5 bg-[#0a200a] border border-[#22c55e]/20 text-[#22c55e] text-[11px] font-semibold rounded-lg">
-                    <CheckCircle2 className="w-3.5 h-3.5" /> Tracking
-                </span>
-            ) : (
-                <button
-                    onClick={() => onAdd(domain)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[#E92A15]/10 border border-[#E92A15]/30 text-[#E92A15] text-[11px] font-semibold rounded-lg hover:bg-[#E92A15]/20 transition-colors"
-                >
-                    <Plus className="w-3.5 h-3.5" /> Add
-                </button>
-            )}
-        </div>
-    );
-}
-
-// ── Content Roadmap: Competitor Group ────────────────────────────────────────
-function CompetitorGapGroup({ competitor, brandName }) {
-    const [expanded, setExpanded] = useState(false);
-    const displayTopics = expanded ? competitor.topics : competitor.topics.slice(0, 3);
-
-    return (
-        <div className="bg-[#0B0B0B] border border-[#1e1e1e] rounded-2xl overflow-hidden">
-            <button
-                onClick={() => setExpanded(e => !e)}
-                className="w-full flex items-center justify-between p-5 text-left hover:bg-[#0e0e0e] transition-colors"
-            >
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-[#E92A15]/8 border border-[#E92A15]/20 flex items-center justify-center">
-                        <Crosshair className="w-5 h-5 text-[#E92A15]" />
-                    </div>
-                    <div>
-                        <p className="text-white text-[14px] font-semibold">
-                            To beat <span className="text-[#E92A15]">{competitor.name}</span>
-                        </p>
-                        <p className="text-[#555] text-[12px] mt-0.5">
-                            {competitor.topics.length} content gap{competitor.topics.length !== 1 ? 's' : ''} found
-                        </p>
-                    </div>
-                </div>
-                <div className="flex items-center gap-3">
-                    <span className="text-[#333] text-[11px] font-medium">
-                        {competitor.topics.length} topic{competitor.topics.length !== 1 ? 's' : ''}
-                    </span>
-                    <ChevronDown className={`w-4 h-4 text-[#444] transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
-                </div>
-            </button>
-
-            <div className="px-5 pb-5 space-y-2">
-                {displayTopics.map((topic, i) => (
-                    <div key={i} className="p-3.5 bg-[#080808] border border-[#1a1a1a] rounded-xl">
-                        <div className="flex items-start gap-3">
-                            <div className="w-7 h-7 rounded-lg bg-[#111] border border-[#1e1e1e] flex items-center justify-center shrink-0 mt-0.5">
-                                <FileText className="w-3.5 h-3.5 text-[#555]" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <p className="text-white text-[13px] font-medium leading-snug">
-                                    {topic.contentTopic || topic.query}
-                                </p>
-                                {topic.contentAngle && (
-                                    <p className="text-[#666] text-[11px] mt-1 leading-relaxed">
-                                        <span className="text-[#555] font-semibold">Angle:</span> {topic.contentAngle}
-                                    </p>
-                                )}
-                                {topic.query && topic.contentTopic && topic.query !== topic.contentTopic && (
-                                    <p className="text-[#444] text-[11px] mt-1">
-                                        <span className="text-[#3a3a3a] font-semibold">Query:</span> {topic.query}
-                                    </p>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                ))}
-
-                {!expanded && competitor.topics.length > 3 && (
-                    <button
-                        onClick={() => setExpanded(true)}
-                        className="w-full flex items-center justify-center gap-2 py-2.5 text-[#555] hover:text-[#888] text-[12px] font-medium transition-colors"
-                    >
-                        Show {competitor.topics.length - 3} more topic{competitor.topics.length - 3 !== 1 ? 's' : ''}
-                        <ChevronDown className="w-3.5 h-3.5" />
-                    </button>
-                )}
-            </div>
-        </div>
-    );
-}
-
 // ── Empty States ─────────────────────────────────────────────────────────────
 function EmptyState({ onGoToAudit }) {
     return (
@@ -504,29 +339,10 @@ function EmptyState({ onGoToAudit }) {
     );
 }
 
-function EmptySection({ icon: Icon, title, description }) {
-    return (
-        <div className="flex flex-col items-center justify-center py-20 bg-[#0B0B0B] border border-[#1a1a1a] rounded-2xl text-center">
-            <div className="w-14 h-14 bg-[#111] rounded-2xl flex items-center justify-center mb-4 border border-[#1e1e1e]">
-                <Icon className="w-7 h-7 text-[#2a2a2a]" />
-            </div>
-            <p className="text-[#555] text-[15px] font-semibold mb-1">{title}</p>
-            <p className="text-[#333] text-[13px] max-w-sm">{description}</p>
-        </div>
-    );
-}
-
 // ── Main Component ───────────────────────────────────────────────────────────
 export default function ActionsPage({ user, onTabChange }) {
-    const [activeSection, setActiveSection] = useState('tasks');
     const [activeFilter, setActiveFilter] = useState('All');
     const [showDone, setShowDone] = useState(false);
-    const [addedCompetitors, setAddedCompetitors] = useState(() => {
-        try {
-            const saved = localStorage.getItem(`searchlyst_added_competitors_${user?.domain || 'default'}`);
-            return saved ? JSON.parse(saved) : [];
-        } catch { return []; }
-    });
 
     const stateKey = `searchlyst_actions_state_${user?.domain || 'default'}`;
 
@@ -552,15 +368,6 @@ export default function ActionsPage({ user, onTabChange }) {
         } catch { }
     }, [doneIds, dismissedIds, stateKey]);
 
-    useEffect(() => {
-        try {
-            localStorage.setItem(
-                `searchlyst_added_competitors_${user?.domain || 'default'}`,
-                JSON.stringify(addedCompetitors)
-            );
-        } catch { }
-    }, [addedCompetitors, user?.domain]);
-
     const auditData = useMemo(() => readAuditActions(user?.domain), [user?.domain]);
     const visData = useMemo(
         () => getVisibilityData(user?.domain, user?.projectId),
@@ -575,13 +382,6 @@ export default function ActionsPage({ user, onTabChange }) {
     }, [auditData, insightActions]);
 
     const hasAnyData = auditData || visData;
-
-    const suggestedCompetitors = useMemo(() => {
-        const allUserCompetitors = [...(user?.competitors || []), ...addedCompetitors];
-        return extractSuggestedCompetitors(visData, user?.domain, allUserCompetitors);
-    }, [visData, user?.domain, user?.competitors, addedCompetitors]);
-
-    const contentRoadmap = useMemo(() => buildContentRoadmap(visData), [visData]);
 
     const toggleDone = useCallback((id) => {
         setDoneIds(prev => {
@@ -599,13 +399,6 @@ export default function ActionsPage({ user, onTabChange }) {
         setDismissedIds(prev => new Set([...prev, ...doneIds]));
         setDoneIds(new Set());
     }, [doneIds]);
-
-    const handleAddCompetitor = useCallback((domain) => {
-        setAddedCompetitors(prev => {
-            if (prev.includes(domain)) return prev;
-            return [...prev, domain];
-        });
-    }, []);
 
     const counts = useMemo(() => {
         const active = allActions.filter(a => !dismissedIds.has(a.id));
@@ -631,7 +424,6 @@ export default function ActionsPage({ user, onTabChange }) {
     }, [allActions, activeFilter, doneIds, dismissedIds, showDone]);
 
     const hasDone = [...doneIds].some(id => !dismissedIds.has(id));
-    const allUserCompetitors = [...(user?.competitors || []), ...addedCompetitors];
 
     return (
         <div className="w-full pb-12">
@@ -644,73 +436,40 @@ export default function ActionsPage({ user, onTabChange }) {
                     <div>
                         <h1 className="text-[19px] font-semibold text-white tracking-tight">Actions</h1>
                         <p className="text-[#666] text-[13px] mt-0.5">
-                            Tasks, competitor tracking &amp; content roadmap — all in one place.
+                            Audit fixes and AI insight tasks from your latest data.
                         </p>
                     </div>
                 </div>
 
-                {activeSection === 'tasks' && (
-                    <div className="flex items-center gap-2">
-                        {hasDone && (
-                            <button
-                                onClick={clearDone}
-                                className="flex items-center gap-2 px-4 py-2 bg-[#0f0f0f] border border-[#222] text-[#555] hover:text-[#888] text-[12px] font-medium rounded-xl transition-colors"
-                            >
-                                <Trash2 className="w-3.5 h-3.5" /> Clear done ({counts.done})
-                            </button>
-                        )}
+                <div className="flex items-center gap-2">
+                    {hasDone && (
                         <button
-                            onClick={() => setShowDone(s => !s)}
-                            className={`flex items-center gap-2 px-4 py-2 border text-[12px] font-medium rounded-xl transition-colors ${showDone
-                                ? 'bg-[#1a1a1a] border-[#333] text-white'
-                                : 'bg-[#0f0f0f] border-[#1e1e1e] text-[#555] hover:text-[#888]'
-                            }`}
+                            onClick={clearDone}
+                            className="flex items-center gap-2 px-4 py-2 bg-[#0f0f0f] border border-[#222] text-[#555] hover:text-[#888] text-[12px] font-medium rounded-xl transition-colors"
                         >
-                            <Eye className="w-3.5 h-3.5" /> {showDone ? 'Hide done' : 'Show done'}
+                            <Trash2 className="w-3.5 h-3.5" /> Clear done ({counts.done})
                         </button>
-                    </div>
-                )}
+                    )}
+                    <button
+                        type="button"
+                        onClick={() => setShowDone(s => !s)}
+                        className={`flex items-center gap-2 px-4 py-2 border text-[12px] font-medium rounded-xl transition-colors ${showDone
+                            ? 'bg-[#1a1a1a] border-[#333] text-white'
+                            : 'bg-[#0f0f0f] border-[#1e1e1e] text-[#555] hover:text-[#888]'
+                        }`}
+                    >
+                        <Eye className="w-3.5 h-3.5" /> {showDone ? 'Hide done' : 'Show done'}
+                    </button>
+                </div>
             </div>
 
             <div className="mt-8 space-y-5">
-                {/* ── Section Tabs ── */}
-                <div className="flex items-center gap-1 p-1 bg-[#0B0B0B] border border-[#1e1e1e] rounded-2xl w-fit">
-                    {SECTION_TABS.map(tab => {
-                        const Icon = tab.icon;
-                        const isActive = activeSection === tab.key;
-                        const badge = tab.key === 'tasks' ? counts.all
-                            : tab.key === 'competitors' ? allUserCompetitors.length + suggestedCompetitors.length
-                            : contentRoadmap.length;
-                        return (
-                            <button
-                                key={tab.key}
-                                onClick={() => setActiveSection(tab.key)}
-                                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-semibold transition-all ${isActive
-                                    ? 'bg-[#161616] text-white border border-[#2a2a2a] shadow-sm'
-                                    : 'text-[#555] hover:text-[#888] border border-transparent'
-                                }`}
-                            >
-                                <Icon className="w-4 h-4" />
-                                {tab.label}
-                                {badge > 0 && (
-                                    <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold ${isActive ? 'bg-[#222] text-[#aaa]' : 'bg-[#141414] text-[#444]'}`}>
-                                        {badge}
-                                    </span>
-                                )}
-                            </button>
-                        );
-                    })}
-                </div>
+                {!hasAnyData && (
+                    <EmptyState onGoToAudit={() => onTabChange?.('audit-health')} />
+                )}
 
-                {/* ════════════════ TASKS SECTION ════════════════ */}
-                {activeSection === 'tasks' && (
+                {hasAnyData && (
                     <>
-                        {!hasAnyData && (
-                            <EmptyState onGoToAudit={() => onTabChange?.('audit-health')} />
-                        )}
-
-                        {hasAnyData && (
-                            <>
                                 {/* KPI Row */}
                                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                                     {[
@@ -811,136 +570,6 @@ export default function ActionsPage({ user, onTabChange }) {
                                         ))
                                     )}
                                 </div>
-                            </>
-                        )}
-                    </>
-                )}
-
-                {/* ════════════════ COMPETITORS SECTION ════════════════ */}
-                {activeSection === 'competitors' && (
-                    <>
-                        {/* Tracked Competitors */}
-                        <div>
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="w-8 h-8 rounded-lg bg-[#111] border border-[#1e1e1e] flex items-center justify-center">
-                                    <Target className="w-4 h-4 text-[#E92A15]" />
-                                </div>
-                                <div>
-                                    <h2 className="text-white text-[15px] font-semibold">Tracked Competitors</h2>
-                                    <p className="text-[#555] text-[11px]">Competitors you are actively monitoring</p>
-                                </div>
-                            </div>
-
-                            {allUserCompetitors.length === 0 ? (
-                                <EmptySection
-                                    icon={Users}
-                                    title="No competitors tracked"
-                                    description="Add competitors from the suggestions below or from your project settings."
-                                />
-                            ) : (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                                    {allUserCompetitors.map(domain => {
-                                        const citation = (visData?.citationSummary || []).find(
-                                            c => c.domain?.toLowerCase().replace(/^www\./, '') === domain.toLowerCase().replace(/^www\./, '')
-                                        );
-                                        return (
-                                            <CompetitorCard
-                                                key={domain}
-                                                domain={domain}
-                                                count={citation?.count || 0}
-                                                uniqueUrls={citation?.uniqueUrls || 0}
-                                                isAdded
-                                            />
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Suggested Competitors */}
-                        <div className="mt-2">
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="w-8 h-8 rounded-lg bg-[#111] border border-[#1e1e1e] flex items-center justify-center">
-                                    <Lightbulb className="w-4 h-4 text-[#fbbf24]" />
-                                </div>
-                                <div>
-                                    <h2 className="text-white text-[15px] font-semibold">Suggested Competitors</h2>
-                                    <p className="text-[#555] text-[11px]">Domains frequently cited in AI responses alongside your brand</p>
-                                </div>
-                            </div>
-
-                            {suggestedCompetitors.length === 0 ? (
-                                <EmptySection
-                                    icon={Sparkles}
-                                    title="No suggestions yet"
-                                    description="Run an AI visibility scan to discover competitors appearing in AI-generated responses."
-                                />
-                            ) : (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                                    {suggestedCompetitors.map(comp => (
-                                        <CompetitorCard
-                                            key={comp.domain}
-                                            domain={comp.domain}
-                                            count={comp.count}
-                                            uniqueUrls={comp.uniqueUrls}
-                                            isAdded={allUserCompetitors.some(
-                                                d => d.toLowerCase() === comp.domain.toLowerCase()
-                                            )}
-                                            onAdd={handleAddCompetitor}
-                                        />
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    </>
-                )}
-
-                {/* ════════════════ CONTENT ROADMAP SECTION ════════════════ */}
-                {activeSection === 'content-roadmap' && (
-                    <>
-                        <div className="flex items-center gap-3 mb-1">
-                            <div className="w-8 h-8 rounded-lg bg-[#111] border border-[#1e1e1e] flex items-center justify-center">
-                                <Layers className="w-4 h-4 text-[#a78bfa]" />
-                            </div>
-                            <div>
-                                <h2 className="text-white text-[15px] font-semibold">Content Roadmap</h2>
-                                <p className="text-[#555] text-[11px]">
-                                    Article topics your competitors rank for that you don't — grouped by competitor
-                                </p>
-                            </div>
-                        </div>
-
-                        {contentRoadmap.length === 0 ? (
-                            <EmptySection
-                                icon={PenTool}
-                                title="No content gaps found"
-                                description="Run an AI visibility scan with competitors to discover content opportunities."
-                            />
-                        ) : (
-                            <div className="space-y-3">
-                                {/* Summary bar */}
-                                <div className="flex flex-wrap gap-3">
-                                    <div className="bg-[#0B0B0B] border border-[#1e1e1e] rounded-2xl px-5 py-4 flex-1 min-w-[160px]">
-                                        <p className="text-[#444] text-[10px] font-bold uppercase tracking-[0.14em] mb-2">Competitors</p>
-                                        <p className="text-[28px] font-bold leading-none text-[#E92A15]">{contentRoadmap.length}</p>
-                                    </div>
-                                    <div className="bg-[#0B0B0B] border border-[#1e1e1e] rounded-2xl px-5 py-4 flex-1 min-w-[160px]">
-                                        <p className="text-[#444] text-[10px] font-bold uppercase tracking-[0.14em] mb-2">Total Topics</p>
-                                        <p className="text-[28px] font-bold leading-none text-[#a78bfa]">
-                                            {contentRoadmap.reduce((sum, c) => sum + c.topics.length, 0)}
-                                        </p>
-                                    </div>
-                                </div>
-
-                                {contentRoadmap.map(comp => (
-                                    <CompetitorGapGroup
-                                        key={comp.name}
-                                        competitor={comp}
-                                        brandName={user?.brandName}
-                                    />
-                                ))}
-                            </div>
-                        )}
                     </>
                 )}
             </div>

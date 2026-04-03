@@ -67,9 +67,36 @@ function promptDisplayId(index) {
     return `P${String(index + 1).padStart(2, '0')}`;
 }
 
+/** Citation must have a usable URL or domain so we never show misleading counts or links. */
+function isValidCitation(c) {
+    if (!c || typeof c !== 'object') return false;
+    const url = String(c.url || '').trim();
+    const domain = String(c.domain || '').trim();
+    return Boolean(url || domain);
+}
+
+function safeCitationHref(url) {
+    const raw = String(url || '').trim();
+    if (!raw) return null;
+    try {
+        const href = raw.includes('://') ? raw : `https://${raw}`;
+        const u = new URL(href);
+        if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+        return u.href;
+    } catch {
+        return null;
+    }
+}
+
 function citationCountEngine(e) {
     if (!e) return 0;
-    return (e.citations || []).length || e.citationCount || 0;
+    const cites = Array.isArray(e.citations) ? e.citations : [];
+    if (cites.length > 0) {
+        return cites.filter(isValidCitation).length;
+    }
+    const n = Number(e.citationCount);
+    if (Number.isFinite(n) && n >= 0) return Math.min(999, Math.round(n));
+    return 0;
 }
 
 function totalCitationsPrompt(p) {
@@ -138,8 +165,8 @@ function EngineIconBadge({ engineKey, hasResponse, brandMentioned }) {
 
 function EngineResponseCard({ engineKey, data }) {
     const label = ENGINE_LABELS[engineKey] || engineKey;
-    const cites = data?.citations || [];
-    const n = cites.length || data?.citationCount || 0;
+    const cites = Array.isArray(data?.citations) ? data.citations.filter(isValidCitation) : [];
+    const n = citationCountEngine(data);
     let body = String(data?.rawText || data?.snippet || '').trim();
     if (!body && n > 0) {
         body = 'Sources were extracted but answer text was not stored. Re-scan to capture full text.';
@@ -207,17 +234,32 @@ function EngineResponseCard({ engineKey, data }) {
                     {cites.length === 0 ? (
                         <span className="text-[10px] text-[#555]">None extracted</span>
                     ) : (
-                        cites.map((c, i) => (
-                            <a
-                                key={i}
-                                href={c.url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-[10px] px-2 py-1 rounded-md bg-[#141414] border border-[#2a2a2a] text-[#ececec] hover:border-emerald-500/35 max-w-full truncate inline-block"
-                            >
-                                {citationHostLabel(c)}
-                            </a>
-                        ))
+                        cites.map((c, i) => {
+                            const href = safeCitationHref(c.url) || (c.domain ? safeCitationHref(`https://${String(c.domain).replace(/^www\./, '')}`) : null);
+                            const labelText = citationHostLabel(c);
+                            if (!href) {
+                                return (
+                                    <span
+                                        key={i}
+                                        className="text-[10px] px-2 py-1 rounded-md bg-[#141414] border border-[#2a2a2a] text-[#737373] max-w-full truncate inline-block"
+                                        title="Source present but URL was not valid for linking"
+                                    >
+                                        {labelText}
+                                    </span>
+                                );
+                            }
+                            return (
+                                <a
+                                    key={i}
+                                    href={href}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-[10px] px-2 py-1 rounded-md bg-[#141414] border border-[#2a2a2a] text-[#ececec] hover:border-emerald-500/35 max-w-full truncate inline-block"
+                                >
+                                    {labelText}
+                                </a>
+                            );
+                        })
                     )}
                 </div>
             </div>
@@ -365,8 +407,8 @@ export default function PromptIntelPage({ user, scanManager }) {
                     <div className="px-5 py-4 border-b border-[#262626] bg-[#0a0a0a]">
                         <h3 className="text-white font-semibold text-[14px] tracking-tight">Prompt matrix</h3>
                         <p className="text-[#666] text-[11px] mt-1">
-                            {allPrompts.length} prompt{allPrompts.length !== 1 ? 's' : ''} from your latest visibility scan. Expand a row to see engine responses and citations.
-                            <span className="text-[#555] ml-1">Blue icon = response received · Green = brand mentioned</span>
+                            {allPrompts.length} prompt{allPrompts.length !== 1 ? 's' : ''} from your latest stored scan. Expand a row for full text, sources, and citations.
+                            Source counts list only entries with a valid URL or domain. Blue = response received · Green = brand mentioned.
                         </p>
                     </div>
                     {!hasData ? (

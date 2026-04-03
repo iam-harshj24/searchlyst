@@ -33,16 +33,14 @@ Searchlyst has two parts:
 
 1. In your repo: **Settings** → **Secrets and variables** → **Actions**
 2. Add secret `VITE_API_BASE_URL` = `https://your-backend-url.onrender.com/api`
-3. Add secret `VITE_GOOGLE_CLIENT_ID` = your Google OAuth Web client ID (same value as local `.env`; required for Google sign-in on the deployed site)
-4. Push a branch that triggers the Pages workflow (`main`, `production`, `update-prompts-and-feature-for-launch`, or `final-changes-on-31-march`), or merge into one of those first. Example merge into `main`:
+3. Merge your branch to `main` and push:
    ```bash
    git checkout main
-   git merge your-feature-branch
+   git merge update-prompts-and-feature-for-launch
    git push origin main
    ```
-   Or open **Actions** → **Deploy to GitHub Pages** → **Run workflow** to deploy the default branch without merging.
-5. The workflow publishes to GitHub Pages automatically after a successful build.
-6. Frontend will be at `https://<username>.github.io/<repo-name>/`
+4. The workflow deploys to GitHub Pages automatically
+5. Frontend will be at `https://<username>.github.io/<repo-name>/`
 
 ### Step 3: CORS
 
