@@ -88,19 +88,20 @@ async function callOne(engine, prompt, brandName, domain, competitors, country, 
             `${tag}[${engine}]`,
         );
         const elapsed = Date.now() - t0;
-        const hasContent = infResult && (infResult.text || infResult.html);
+        const hasText = infResult && typeof infResult.text === 'string' && infResult.text.trim().length > 0;
+        const hasHtml = infResult && typeof infResult.html === 'string' && infResult.html.trim().length > 0;
         const hasSources = infResult && Array.isArray(infResult.sources) && infResult.sources.length > 0;
 
-        if (!hasContent && !hasSources) {
-            console.warn(`[${engine}] ${tag} empty ${elapsed}ms`);
+        if (!hasText && !hasHtml && !hasSources) {
+            console.warn(`[${engine}] ${tag} empty after ${elapsed}ms (text=${!!infResult?.text} html=${!!infResult?.html} sources=${infResult?.sources?.length || 0})`);
             const run = emptyRun(engine, prompt);
             run._errorReason = 'empty_response';
             return { run, success: false };
         }
 
         const parsed = parseResponse(infResult, brandName, domain, competitors, engine);
-        const gotData = (parsed.textLength > 0) || (parsed.citations?.length > 0);
-        console.log(`[${engine}] ${tag} ✓ ${elapsed}ms text=${parsed.textLength} cit=${parsed.citations?.length || 0}`);
+        const gotData = (parsed.textLength > 0) || ((parsed.rawText || '').trim().length > 0) || (parsed.citations?.length > 0);
+        console.log(`[${engine}] ${tag} ${gotData ? '✓' : '⚠'} ${elapsed}ms text=${parsed.textLength} rawText=${(parsed.rawText || '').length} cit=${parsed.citations?.length || 0}`);
         return {
             run: {
                 promptId: prompt.id, query: prompt.core, engine,
