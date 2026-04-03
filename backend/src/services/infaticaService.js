@@ -107,6 +107,35 @@ async function infaticaFetch(url, opts, label, cfg) {
     throw lastErr || new Error(`${label} all attempts failed`);
 }
 
+const SKIP_JSON_TEXT_KEYS = new Set(['apikey', 'token', 'authorization', 'password', 'secret', 'trace', 'traceid', 'request_id', 'requestid']);
+
+/** When the API nests the answer under unknown keys, grab the longest plausible prose string. */
+function longestJsonTextBlob(node, depth, minLen) {
+    if (depth <= 0 || node == null) return '';
+    if (typeof node === 'string') {
+        const s = node.trim();
+        if (s.length < minLen) return '';
+        if (!/\s/.test(s) && !/[.!?]/.test(s)) return '';
+        return s;
+    }
+    if (Array.isArray(node)) {
+        let best = '';
+        for (const x of node) {
+            const t = longestJsonTextBlob(x, depth - 1, minLen);
+            if (t.length > best.length) best = t;
+        }
+        return best;
+    }
+    if (typeof node !== 'object') return '';
+    let best = '';
+    for (const [k, v] of Object.entries(node)) {
+        if (SKIP_JSON_TEXT_KEYS.has(k.toLowerCase())) continue;
+        const t = longestJsonTextBlob(v, depth - 1, minLen);
+        if (t.length > best.length) best = t;
+    }
+    return best;
+}
+
 function extractResponse(res, label) {
     return res.text().then(raw => {
         let json = null;
@@ -118,13 +147,16 @@ function extractResponse(res, label) {
             const text =
                 (typeof json.answer === 'string' ? json.answer : null) ??
                 (typeof json.text === 'string' ? json.text : null) ??
+                (typeof json.markdown === 'string' ? json.markdown : null) ??
+                (typeof json.md === 'string' ? json.md : null) ??
                 (typeof json.content === 'string' ? json.content : null) ??
                 (typeof json.response === 'string' ? json.response : null) ??
                 (typeof json.result === 'string' ? json.result : null) ??
                 (typeof json.output === 'string' ? json.output : null) ??
                 (typeof json.message === 'string' ? json.message : null) ??
                 (typeof json.body === 'string' ? json.body : null) ??
-                (typeof json.generated_text === 'string' ? json.generated_text : null);
+                (typeof json.generated_text === 'string' ? json.generated_text : null) ??
+                (typeof json.full_text === 'string' ? json.full_text : null);
 
             const sources = [];
             for (const key of ['sources', 'citations', 'references', 'links', 'search_results', 'searchResults']) {
@@ -144,6 +176,12 @@ function extractResponse(res, label) {
             if (text && text.trim()) {
                 console.log(`    ✓ [${label}] text ${text.length}ch, ${sources.length} sources`);
                 return { text: text.trim(), sources, html: null };
+            }
+
+            const nested = longestJsonTextBlob(json, 7, 100);
+            if (nested.length >= 100) {
+                console.log(`    ✓ [${label}] nested text ${nested.length}ch, ${sources.length} sources`);
+                return { text: nested, sources, html: null };
             }
 
             if (json.html && typeof json.html === 'string') {
@@ -167,28 +205,43 @@ function extractResponse(res, label) {
     });
 }
 
-export async function queryPerplexity(query, country, language) {
+function resultHasContent(out) {
+    const t = out?.text && String(out.text).trim().length > 0;
+    const h = out?.html && String(out.html).trim().length > 0;
+    const s = Array.isArray(out?.sources) && out.sources.length > 0;
+    return !!(t || h || s);
+}
+
+/**
+ * Perplexity / Gemini: many scraper payloads only populate the page when return_html is true.
+ * Try JSON/text first (lighter), then one follow-up with rendered HTML so the parser can extract prose.
+ */
+async function queryLlmPage(path, label, query, country, language, cfg) {
     const q = truncateQuery(query);
-    const label = 'Perplexity';
-    console.log(`  [${label}] "${q.substring(0, 60)}…"`);
-    const res = await infaticaFetch(`${INFATICA_BASE}/perplexity`, {
+    const base = { query: q, ...countryPayload(country), ...languagePayload(language) };
+    const post = async (return_html) => infaticaFetch(`${INFATICA_BASE}${path}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-API-Key': getApiKey() },
-        body: JSON.stringify({ query: q, return_html: false, ...countryPayload(country), ...languagePayload(language) }),
-    }, label, RETRY_CONFIG.perplexity);
-    return extractResponse(res, label);
+        body: JSON.stringify({ ...base, return_html }),
+    }, label, cfg);
+
+    console.log(`  [${label}] "${q.substring(0, 60)}…"`);
+    const res1 = await post(false);
+    let out = await extractResponse(res1, label);
+    if (!resultHasContent(out)) {
+        console.warn(`  [${label}] Empty with return_html=false — retrying with return_html=true`);
+        const res2 = await post(true);
+        out = await extractResponse(res2, label);
+    }
+    return out;
+}
+
+export async function queryPerplexity(query, country, language) {
+    return queryLlmPage('/perplexity', 'Perplexity', query, country, language, RETRY_CONFIG.perplexity);
 }
 
 export async function queryGemini(query, country, language) {
-    const q = truncateQuery(query);
-    const label = 'Gemini';
-    console.log(`  [${label}] "${q.substring(0, 60)}…"`);
-    const res = await infaticaFetch(`${INFATICA_BASE}/gemini`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-API-Key': getApiKey() },
-        body: JSON.stringify({ query: q, return_html: false, ...countryPayload(country), ...languagePayload(language) }),
-    }, label, RETRY_CONFIG.gemini);
-    return extractResponse(res, label);
+    return queryLlmPage('/gemini', 'Gemini', query, country, language, RETRY_CONFIG.gemini);
 }
 
 export async function queryGoogleAI(query, country, language) {

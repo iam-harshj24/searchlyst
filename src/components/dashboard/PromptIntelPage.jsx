@@ -54,11 +54,6 @@ function safeIsoDay(val) {
 
 const ENGINE_ORDER = ['perplexity', 'gemini', 'googleAI'];
 const ENGINE_LABELS = { perplexity: 'Perplexity', gemini: 'Gemini', googleAI: 'Google Search' };
-const ENGINE_SUBLABELS = {
-    perplexity: 'Via Infatica → Perplexity',
-    gemini: 'Via Infatica → Gemini',
-    googleAI: 'Via Infatica → Google SERP',
-};
 
 function engineRowHasResponse(e) {
     if (!e || typeof e !== 'object') return false;
@@ -143,7 +138,6 @@ function EngineIconBadge({ engineKey, hasResponse, brandMentioned }) {
 
 function EngineResponseCard({ engineKey, data }) {
     const label = ENGINE_LABELS[engineKey] || engineKey;
-    const sub = ENGINE_SUBLABELS[engineKey] || '';
     const cites = data?.citations || [];
     const n = cites.length || data?.citationCount || 0;
     let body = String(data?.rawText || data?.snippet || '').trim();
@@ -166,9 +160,6 @@ function EngineResponseCard({ engineKey, data }) {
                     />
                     <div className="min-w-0 flex-1">
                         <span className="text-[13px] font-medium text-white block truncate">{label}</span>
-                        <span className="text-[9px] text-[#6b6b6b] leading-tight block truncate" title={sub}>
-                            {sub}
-                        </span>
                     </div>
                 </div>
                 {ok ? (
@@ -392,7 +383,7 @@ export default function PromptIntelPage({ user, scanManager }) {
                                         <th className="py-3 px-3 text-[10px] font-semibold text-[#737373] uppercase tracking-wider">Prompt</th>
                                         <th
                                             className="py-3 px-2 text-[10px] font-semibold text-[#737373] uppercase tracking-wider text-center whitespace-nowrap"
-                                            title="Perplexity · Gemini · Google Search via Infatica"
+                                            title="Perplexity, Gemini, and Google Search — blue: answer or sources stored; green: brand mentioned"
                                         >
                                             Engines
                                         </th>
