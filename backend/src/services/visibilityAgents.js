@@ -5,10 +5,10 @@
  * - 3 independent pipelines: Perplexity, Gemini, GoogleAI
  * - Each pipeline owns ALL 20 prompts and processes them at its own pace
  * - Worker-pool concurrency within each pipeline:
- *     Perplexity : 2 concurrent (slower endpoint)
+ *     Perplexity : 1 concurrent by default (reduces Infatica upstream 500s; set VISIBILITY_PERPLEXITY_CONCURRENCY)
  *     Gemini     : 3 concurrent
  *     GoogleAI   : 3 concurrent
- * - Total peak concurrency: 2+3+3 = 8 simultaneous Infatica calls
+ * - Total peak concurrency: 1+3+3 = 7 default simultaneous Infatica calls
  * - No prompt blocks another engine — if Perplexity is slow, Gemini races ahead
  * - Early results fire at 50% completion across all pipelines
  */
@@ -29,12 +29,26 @@ import {
 const ENGINES = ['perplexity', 'gemini', 'googleAI'];
 const PLATFORM_NAMES = { perplexity: 'Perplexity', gemini: 'Gemini', googleAI: 'ChatGPT' };
 
-const PIPELINE_CONCURRENCY = { perplexity: 2, gemini: 3, googleAI: 3 };
+const PIPELINE_CONCURRENCY = {
+    perplexity: Math.min(4, Math.max(1, Number(process.env.VISIBILITY_PERPLEXITY_CONCURRENCY) || 1)),
+    gemini: 3,
+    googleAI: 3,
+};
 
 const HARD_TIMEOUT_MS = Math.max(
     60_000,
     Number(process.env.VISIBILITY_ENGINE_HARD_TIMEOUT_MS) || 100_000,
 );
+
+/** Perplexity needs a longer budget (one heavy HTML fetch + retries). */
+const PERPLEXITY_HARD_TIMEOUT_MS = Math.max(
+    120_000,
+    Number(process.env.VISIBILITY_PERPLEXITY_HARD_TIMEOUT_MS) || 360_000,
+);
+
+function hardTimeoutForEngine(engine) {
+    return engine === 'perplexity' ? PERPLEXITY_HARD_TIMEOUT_MS : HARD_TIMEOUT_MS;
+}
 
 function sleep(ms) {
     return ms > 0 ? new Promise(r => setTimeout(r, ms)) : Promise.resolve();
@@ -214,7 +228,7 @@ export async function runAllAgentsInParallel(agentConfig, onAgentProgress, onEar
 
     console.log(`[Agents] ═══ START: ${prompts.length} prompts × 3 engines = ${totalCalls} calls ═══`);
     console.log(`[Agents] Pipelines: Perplexity(×${PIPELINE_CONCURRENCY.perplexity}), Gemini(×${PIPELINE_CONCURRENCY.gemini}), GoogleAI(×${PIPELINE_CONCURRENCY.googleAI})`);
-    console.log(`[Agents] Hard timeout per call: ${HARD_TIMEOUT_MS / 1000}s`);
+    console.log(`[Agents] Hard timeout: perplexity ${PERPLEXITY_HARD_TIMEOUT_MS / 1000}s, other engines ${HARD_TIMEOUT_MS / 1000}s`);
 
     const scanStart = Date.now();
 
