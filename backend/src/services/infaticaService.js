@@ -1,9 +1,9 @@
 /**
  * Infatica Service — tuned for speed (benchmarked at 57/60 = 95% success, ~5 min wall clock).
  *
- * Timeout strategy per engine (based on live 60-call benchmarks):
- * - Perplexity: 45s + 1 retry  → 100% success, avg 29s
- * - Gemini:     45s + 1 retry  → 100% success, avg 29s
+ * Timeout strategy per engine:
+ * - Perplexity: single return_html=true, ~95s/attempt, up to 3 attempts (tune via INFATICA_PERPLEXITY_*)
+ * - Gemini:     45s + 1 retry, optional light-then-HTML via queryLlmPage
  * - Google SERP: 90s, 0 retries → 85% success, avg 41s
  *     No render mode — raw SERP is 5× faster and far more reliable than headless browser.
  *     The 3 SERP failures are 504s from Infatica's upstream, not fixable client-side.
@@ -13,8 +13,18 @@
 const INFATICA_BASE = 'https://scrape.infatica.io';
 const MAX_QUERY_LEN = 6000;
 
+function numEnv(name, fallback) {
+    const n = Number(process.env[name]);
+    return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+/** Perplexity: upstream is flaky under load; one rendered HTML call + longer timeout + extra retries beats two fast calls that both time out. */
 const RETRY_CONFIG = {
-    perplexity: { maxRetries: 1, delays: [2000], timeout: 45_000 },
+    perplexity: {
+        maxRetries: numEnv('INFATICA_PERPLEXITY_MAX_RETRIES', 2),
+        delays: [3000, 6000],
+        timeout: numEnv('INFATICA_PERPLEXITY_TIMEOUT_MS', 95_000),
+    },
     gemini:     { maxRetries: 1, delays: [2000], timeout: 45_000 },
     chatgpt:    { maxRetries: 1, delays: [2000], timeout: 45_000 },
     serp:       { maxRetries: 0, delays: [],      timeout: 90_000 },
@@ -236,8 +246,28 @@ async function queryLlmPage(path, label, query, country, language, cfg) {
     return out;
 }
 
+/**
+ * Perplexity via Infatica: rendered pages carry the answer; a quick JSON-only call then HTML retry
+ * doubled wall time and often hit the scan hard-timeout before the HTML fetch finished.
+ * Single `return_html: true` request + generous timeout + more retries reduces HTTP 500 / timeout storms.
+ */
 export async function queryPerplexity(query, country, language) {
-    return queryLlmPage('/perplexity', 'Perplexity', query, country, language, RETRY_CONFIG.perplexity);
+    const q = truncateQuery(query);
+    const base = { query: q, ...countryPayload(country), ...languagePayload(language) };
+    const cfg = RETRY_CONFIG.perplexity;
+    const tryLightFirst = String(process.env.INFATICA_PERPLEXITY_TRY_LIGHT_FIRST || '').toLowerCase() === 'true';
+
+    if (tryLightFirst) {
+        return queryLlmPage('/perplexity', 'Perplexity', query, country, language, cfg);
+    }
+
+    console.log(`  [Perplexity] "${q.substring(0, 60)}…" (return_html=true)`);
+    const res = await infaticaFetch(`${INFATICA_BASE}/perplexity`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-API-Key': getApiKey() },
+        body: JSON.stringify({ ...base, return_html: true }),
+    }, 'Perplexity', cfg);
+    return extractResponse(res, 'Perplexity');
 }
 
 export async function queryGemini(query, country, language) {
