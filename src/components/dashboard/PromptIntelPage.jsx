@@ -1,9 +1,6 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { apiClient } from '@/api/apiClient';
+import React, { useState, useMemo } from 'react';
 import {
-    CheckCircle,
-    Terminal, Activity,
-    Plus, X, Send, Loader2, Lightbulb, Star, AlertCircle, Trash2,
+    Terminal,
     ChevronDown, ChevronUp, Link2, Check, MessageSquare, Copy,
 } from 'lucide-react';
 import { ChatGPTLogo, GeminiLogo, PerplexityLogo } from '../landing/AILogos';
@@ -238,108 +235,8 @@ function ExpandedPromptBronze({ prompt, displayId, onCollapse }) {
     );
 }
 
-function IntelligencePanel({ intelligence }) {
-    if (!intelligence) return null;
-    return (
-        <div className="bg-[#0d0d0d] border border-[#1e1e1e] rounded-2xl p-5 space-y-4">
-            <h3 className="text-white font-medium text-sm flex items-center gap-2">
-                <Lightbulb className="w-4 h-4 text-amber-400" /> AI-Powered Intelligence
-            </h3>
-            {intelligence.overallAssessment && (
-                <p className="text-[#aaa] text-sm leading-relaxed">{intelligence.overallAssessment}</p>
-            )}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {intelligence.strengthAreas?.length > 0 && (
-                    <div className="p-3 bg-green-500/5 border border-green-500/10 rounded-xl">
-                        <h4 className="text-green-400 text-xs font-medium mb-2">Strengths</h4>
-                        <ul className="space-y-1">{intelligence.strengthAreas.map((s, i) => (
-                            <li key={i} className="text-[#aaa] text-xs flex gap-1.5"><CheckCircle className="w-3 h-3 text-green-400 mt-0.5 shrink-0" />{s}</li>
-                        ))}</ul>
-                    </div>
-                )}
-                {intelligence.weaknessAreas?.length > 0 && (
-                    <div className="p-3 bg-red-500/5 border border-red-500/10 rounded-xl">
-                        <h4 className="text-red-400 text-xs font-medium mb-2">Weaknesses</h4>
-                        <ul className="space-y-1">{intelligence.weaknessAreas.map((s, i) => (
-                            <li key={i} className="text-[#aaa] text-xs flex gap-1.5"><AlertCircle className="w-3 h-3 text-red-400 mt-0.5 shrink-0" />{s}</li>
-                        ))}</ul>
-                    </div>
-                )}
-            </div>
-            {intelligence.topOpportunities?.length > 0 && (
-                <div className="p-3 bg-purple-500/5 border border-purple-500/10 rounded-xl">
-                    <h4 className="text-purple-400 text-xs font-medium mb-2">Top Opportunities</h4>
-                    <ul className="space-y-1.5">{intelligence.topOpportunities.map((s, i) => (
-                        <li key={i} className="text-[#aaa] text-xs flex gap-1.5"><Star className="w-3 h-3 text-purple-400 mt-0.5 shrink-0" />{s}</li>
-                    ))}</ul>
-                </div>
-            )}
-        </div>
-    );
-}
-
-function buildPromptSuggestions(user) {
-    const brand = user?.brandName || 'our brand';
-    const industry = user?.industry || '';
-    const location = user?.location || '';
-    const domain = user?.domain || '';
-    const compNames = (user?.competitors || [])
-        .slice(0, 3)
-        .map(c => typeof c === 'string' ? c : c.name || c.domain)
-        .filter(Boolean);
-    const compStr = compNames.length > 0 ? compNames.join(', ') : 'top competitors';
-
-    const base = [
-        `What is ${brand} and what do they offer?`,
-        `Best ${industry || 'software'} platforms in ${location || '2025'}`,
-        `${brand} vs ${compStr} — which is better?`,
-        `Top alternatives to ${brand}`,
-        `Is ${brand} worth it for small businesses?`,
-        `${brand} reviews and pricing comparison`,
-    ];
-
-    if (industry) {
-        base.push(`What are the leading ${industry} companies?`);
-        base.push(`Best ${industry} tools for enterprises`);
-    }
-    if (location) {
-        base.push(`Best ${industry || 'companies'} in ${location}`);
-    }
-    if (domain) {
-        base.push(`What does ${domain} do?`);
-    }
-
-    return base;
-}
-
-function customPromptsStorageKey(domain) {
-    return `searchlyst_custom_prompts_${domain || 'default'}`;
-}
-
 export default function PromptIntelPage({ user }) {
     const [expandedPromptKey, setExpandedPromptKey] = useState(null);
-    const [showCustomPrompt, setShowCustomPrompt] = useState(false);
-    const [batchQueries, setBatchQueries] = useState(['']);
-    const [batchLoading, setBatchLoading] = useState(false);
-    const [batchError, setBatchError] = useState(null);
-    const [customPrompts, setCustomPrompts] = useState([]);
-
-    const promptSuggestions = useMemo(() => buildPromptSuggestions(user), [user]);
-
-    useEffect(() => {
-        try {
-            const raw = localStorage.getItem(customPromptsStorageKey(user?.domain));
-            if (raw) {
-                const arr = JSON.parse(raw);
-                if (Array.isArray(arr) && arr.length) setCustomPrompts(arr);
-            }
-        } catch { /* ignore */ }
-    }, [user?.domain]);
-
-    const persistCustom = useCallback((list) => {
-        setCustomPrompts(list);
-        try { localStorage.setItem(customPromptsStorageKey(user?.domain), JSON.stringify(list)); } catch { /* ignore */ }
-    }, [user?.domain]);
 
     const scanData = useMemo(() => getVisibilityData(user?.domain, user?.projectId), [user?.domain, user?.projectId]);
     const promptsData = useMemo(() => {
@@ -349,60 +246,12 @@ export default function PromptIntelPage({ user }) {
         return rows.map((p) => ({ ...p, runDate: p.runDate || day }));
     }, [scanData]);
 
-    const allPrompts = useMemo(() => [...promptsData, ...customPrompts], [promptsData, customPrompts]);
+    const allPrompts = promptsData;
     const hasData = allPrompts.length > 0;
-
-    const intelligence = scanData?.intelligence || null;
-
-    const addBatchRow = () => {
-        if (batchQueries.length < 10) setBatchQueries(prev => [...prev, '']);
-    };
-    const removeBatchRow = (idx) => {
-        setBatchQueries(prev => prev.length > 1 ? prev.filter((_, i) => i !== idx) : prev);
-    };
-    const updateBatchRow = (idx, val) => {
-        setBatchQueries(prev => prev.map((q, i) => i === idx ? val : q));
-    };
-    const useSuggestion = (text) => {
-        const emptyIdx = batchQueries.findIndex(q => !q.trim());
-        if (emptyIdx >= 0) {
-            updateBatchRow(emptyIdx, text);
-        } else if (batchQueries.length < 10) {
-            setBatchQueries(prev => [...prev, text]);
-        }
-    };
-
-    const runBatch = async () => {
-        const queries = batchQueries.map(q => q.trim()).filter(Boolean);
-        if (queries.length === 0) return;
-        setBatchLoading(true);
-        setBatchError(null);
-        try {
-            const res = await apiClient.visibility.runCustomPromptsBatch({
-                queries,
-                brandName: user?.brandName || '',
-                domain: user?.domain || '',
-                competitors: user?.competitors || [],
-                country: '',
-            });
-            if (res.success && Array.isArray(res.prompts) && res.prompts.length > 0) {
-                const merged = [...customPrompts, ...res.prompts];
-                persistCustom(merged);
-                setBatchQueries(['']);
-                setShowCustomPrompt(false);
-            } else {
-                setBatchError('No results returned. Try different prompts.');
-            }
-        } catch (err) {
-            setBatchError(err?.message || 'Failed to run prompts');
-        } finally {
-            setBatchLoading(false);
-        }
-    };
 
     return (
         <div className="w-full pb-12">
-            <div className="h-[105px] flex items-end justify-between -mt-8 -mx-8 px-8 pb-3 border-b border-[#222] bg-[#000] sticky top-0 z-30">
+            <div className="h-[105px] flex items-end -mt-8 -mx-8 px-8 pb-3 border-b border-[#222] bg-[#000] sticky top-0 z-30">
                 <div className="flex items-center gap-4 pb-1">
                     <div className="w-11 h-11 bg-[#0a0505] rounded-xl flex items-center justify-center border border-[#E92A15]/40 shadow-[0_0_15px_rgba(233,42,21,0.15)]">
                         <Terminal className="w-5 h-5 text-[#E92A15]" />
@@ -412,23 +261,14 @@ export default function PromptIntelPage({ user }) {
                         <p className="text-[#666] text-[13px] mt-0.5">{hasData ? 'Per-prompt analysis across Perplexity, Gemini & ChatGPT' : 'Analyze exact LLM responses, citations, and competitor overlap'}</p>
                     </div>
                 </div>
-                <button
-                    onClick={() => setShowCustomPrompt(true)}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-[#E92A15] hover:bg-[#D12512] text-white text-[12px] font-medium rounded-xl transition-all shadow-[0_0_20px_rgba(233,42,21,0.25)] mb-1"
-                >
-                    <Plus className="w-3.5 h-3.5" /> Custom Prompt
-                </button>
             </div>
 
             <div className="mt-8 space-y-5">
-                {intelligence && <IntelligencePanel intelligence={intelligence} />}
-
                 <div className="bg-black border border-[#262626] rounded-2xl overflow-hidden">
                     <div className="px-5 py-4 border-b border-[#262626] bg-[#0a0a0a]">
                         <h3 className="text-white font-semibold text-[14px] tracking-tight">Prompt matrix</h3>
                         <p className="text-[#666] text-[11px] mt-1">
-                            {allPrompts.length} prompt{allPrompts.length !== 1 ? 's' : ''}
-                            {customPrompts.length > 0 ? ` · ${customPrompts.length} custom` : ''}. Expand a row to read the full prompt, engine responses, and citations.
+                            {allPrompts.length} prompt{allPrompts.length !== 1 ? 's' : ''} from your latest visibility scan. Expand a row for the full prompt, engine responses, and citations.
                         </p>
                     </div>
                     {!hasData ? (
@@ -527,87 +367,6 @@ export default function PromptIntelPage({ user }) {
                     )}
                 </div>
             </div>
-
-            {showCustomPrompt && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget && !batchLoading) setShowCustomPrompt(false); }}>
-                    <div className="bg-[#111] border border-[#2a2a2a] rounded-2xl p-6 w-full max-w-2xl mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
-                        <div className="flex items-center justify-between mb-1">
-                            <h3 className="text-white font-semibold text-[16px]">Add Custom Prompts</h3>
-                            <button onClick={() => { if (!batchLoading) setShowCustomPrompt(false); }} className="text-[#666] hover:text-white transition-colors">
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
-                        <p className="text-[#888] text-[12px] mb-5">
-                            Add one or multiple prompts below. Only these prompts are sent to Perplexity, Gemini &amp; ChatGPT — your existing scan data stays untouched.
-                        </p>
-
-                        <div className="space-y-2 mb-4">
-                            {batchQueries.map((q, idx) => (
-                                <div key={idx} className="flex items-start gap-2">
-                                    <span className="text-[#555] text-[11px] font-mono mt-3 w-5 text-right shrink-0">{idx + 1}.</span>
-                                    <textarea
-                                        value={q}
-                                        onChange={e => updateBatchRow(idx, e.target.value)}
-                                        placeholder={idx === 0 ? 'e.g. What are the best platforms for first-time buyers?' : 'Add another prompt…'}
-                                        rows={2}
-                                        className="flex-1 bg-[#0a0a0a] border border-[#2a2a2a] rounded-xl px-4 py-2.5 text-white text-[13px] placeholder:text-[#444] resize-none focus:outline-none focus:border-[#E92A15]/50 transition-colors"
-                                    />
-                                    {batchQueries.length > 1 && (
-                                        <button type="button" onClick={() => removeBatchRow(idx)} className="mt-2.5 text-[#555] hover:text-red-400 transition-colors p-1">
-                                            <Trash2 className="w-4 h-4" />
-                                        </button>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-
-                        {batchQueries.length < 10 && (
-                            <button
-                                type="button"
-                                onClick={addBatchRow}
-                                className="flex items-center gap-1.5 text-[12px] text-[#888] hover:text-white transition-colors mb-5"
-                            >
-                                <Plus className="w-3.5 h-3.5" /> Add another prompt row
-                            </button>
-                        )}
-
-                        <div className="border-t border-[#1e1e1e] pt-4 mb-5">
-                            <p className="text-[#666] text-[11px] font-semibold uppercase tracking-wider mb-2.5">Suggestions — click to add</p>
-                            <div className="flex flex-wrap gap-1.5">
-                                {promptSuggestions.slice(0, 8).map((s, i) => (
-                                    <button
-                                        key={i}
-                                        type="button"
-                                        onClick={() => useSuggestion(s)}
-                                        className="text-[11px] px-3 py-1.5 rounded-lg border border-[#2a2a2a] bg-[#0a0a0a] text-[#aaa] hover:border-[#E92A15]/40 hover:text-white transition-colors text-left leading-snug"
-                                    >
-                                        {s}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        {batchError && <p className="text-red-400 text-[12px] mb-3">{batchError}</p>}
-
-                        <div className="flex items-center justify-between">
-                            <p className="text-[#555] text-[11px]">
-                                {batchQueries.filter(q => q.trim()).length} prompt{batchQueries.filter(q => q.trim()).length !== 1 ? 's' : ''} will be sent
-                            </p>
-                            <div className="flex gap-3">
-                                <button onClick={() => { if (!batchLoading) setShowCustomPrompt(false); }} className="px-4 py-2 text-[#888] text-[12px] hover:text-white transition-colors">Cancel</button>
-                                <button
-                                    disabled={batchQueries.every(q => !q.trim()) || batchLoading}
-                                    onClick={runBatch}
-                                    className="flex items-center gap-2 px-5 py-2 bg-[#E92A15] hover:bg-[#D12512] text-white text-[12px] font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    {batchLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                                    {batchLoading ? 'Running…' : `Run ${batchQueries.filter(q => q.trim()).length > 1 ? `${batchQueries.filter(q => q.trim()).length} Prompts` : 'Prompt'}`}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }
