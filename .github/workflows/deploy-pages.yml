@@ -4,7 +4,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [main, production, update-prompts-and-feature-for-launch]
+    branches: [main, production, update-prompts-and-feature-for-launch, final-changes-on-31-march]
   workflow_dispatch:
 
 permissions:
