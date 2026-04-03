@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
     UserCircle, Globe, Linkedin, Instagram, BookOpen, MessageCircle,
     Plus, CheckCircle, AlertCircle, Sparkles, PenTool, ChevronRight,
@@ -92,7 +92,27 @@ export default function BrandHubPage({ user: userProp, authUserId }) {
             merged?.social_quora ||
             merged?.social_tiktok;
         if (anySocial) setStyleAnalyzed(true);
+        if (merged?.socialIngestSnapshot) {
+            setSocialSnapshot(merged.socialIngestSnapshot);
+        } else {
+            setSocialSnapshot(null);
+        }
     };
+
+    const handleSyncSocial = useCallback(async () => {
+        const projectId = userProp?.projectId;
+        if (projectId == null) return;
+        setIngestError(null);
+        setIngestLoading(true);
+        try {
+            const res = await apiClient.projects.ingestSocial(projectId);
+            if (res?.snapshot) setSocialSnapshot(res.snapshot);
+        } catch (e) {
+            setIngestError(e?.message || 'Social sync failed');
+        } finally {
+            setIngestLoading(false);
+        }
+    }, [userProp?.projectId]);
 
     const handleSave = async () => {
         setSaving(true);
@@ -192,16 +212,6 @@ export default function BrandHubPage({ user: userProp, authUserId }) {
                                 <a href={`https://${user?.domain || 'camanahomes.com'}`} target="_blank" rel="noopener noreferrer" className="text-[#666] hover:text-[#aaa] text-[13px] flex items-center gap-1.5 transition-colors mt-0.5">
                                     <Link2 className="w-3.5 h-3.5" /> https://{user?.domain || 'camanahomes.com'}
                                 </a>
-                            </div>
-                        </div>
-                        
-                        <div className="flex flex-col items-end gap-2 w-48">
-                            <div className="flex justify-between w-full text-[12px]">
-                                <span className="text-[#888] font-medium">Profile completion</span>
-                                <span className="text-[#E92A15] font-bold">40%</span>
-                            </div>
-                            <div className="w-full h-1.5 bg-[#222] rounded-full overflow-hidden">
-                                <div className="h-full bg-[#E92A15] rounded-full" style={{ width: '40%' }} />
                             </div>
                         </div>
                     </div>

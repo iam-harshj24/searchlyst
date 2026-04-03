@@ -1,30 +1,16 @@
 /**
- * Infatica Service — tuned for speed (benchmarked at 57/60 = 95% success, ~5 min wall clock).
+ * Infatica Service — tuned for speed (benchmark ~57/60 = 95% success, ~5 min wall clock).
  *
- * Timeout strategy per engine:
- * - Perplexity: single return_html=true, ~95s/attempt, up to 3 attempts (tune via INFATICA_PERPLEXITY_*)
- * - Gemini:     45s + 1 retry, optional light-then-HTML via queryLlmPage
- * - Google SERP: 90s, 0 retries → 85% success, avg 41s
- *     No render mode — raw SERP is 5× faster and far more reliable than headless browser.
- *     The 3 SERP failures are 504s from Infatica's upstream, not fixable client-side.
- * - ChatGPT (optional): 45s + 1 retry — available via queryInfaticaChatGPT()
+ * - Perplexity / Gemini: 45s per attempt, 1 retry; try JSON/text first, then return_html.
+ * - Google SERP: 90s, 0 retries — fast HTML SERP only (no mode: render, no long server-side browser timeout).
+ * - ChatGPT (optional): queryInfaticaChatGPT()
  */
 
 const INFATICA_BASE = 'https://scrape.infatica.io';
 const MAX_QUERY_LEN = 6000;
 
-function numEnv(name, fallback) {
-    const n = Number(process.env[name]);
-    return Number.isFinite(n) && n > 0 ? n : fallback;
-}
-
-/** Perplexity: upstream is flaky under load; one rendered HTML call + longer timeout + extra retries beats two fast calls that both time out. */
 const RETRY_CONFIG = {
-    perplexity: {
-        maxRetries: numEnv('INFATICA_PERPLEXITY_MAX_RETRIES', 2),
-        delays: [3000, 6000],
-        timeout: numEnv('INFATICA_PERPLEXITY_TIMEOUT_MS', 95_000),
-    },
+    perplexity: { maxRetries: 1, delays: [2000], timeout: 45_000 },
     gemini:     { maxRetries: 1, delays: [2000], timeout: 45_000 },
     chatgpt:    { maxRetries: 1, delays: [2000], timeout: 45_000 },
     serp:       { maxRetries: 0, delays: [],      timeout: 90_000 },
@@ -119,7 +105,6 @@ async function infaticaFetch(url, opts, label, cfg) {
 
 const SKIP_JSON_TEXT_KEYS = new Set(['apikey', 'token', 'authorization', 'password', 'secret', 'trace', 'traceid', 'request_id', 'requestid']);
 
-/** When the API nests the answer under unknown keys, grab the longest plausible prose string. */
 function longestJsonTextBlob(node, depth, minLen) {
     if (depth <= 0 || node == null) return '';
     if (typeof node === 'string') {
@@ -222,10 +207,6 @@ function resultHasContent(out) {
     return !!(t || h || s);
 }
 
-/**
- * Perplexity / Gemini: many scraper payloads only populate the page when return_html is true.
- * Try JSON/text first (lighter), then one follow-up with rendered HTML so the parser can extract prose.
- */
 async function queryLlmPage(path, label, query, country, language, cfg) {
     const q = truncateQuery(query);
     const base = { query: q, ...countryPayload(country), ...languagePayload(language) };
@@ -246,28 +227,8 @@ async function queryLlmPage(path, label, query, country, language, cfg) {
     return out;
 }
 
-/**
- * Perplexity via Infatica: rendered pages carry the answer; a quick JSON-only call then HTML retry
- * doubled wall time and often hit the scan hard-timeout before the HTML fetch finished.
- * Single `return_html: true` request + generous timeout + more retries reduces HTTP 500 / timeout storms.
- */
 export async function queryPerplexity(query, country, language) {
-    const q = truncateQuery(query);
-    const base = { query: q, ...countryPayload(country), ...languagePayload(language) };
-    const cfg = RETRY_CONFIG.perplexity;
-    const tryLightFirst = String(process.env.INFATICA_PERPLEXITY_TRY_LIGHT_FIRST || '').toLowerCase() === 'true';
-
-    if (tryLightFirst) {
-        return queryLlmPage('/perplexity', 'Perplexity', query, country, language, cfg);
-    }
-
-    console.log(`  [Perplexity] "${q.substring(0, 60)}…" (return_html=true)`);
-    const res = await infaticaFetch(`${INFATICA_BASE}/perplexity`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-API-Key': getApiKey() },
-        body: JSON.stringify({ ...base, return_html: true }),
-    }, 'Perplexity', cfg);
-    return extractResponse(res, 'Perplexity');
+    return queryLlmPage('/perplexity', 'Perplexity', query, country, language, RETRY_CONFIG.perplexity);
 }
 
 export async function queryGemini(query, country, language) {
@@ -283,8 +244,10 @@ export async function queryGoogleAI(query, country, language) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-API-Key': getApiKey() },
         body: JSON.stringify({
-            url, results: 10,
-            ...countryPayload(country), ...languagePayload(language),
+            url,
+            results: 10,
+            ...countryPayload(country),
+            ...languagePayload(language),
         }),
     }, label, RETRY_CONFIG.serp);
     return extractResponse(res, label);

@@ -25,6 +25,66 @@ const SOV_BAR_COLORS = [
     '#8b5cf6', '#14b8a6', '#f97316', '#6366f1', '#84cc16',
 ];
 
+/** Normalize entity name for stable color lookup across bar + line charts */
+function normEntityName(s) {
+    return String(s || '').trim().toLowerCase();
+}
+
+/**
+ * One color per entity on both "Mentions this scan" and "Mention leaders over time".
+ * Target brand = brand red; other entities get well-separated hues (no near-duplicate reds).
+ */
+const ENTITY_TARGET_COLOR = '#E92A15';
+const ENTITY_SERIES_PALETTE = [
+    '#2563eb',
+    '#16a34a',
+    '#ca8a04',
+    '#7c3aed',
+    '#db2777',
+    '#0d9488',
+    '#c026d3',
+    '#1d4ed8',
+    '#ea580c',
+    '#4338ca',
+];
+
+function buildEntityColorLookup(entities, trendKeyNames) {
+    const map = new Map();
+    for (const e of entities || []) {
+        const k = normEntityName(e?.name);
+        if (!k) continue;
+        if (e.isTargetBrand) map.set(k, ENTITY_TARGET_COLOR);
+    }
+    const order = [];
+    const seen = new Set();
+    for (const e of [...(entities || [])].sort((a, b) => (b.totalMentions || 0) - (a.totalMentions || 0))) {
+        const k = normEntityName(e?.name);
+        if (k && !seen.has(k)) {
+            seen.add(k);
+            order.push(k);
+        }
+    }
+    for (const name of trendKeyNames || []) {
+        const k = normEntityName(name);
+        if (k && !seen.has(k)) {
+            seen.add(k);
+            order.push(k);
+        }
+    }
+    let pi = 0;
+    for (const k of order) {
+        if (map.has(k)) continue;
+        map.set(k, ENTITY_SERIES_PALETTE[pi % ENTITY_SERIES_PALETTE.length]);
+        pi++;
+    }
+    return (name) => {
+        const k = normEntityName(name);
+        if (map.has(k)) return map.get(k);
+        const h = [...k].reduce((acc, c) => acc + c.charCodeAt(0), 0);
+        return ENTITY_SERIES_PALETTE[Math.abs(h) % ENTITY_SERIES_PALETTE.length];
+    };
+}
+
 /** Map API anomalies (raw [-1,1] or mistaken negative scale) to a 0–100 index for display. */
 function sentimentIndex0to100(v) {
     if (v == null || typeof v !== 'number' || Number.isNaN(v)) return null;
@@ -34,12 +94,36 @@ function sentimentIndex0to100(v) {
     return Math.round(Math.min(100, Math.max(0, v)));
 }
 
-function componentScore0to100(v) {
-    if (v == null || typeof v !== 'number' || Number.isNaN(v)) return 0;
-    if (v >= 0 && v <= 100) return Math.round(Math.min(100, Math.max(0, v)));
-    if (v >= -1 && v <= 1) return Math.round(Math.min(100, Math.max(0, ((v + 1) / 2) * 100)));
-    if (v < 0 && v >= -100) return Math.round(Math.min(100, Math.max(0, (v + 100) / 2)));
-    return Math.round(Math.min(100, Math.max(0, v)));
+/** LLM logos for URL / citation “engines” column (replaces 3-letter abbreviations). */
+function UrlEngineLogo({ engineKey }) {
+    const k = String(engineKey || '').toLowerCase().replace(/\s/g, '');
+    const wrap = 'w-7 h-7 rounded-md bg-[#141414] border border-[#2a2a2a] flex items-center justify-center shrink-0';
+    if (k === 'perplexity') {
+        return (
+            <span className={wrap} title="Perplexity">
+                <img src="/perplexity.png" alt="" className="w-4 h-4 object-contain" style={{ filter: 'brightness(0) invert(1)' }} />
+            </span>
+        );
+    }
+    if (k === 'gemini') {
+        return (
+            <span className={wrap} title="Gemini">
+                <GeminiLogo className="w-4 h-4 object-contain text-[#4285f4]" />
+            </span>
+        );
+    }
+    if (k === 'googleai' || k === 'chatgpt') {
+        return (
+            <span className={wrap} title="Google AI">
+                <ChatGPTLogo className="w-4 h-4 text-white" />
+            </span>
+        );
+    }
+    return (
+        <span className={`${wrap} text-[7px] font-bold text-[#555] uppercase`} title={String(engineKey || '')}>
+            {(engineKey || '?').toString().slice(0, 3)}
+        </span>
+    );
 }
 
 function HelpHint({ text }) {
@@ -334,18 +418,6 @@ export default function AIVisibilityPage({ user, scanManager }) {
           ]
         : [];
 
-    const radarData = r
-        ? [
-              { m: 'Visibility', v: componentScore0to100(r.score?.components?.visibility) },
-              { m: 'Share of Voice', v: componentScore0to100(r.score?.components?.shareOfVoice) },
-              { m: 'Position', v: componentScore0to100(r.score?.components?.position) },
-              {
-                  m: 'Sentiment',
-                  v: sentimentIndex0to100(r.score?.components?.sentiment) ?? 0,
-              },
-          ]
-        : [];
-
     const mentionTrendSeries = useMemo(() => {
         const hist = Array.isArray(scanHistory) ? scanHistory : [];
         if (hist.length < 1) return { data: [], keys: [] };
@@ -538,8 +610,8 @@ export default function AIVisibilityPage({ user, scanManager }) {
                         })()}
                     </div>
 
-                    {/* Tabs + Download Raw Button */}
-                    <div className="flex items-center justify-between gap-4 border-b border-[#111] mb-8 px-2 overflow-x-auto">
+                    {/* Tabs */}
+                    <div className="flex items-center gap-4 border-b border-[#111] mb-8 px-2 overflow-x-auto">
                         <div className="flex gap-8">
                             {tabs.map(t => {
                                 if (t.k === 'platforms') return null;
@@ -555,62 +627,6 @@ export default function AIVisibilityPage({ user, scanManager }) {
                                 );
                             })}
                         </div>
-                        <button
-                            onClick={() => {
-                                try {
-                                    const payload = {
-                                        _downloadedAt: new Date().toISOString(),
-                                        _brand: r.brandName || brandName,
-                                        _domain: r.domain || domain,
-                                        _totalCalls: r.config?.totalCalls,
-                                        _scanDate: r.scannedAt,
-                                        prompts: (r.prompts || []).map(p => ({
-                                            promptId: p.promptId,
-                                            query: p.query,
-                                            category: p.category,
-                                            intent: p.intent,
-                                            engines: Object.fromEntries(
-                                                ['perplexity', 'gemini', 'googleAI'].map(ek => [
-                                                    ek,
-                                                    {
-                                                        status: p.engines?.[ek]?.status || 'missing',
-                                                        brandMentioned: p.engines?.[ek]?.mentioned || false,
-                                                        sentiment: p.engines?.[ek]?.sentiment || 'n/a',
-                                                        rawTextLength: (p.engines?.[ek]?.rawText || '').length,
-                                                        rawText: p.engines?.[ek]?.rawText || null,
-                                                        snippet: p.engines?.[ek]?.snippet || null,
-                                                        citationCount: (p.engines?.[ek]?.citations || []).length,
-                                                        citations: (p.engines?.[ek]?.citations || []).map(c => ({ url: c.url, domain: c.domain, title: c.title })),
-                                                    },
-                                                ])
-                                            ),
-                                        })),
-                                        perEngine: r.perEngine,
-                                        platformBreakdown: r.platformBreakdown,
-                                        shareOfVoice: r.shareOfVoice,
-                                        score: r.score,
-                                        sentiment: r.sentiment,
-                                        entityGraph: r.entityGraph,
-                                    };
-                                    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-                                    const url = URL.createObjectURL(blob);
-                                    const a = document.createElement('a');
-                                    a.href = url;
-                                    a.download = `raw-scan-results-${(r.brandName || 'scan').replace(/\s+/g, '-')}-${new Date().toISOString().slice(0, 10)}.json`;
-                                    document.body.appendChild(a);
-                                    a.click();
-                                    a.remove();
-                                    URL.revokeObjectURL(url);
-                                } catch (e) {
-                                    console.error('Download failed:', e);
-                                }
-                            }}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#2a2a2a] bg-[#0a0a0a] text-[#999] hover:text-white hover:border-[#E92A15]/40 transition-colors text-[11px] font-medium shrink-0 mb-4"
-                            title="Download raw API responses from all 3 engines as JSON — see exactly what Perplexity, Gemini and Google returned"
-                        >
-                            <Download className="w-3.5 h-3.5" />
-                            Download Raw Results
-                        </button>
                     </div>
                     {/* Overview Tab */}
                     {tab === 'overview' && (() => {
@@ -865,24 +881,6 @@ export default function AIVisibilityPage({ user, scanManager }) {
                                 </table>
                             </div>
                         </div>
-
-                        <div className="mt-5 bg-[#0d0d0d] border border-[#1e1e1e] rounded-2xl p-6">
-                            <h3 className="text-white font-semibold text-[15px] mb-0.5">Score drivers (0–100)</h3>
-                            <p className="text-[#777] text-[12px] mb-4">
-                                Visibility, share of voice, list position, and sentiment — same scale. Sentiment is a 0–100 index (not the 0–10 gauge scale).
-                            </p>
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                                {radarData.map((row) => (
-                                    <div
-                                        key={row.m}
-                                        className="rounded-xl border border-[#1e1e1e] bg-[#141414] px-4 py-3.5"
-                                    >
-                                        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#666] mb-1">{row.m}</p>
-                                        <p className="text-[22px] font-bold tabular-nums text-white/90 leading-none">{row.v}</p>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
                         </>
                         );
                     })()}
@@ -906,24 +904,27 @@ export default function AIVisibilityPage({ user, scanManager }) {
                             return sentimentIndex0to100(hit?.sentiment);
                         };
                         const targetEntity = entities.find(e => e.isTargetBrand);
+                        const qc = Number(targetEntity?.queryCount) || 0;
                         const summaryText = targetEntity
-                            ? `These brands were automatically detected in AI responses. ${targetEntity.name} appears in ${targetEntity.queryCount || 0} ${(targetEntity.queryCount || 0) === 1 ? 'query' : 'queries'}, demonstrating ${(targetEntity.queryCount || 0) > 2 ? 'strong' : (targetEntity.queryCount || 0) > 0 ? 'some' : 'limited'} brand visibility across AI platforms.`
+                            ? `These brands were automatically detected in AI responses. ${targetEntity.name} appears in ${qc} ${qc === 1 ? 'query' : 'queries'} in this scan summary.`
                             : 'These brands were automatically detected in AI responses across all tracked prompts.';
+
+                        const { data: entTrendRows, keys: entTrendKeys } = mentionTrendSeries;
+                        const entityColor = buildEntityColorLookup(entities, entTrendKeys);
 
                         const entityBarData = [...entities]
                             .sort((a, b) => (b.totalMentions || 0) - (a.totalMentions || 0))
                             .slice(0, 12)
-                            .map((e, idx) => {
+                            .map((e) => {
                                 const raw = (e.name || '?').trim();
                                 const short = raw.length > 16 ? `${raw.slice(0, 14)}…` : raw;
                                 return {
                                     name: short,
                                     fullName: raw,
                                     mentions: e.totalMentions || 0,
-                                    fill: e.isTargetBrand ? '#ef4444' : SOV_BAR_COLORS[(idx + 1) % SOV_BAR_COLORS.length],
+                                    fill: entityColor(raw),
                                 };
                             });
-                        const { data: entTrendRows, keys: entTrendKeys } = mentionTrendSeries;
                         const showMentionTrend = entTrendKeys.length > 0 && entTrendRows.length > 1;
 
                         return (
@@ -965,13 +966,13 @@ export default function AIVisibilityPage({ user, scanManager }) {
                                                     <YAxis tick={{ fill: '#666', fontSize: 10 }} axisLine={false} tickLine={false} allowDecimals={false} width={36} />
                                                     <Tooltip contentStyle={{ backgroundColor: '#1A1A1A', border: '1px solid #333', borderRadius: '12px', fontSize: 11 }} />
                                                     <Legend wrapperStyle={{ fontSize: 11 }} />
-                                                    {entTrendKeys.map((k, i) => (
+                                                    {entTrendKeys.map((k) => (
                                                         <Line
                                                             key={k}
                                                             type="monotone"
                                                             dataKey={k}
                                                             name={k}
-                                                            stroke={SOV_BAR_COLORS[i % SOV_BAR_COLORS.length]}
+                                                            stroke={entityColor(k)}
                                                             strokeWidth={2}
                                                             dot={{ r: 2 }}
                                                             connectNulls
@@ -1186,7 +1187,7 @@ export default function AIVisibilityPage({ user, scanManager }) {
                                                 </tr>
                                             ))}
                                             {filteredRows.length === 0 && (
-                                                <tr><td colSpan={4} className="py-10 text-center text-[#666] text-[13px]">{sourcesBrandOnly ? 'No owned-brand domains in this scan summary.' : 'No citations found. Run a scan to populate sources.'}</td></tr>
+                                                <tr><td colSpan={4} className="py-10 text-center text-[#666] text-[13px]">{sourcesBrandOnly ? 'No domains tagged as your brand in this scan summary.' : 'No citations found. Run a scan to populate sources.'}</td></tr>
                                             )}
                                         </tbody>
                                     </table>
@@ -1338,9 +1339,9 @@ export default function AIVisibilityPage({ user, scanManager }) {
                                                     <span className={`text-[13px] font-semibold ${u.count >= 3 ? 'text-amber-400' : u.count >= 2 ? 'text-white' : 'text-[#888]'}`}>{u.count}</span>
                                                 </td>
                                                 <td className="py-3 px-3 text-center">
-                                                    <div className="flex items-center justify-center gap-1">
-                                                        {(u.engines || []).map(eng => (
-                                                            <span key={eng} className="text-[9px] bg-[#1e1e1e] text-[#888] px-1.5 py-0.5 rounded">{EL[eng]?.substring(0, 3) || eng.substring(0, 3)}</span>
+                                                    <div className="flex items-center justify-center gap-1 flex-wrap">
+                                                        {(u.engines || []).map((eng) => (
+                                                            <UrlEngineLogo key={`${sliceStart + i}-${eng}`} engineKey={eng} />
                                                         ))}
                                                     </div>
                                                 </td>
@@ -1351,7 +1352,7 @@ export default function AIVisibilityPage({ user, scanManager }) {
                                                         u.isCompetitor ? 'bg-red-500/10 text-red-400 border-red-500/20' :
                                                         'bg-[#1a1a1a] text-[#666] border-[#2a2a2a]'
                                                     }`}>
-                                                        {u.isTargetBrand ? 'Owned' : u.isCompetitor ? 'Competitor' : classifyDomainContentType(u.domain)}
+                                                        {u.isTargetBrand ? 'Your brand' : u.isCompetitor ? 'Competitor' : classifyDomainContentType(u.domain)}
                                                     </span>
                                                 </td>
                                             </tr>

@@ -292,7 +292,7 @@ async function executeScan(scanId, brandName, domain, industry, competitors, loc
     try {
         await prisma.visibilityScan.update({
             where: { id: scanId },
-            data: { progress: JSON.stringify({ phase: 'agents_running', detail: '3 dedicated pipelines: Perplexity(×2) + Gemini(×3) + GoogleAI(×3) racing in parallel', completed: 0, total: 0 }) }
+            data: { progress: JSON.stringify({ phase: 'agents_running', detail: 'Running 3 parallel pipelines (Perplexity ×2, Gemini ×3, Google SERP ×3). Fast SERP mode — no headless render.', completed: 0, total: 0 }) }
         });
 
         const agentConfig = { brandName, domain, industry, competitors: expandedCompetitors, location, country, language };
@@ -308,7 +308,7 @@ async function executeScan(scanId, brandName, domain, industry, competitors, loc
                 try {
                     await prisma.visibilityScan.update({
                         where: { id: scanId },
-                        data: { progress: JSON.stringify({ phase: 'querying', detail: `${p.completed}/${p.total} engine calls complete`, completed: p.completed, total: p.total }) }
+                        data: { progress: JSON.stringify({ phase: 'querying', detail: `${p.completed}/${p.total} calls (${p.successful} with data)`, completed: p.completed, total: p.total, successful: p.successful }) }
                     });
                 } catch (_) { /* ignore */ }
             },

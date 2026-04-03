@@ -50,6 +50,9 @@ export default function Sidebar({ activeTab, onTabChange, user, authUser, userRo
                 <div className="flex items-center justify-between">
                     <div className="flex flex-col items-start gap-1">
                         <img src="/searchlyst_logo.png" alt="Searchlyst" className="w-[140px] h-auto object-contain" />
+                        {!collapsed && (
+                            <span className="bg-[#1e0a0a] text-[#E92A15] text-[10px] uppercase font-bold tracking-[0.1em] px-2 py-0.5 rounded border border-[#bb2525]/20">BETA</span>
+                        )}
                     </div>
                 </div>
             </div>
