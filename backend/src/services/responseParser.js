@@ -45,10 +45,31 @@ function extractTextFromHtml(html) {
     try {
         const $ = cheerio.load(html);
         $('script, style, noscript, svg, img, link, meta').remove();
-        return $('body').text().replace(/\s+/g, ' ').trim();
+        let t = $('body').text().replace(/\s+/g, ' ').trim();
+        if (t.length < 120) t = $('html').text().replace(/\s+/g, ' ').trim();
+        if (t.length < 120) t = $.root().text().replace(/\s+/g, ' ').trim();
+        return t;
     } catch {
         return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
     }
+}
+
+/** Last-resort plain text from any HTML (Infatica returns full pages; body may be empty in fragment HTML). */
+function stripHtmlToPlain(html, maxLen = 14_000) {
+    if (!html || typeof html !== 'string') return '';
+    let s = html
+        .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+        .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+        .replace(/<noscript[\s\S]*?<\/noscript>/gi, ' ')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/&[a-z]+;/gi, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    if (s.length > maxLen) {
+        s = s.slice(0, maxLen - 40) + '\n\n… [truncated for storage] …';
+    }
+    return s;
 }
 
 function decodeGoogleResultHref(href) {
@@ -96,28 +117,57 @@ function extractAIAnswerFromRenderedPage(html, engine) {
 
         if (engine === 'perplexity') {
             $(
-                'main, [role="main"], article, [class*="prose"], [class*="answer"], [class*="markdown"], '
-                + '[class*="response"], [class*="Message"], [class*="query-text"], [data-testid*="answer"], .pb-lg'
+                'main, [role="main"], article, '
+                + '[class*="prose"], [class*="answer"], [class*="markdown"], '
+                + '[class*="response"], [class*="Message"], [class*="MessageRow"], [class*="message-row"], '
+                + '[class*="result"], [class*="thread"], [class*="query-text"], [class*="content"], '
+                + '[class*="AnswerContent"], [class*="answer-content"], [class*="TextBlock"], '
+                + '[data-testid*="answer"], [data-testid*="message"], [data-testid*="assistant"], '
+                + '[data-testid*="text"], [data-testid*="content"], .pb-lg, .break-words'
             ).each((_, el) => {
                 const t = $(el).text().replace(/\s+/g, ' ').trim();
-                if (t.length > 80) parts.push(t);
+                if (t.length > 40) parts.push(t);
             });
+
+            if (parts.length === 0) {
+                $('p, li, h1, h2, h3, h4, h5, h6, td, th, blockquote, pre, code').each((_, el) => {
+                    const t = $(el).text().replace(/\s+/g, ' ').trim();
+                    if (t.length > 30) parts.push(t);
+                });
+            }
         } else if (engine === 'gemini') {
-            $('[class*="response"], [class*="answer"], [class*="markdown"], [class*="model-response"], .response-content, main article').each((_, el) => {
+            $('[class*="response"], [class*="answer"], [class*="markdown"], [class*="model-response"], .response-content, main article, [class*="message-content"]').each((_, el) => {
                 const t = $(el).text().replace(/\s+/g, ' ').trim();
-                if (t.length > 100) parts.push(t);
+                if (t.length > 60) parts.push(t);
             });
+
+            if (parts.length === 0) {
+                $('p, li, h1, h2, h3, h4, td, blockquote').each((_, el) => {
+                    const t = $(el).text().replace(/\s+/g, ' ').trim();
+                    if (t.length > 30) parts.push(t);
+                });
+            }
         } else {
-            // Google AI Overview / featured snippets — multiple selector strategies for resilience
             $('[data-attrid], [data-content-feature], [data-md-type], .hgKELb, .wUrVib, .IZ6rdc, .LGOcR, .kno-rdesc, .V3FYCf, .bVj5Zb, .xpdopen, .mod, .aiAnswerBox, [class*="ai-overview"], [class*="aiOverview"], [jsname="Cpkphb"]').each((_, el) => {
                 const t = $(el).text().replace(/\s+/g, ' ').trim();
                 if (t.length > 80) parts.push(t);
             });
         }
 
-        const merged = parts.join('\n\n').trim();
-        const minLen = engine === 'perplexity' ? 60 : 100;
-        return merged.length > minLen ? merged : '';
+        if (parts.length > 0) {
+            parts.sort((a, b) => b.length - a.length);
+            const longest = parts[0];
+            const deduped = [longest];
+            for (let i = 1; i < parts.length; i++) {
+                if (!longest.includes(parts[i]) && parts[i].length > 40) {
+                    deduped.push(parts[i]);
+                }
+            }
+            const merged = deduped.join('\n\n').trim();
+            if (merged.length > 40) return merged;
+        }
+
+        return '';
     } catch {
         return '';
     }
@@ -252,7 +302,7 @@ function checkMentions(textLower, aliases) {
 // ── Core Shared Parser (works for both text and HTML → text) ─────────────────
 
 /** Keep payload bounded but preserve the *end* of long answers (custom prompts often put JSON on the last line). */
-function capRawTextForStorage(text, maxLen = 8000) {
+function capRawTextForStorage(text, maxLen = 12_000) {
     if (!text || text.length <= maxLen) return text;
     const sep = '\n\n… [truncated] …\n\n';
     const tailLen = Math.min(5500, Math.floor((maxLen - sep.length) * 0.62));
@@ -339,7 +389,7 @@ function buildRunData(text, sources, brandName, domain, competitors, engine) {
         citations,
         citationStats,
         textLength: text.length,
-        rawText: capRawTextForStorage(text, 8000),
+        rawText: capRawTextForStorage(text, 12_000),
     };
 }
 
@@ -396,6 +446,7 @@ export function parseResponse(infaticaResult, brandName, domain, competitors, en
 export function fastParse(html, brandName, domain, competitors, engine, extraSources = []) {
     let text = extractAIAnswerFromRenderedPage(html, engine);
     if (!text) text = extractTextFromHtml(html);
+    if (!text && html && html.length > 300) text = stripHtmlToPlain(html, 14_000);
 
     const links = extractLinksFromHtml(html);
     const domainClean = (domain || '').replace(/^www\./, '').toLowerCase();
@@ -411,7 +462,8 @@ export function fastParse(html, brandName, domain, competitors, engine, extraSou
     }
 
     if (!text) {
-        console.warn(`[Parser/${engine}] No text extracted from HTML (${html.length} chars), but ${linkSources.length} links found`);
+        const lastChance = html && html.length > 200 ? stripHtmlToPlain(html, 8000) : '';
+        console.warn(`[Parser/${engine}] Thin HTML text (${html?.length || 0} chars HTML, ${linkSources.length} links); lastChance=${lastChance.length}ch`);
         const citations = linkSources.slice(0, 15).map((s, idx) => ({
             url: s.url, domain: s.domain, title: s.title || '',
             citationPosition: idx + 1,
@@ -419,11 +471,19 @@ export function fastParse(html, brandName, domain, competitors, engine, extraSou
             isTargetBrand: domainClean ? s.domain.includes(domainClean.split('.')[0]) : false,
             isCompetitor: competitorDomains.some(cd => s.domain.includes(cd.replace(/^www\./, '').split('.')[0])),
         }));
+        if (lastChance.length >= 80) {
+            return buildRunData(lastChance, linkSources.map(l => ({ url: l.url, domain: l.domain, title: l.text })), brandName, domain, competitors, engine);
+        }
+        const fallbackMsg =
+            linkSources.length > 0
+                ? `We extracted ${linkSources.length} linked sources from this response but could not isolate the answer text. Open the sources below — the model likely answered in-line with the scraped page structure.`
+                : 'No answer text or sources could be extracted from this HTML response.';
         return {
             engine, brandMentioned: false, brandEntity: null, entities: [],
             citations,
             citationStats: { total: citations.length, byCategory: {}, brandCited: citations.some(c => c.isTargetBrand), competitorsCited: [...new Set(citations.filter(c => c.isCompetitor).map(c => c.domain))] },
-            textLength: 0, rawText: null,
+            textLength: 0,
+            rawText: citations.length > 0 ? fallbackMsg : null,
         };
     }
 
