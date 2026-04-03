@@ -316,19 +316,9 @@ function customPromptsStorageKey(domain) {
     return `searchlyst_custom_prompts_${domain || 'default'}`;
 }
 
-function targetPromptCoverage(scanData, brandName) {
-    const rows = scanData?.industryRanking;
-    if (!Array.isArray(rows) || !brandName) return null;
-    const t = rows.find(
-        (r) => r?.isTargetBrand || (r?.name && String(r.name).toLowerCase() === String(brandName).toLowerCase())
-    );
-    return t?.promptCoverage != null ? Number(t.promptCoverage) : null;
-}
-
 export default function PromptIntelPage({ user }) {
     const [expandedPromptKey, setExpandedPromptKey] = useState(null);
     const [showCustomPrompt, setShowCustomPrompt] = useState(false);
-    const [coverageHistory, setCoverageHistory] = useState([]);
     const [batchQueries, setBatchQueries] = useState(['']);
     const [batchLoading, setBatchLoading] = useState(false);
     const [batchError, setBatchError] = useState(null);
@@ -346,16 +336,6 @@ export default function PromptIntelPage({ user }) {
         } catch { /* ignore */ }
     }, [user?.domain]);
 
-    useEffect(() => {
-        if (!user?.domain) return;
-        apiClient.visibility
-            .getScanHistory(user?.projectId, user?.domain, { limit: 30 })
-            .then((res) => {
-                if (Array.isArray(res?.history)) setCoverageHistory(res.history);
-            })
-            .catch(() => setCoverageHistory([]));
-    }, [user?.domain, user?.projectId, user?.brandName]);
-
     const persistCustom = useCallback((list) => {
         setCustomPrompts(list);
         try { localStorage.setItem(customPromptsStorageKey(user?.domain), JSON.stringify(list)); } catch { /* ignore */ }
@@ -372,22 +352,7 @@ export default function PromptIntelPage({ user }) {
     const allPrompts = useMemo(() => [...promptsData, ...customPrompts], [promptsData, customPrompts]);
     const hasData = allPrompts.length > 0;
 
-    const mentionedCount = allPrompts.filter(p => Object.values(p.engines || {}).some(e => e.mentioned)).length;
-    const totalSources = allPrompts.reduce((sum, p) => sum + Object.values(p.engines || {}).reduce((s, e) => s + (e.citations?.length || e.citationCount || 0), 0), 0);
-    const gapCount = allPrompts.filter(p => Object.entries(p.engines || {}).some(([, e]) => !e.mentioned && (e.citations || []).some(c => c.isCompetitor))).length;
-
     const intelligence = scanData?.intelligence || null;
-
-    const currentCoverage = targetPromptCoverage(scanData, user?.brandName);
-    const prevCoverage = (() => {
-        if (!coverageHistory.length || currentCoverage == null) return null;
-        const sorted = [...coverageHistory].sort((a, b) => new Date(b.date) - new Date(a.date));
-        const withCov = sorted.filter((h) => h.promptCoverage != null && !Number.isNaN(Number(h.promptCoverage)));
-        if (withCov.length < 2) return null;
-        return Number(withCov[1].promptCoverage);
-    })();
-    const coverageDelta =
-        currentCoverage != null && prevCoverage != null ? Math.round((currentCoverage - prevCoverage) * 10) / 10 : null;
 
     const addBatchRow = () => {
         if (batchQueries.length < 10) setBatchQueries(prev => [...prev, '']);
@@ -457,46 +422,6 @@ export default function PromptIntelPage({ user }) {
 
             <div className="mt-8 space-y-5">
                 {intelligence && <IntelligencePanel intelligence={intelligence} />}
-
-                <div className="bg-[#0B0B0B] border border-[#E92A15]/25 rounded-2xl p-6">
-                    <p className="text-[#555] text-[10px] font-bold uppercase tracking-[0.14em] mb-2">Prompt coverage (your brand)</p>
-                    <div className="flex flex-wrap items-end gap-6">
-                        <div>
-                            <p className={`text-[42px] font-bold leading-none ${currentCoverage != null ? 'text-white' : 'text-[#444]'}`}>
-                                {currentCoverage != null ? `${Math.round(currentCoverage)}%` : '—'}
-                            </p>
-                            <p className="text-[#666] text-[12px] mt-2 max-w-md">
-                                Share of matrix prompts where your brand appeared in the latest scan. Run additional scans to compare over time.
-                            </p>
-                        </div>
-                        {coverageDelta != null && (
-                            <div className="flex items-center gap-2 rounded-xl border border-[#2a2a2a] bg-[#111] px-4 py-3">
-                                <span className="text-[#888] text-[11px] uppercase font-semibold tracking-wider">vs prior scan</span>
-                                <span className={`text-[20px] font-bold tabular-nums ${coverageDelta >= 0 ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
-                                    {coverageDelta >= 0 ? '+' : ''}
-                                    {coverageDelta}%
-                                </span>
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                    <div className="bg-[#0B0B0B] border border-[#1e1e1e] rounded-2xl p-5">
-                        <p className="text-[#555] text-[10px] font-bold uppercase tracking-[0.14em] mb-3">BRAND VISIBILITY</p>
-                        <p className={`text-[38px] font-bold tracking-tight leading-none ${hasData ? 'text-white' : 'text-[#333]'}`}>
-                            {hasData ? <><span className="text-[#22c55e]">{mentionedCount > 0 ? Math.round((mentionedCount / Math.max(allPrompts.length, 1)) * 100) : 0}</span><span className="text-[#555] text-[18px] ml-1">%</span></> : '—'}
-                        </p>
-                    </div>
-                    <div className="bg-[#0B0B0B] border border-[#1e1e1e] rounded-2xl p-5">
-                        <p className="text-[#555] text-[10px] font-bold uppercase tracking-[0.14em] mb-3">TOTAL CITATIONS</p>
-                        <p className={`text-[38px] font-bold tracking-tight leading-none ${hasData ? 'text-white' : 'text-[#333]'}`}>{hasData ? totalSources : '—'}</p>
-                    </div>
-                    <div className="bg-[#0B0B0B] border border-[#1e1e1e] rounded-2xl p-5">
-                        <p className="text-[#555] text-[10px] font-bold uppercase tracking-[0.14em] mb-3">CONTENT GAPS</p>
-                        <p className={`text-[38px] font-bold tracking-tight leading-none ${hasData ? 'text-[#eab308]' : 'text-[#333]'}`}>{hasData ? gapCount : '—'}</p>
-                    </div>
-                </div>
 
                 <div className="bg-black border border-[#262626] rounded-2xl overflow-hidden">
                     <div className="px-5 py-4 border-b border-[#262626] bg-[#0a0a0a]">
