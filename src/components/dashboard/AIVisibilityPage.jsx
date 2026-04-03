@@ -538,21 +538,79 @@ export default function AIVisibilityPage({ user, scanManager }) {
                         })()}
                     </div>
 
-                    {/* Tabs */}
-                    <div className="flex gap-8 border-b border-[#111] mb-8 px-2 overflow-x-auto">
-                        {tabs.map(t => {
-                            if (t.k === 'platforms') return null; // Remove platforms
-                            const I = t.i;
-                            const isActive = tab === t.k;
-                            return (
-                                <button key={t.k} onClick={() => setTab(t.k)}
-                                    className={`flex items-center gap-2 pb-4 text-sm font-black transition-all relative ${isActive ? 'text-white' : 'text-[#333] hover:text-[#555]'
-                                        }`}>
-                                    <I className={`w-4 h-4 ${isActive ? 'text-[#ff4444]' : 'text-[#222]'}`} />{t.l}
-                                    {isActive && <div className="absolute bottom-0 left-0 w-full h-[4px] rounded-t-full bg-[#ff4444]" />}
-                                </button>
-                            );
-                        })}
+                    {/* Tabs + Download Raw Button */}
+                    <div className="flex items-center justify-between gap-4 border-b border-[#111] mb-8 px-2 overflow-x-auto">
+                        <div className="flex gap-8">
+                            {tabs.map(t => {
+                                if (t.k === 'platforms') return null;
+                                const I = t.i;
+                                const isActive = tab === t.k;
+                                return (
+                                    <button key={t.k} onClick={() => setTab(t.k)}
+                                        className={`flex items-center gap-2 pb-4 text-sm font-black transition-all relative ${isActive ? 'text-white' : 'text-[#333] hover:text-[#555]'
+                                            }`}>
+                                        <I className={`w-4 h-4 ${isActive ? 'text-[#ff4444]' : 'text-[#222]'}`} />{t.l}
+                                        {isActive && <div className="absolute bottom-0 left-0 w-full h-[4px] rounded-t-full bg-[#ff4444]" />}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        <button
+                            onClick={() => {
+                                try {
+                                    const payload = {
+                                        _downloadedAt: new Date().toISOString(),
+                                        _brand: r.brandName || brandName,
+                                        _domain: r.domain || domain,
+                                        _totalCalls: r.config?.totalCalls,
+                                        _scanDate: r.scannedAt,
+                                        prompts: (r.prompts || []).map(p => ({
+                                            promptId: p.promptId,
+                                            query: p.query,
+                                            category: p.category,
+                                            intent: p.intent,
+                                            engines: Object.fromEntries(
+                                                ['perplexity', 'gemini', 'googleAI'].map(ek => [
+                                                    ek,
+                                                    {
+                                                        status: p.engines?.[ek]?.status || 'missing',
+                                                        brandMentioned: p.engines?.[ek]?.mentioned || false,
+                                                        sentiment: p.engines?.[ek]?.sentiment || 'n/a',
+                                                        rawTextLength: (p.engines?.[ek]?.rawText || '').length,
+                                                        rawText: p.engines?.[ek]?.rawText || null,
+                                                        snippet: p.engines?.[ek]?.snippet || null,
+                                                        citationCount: (p.engines?.[ek]?.citations || []).length,
+                                                        citations: (p.engines?.[ek]?.citations || []).map(c => ({ url: c.url, domain: c.domain, title: c.title })),
+                                                    },
+                                                ])
+                                            ),
+                                        })),
+                                        perEngine: r.perEngine,
+                                        platformBreakdown: r.platformBreakdown,
+                                        shareOfVoice: r.shareOfVoice,
+                                        score: r.score,
+                                        sentiment: r.sentiment,
+                                        entityGraph: r.entityGraph,
+                                    };
+                                    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+                                    const url = URL.createObjectURL(blob);
+                                    const a = document.createElement('a');
+                                    a.href = url;
+                                    a.download = `raw-scan-results-${(r.brandName || 'scan').replace(/\s+/g, '-')}-${new Date().toISOString().slice(0, 10)}.json`;
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    a.remove();
+                                    URL.revokeObjectURL(url);
+                                } catch (e) {
+                                    console.error('Download failed:', e);
+                                }
+                            }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#2a2a2a] bg-[#0a0a0a] text-[#999] hover:text-white hover:border-[#E92A15]/40 transition-colors text-[11px] font-medium shrink-0 mb-4"
+                            title="Download raw API responses from all 3 engines as JSON — see exactly what Perplexity, Gemini and Google returned"
+                        >
+                            <Download className="w-3.5 h-3.5" />
+                            Download Raw Results
+                        </button>
                     </div>
                     {/* Overview Tab */}
                     {tab === 'overview' && (() => {

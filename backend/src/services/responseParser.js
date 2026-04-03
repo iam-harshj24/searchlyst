@@ -400,14 +400,13 @@ function buildRunData(text, sources, brandName, domain, competitors, engine) {
  * OR raw HTML string (legacy path).
  */
 export function parseResponse(infaticaResult, brandName, domain, competitors, engine) {
-    // Legacy: caller passed raw HTML string directly
     if (typeof infaticaResult === 'string') {
         return fastParse(infaticaResult, brandName, domain, competitors, engine);
     }
 
     const { text, sources = [], html } = infaticaResult;
 
-    if (text) {
+    if (text && text.trim().length > 0) {
         const structuredSources = sources.length > 0 ? [...sources] : [];
         const textSources = extractSourcesFromAIText(text);
         const seenUrls = new Set(structuredSources.map(s => s.url));
@@ -417,15 +416,25 @@ export function parseResponse(infaticaResult, brandName, domain, competitors, en
                 seenUrls.add(ts.url);
             }
         }
-        console.log(`[Parser/${engine}] Text: ${text.length} chars, sources: ${structuredSources.length} (${sources.length} structured + ${textSources.length} extracted)`);
+        console.log(`[Parser/${engine}] TEXT path: ${text.length}ch, ${structuredSources.length} sources`);
         return buildRunData(text, structuredSources, brandName, domain, competitors, engine);
     }
 
-    if (html) {
-        return fastParse(html, brandName, domain, competitors, engine, sources);
+    if (html && html.length > 0) {
+        console.log(`[Parser/${engine}] HTML path: ${html.length}ch`);
+        const result = fastParse(html, brandName, domain, competitors, engine, sources);
+        if (!result.rawText && result.textLength === 0) {
+            const stripped = stripHtmlToPlain(html, 12_000);
+            if (stripped.length >= 80) {
+                console.log(`[Parser/${engine}] fastParse empty → using stripHtmlToPlain (${stripped.length}ch)`);
+                const fallback = buildRunData(stripped, sources, brandName, domain, competitors, engine);
+                fallback.citations = result.citations.length > 0 ? result.citations : fallback.citations;
+                return fallback;
+            }
+        }
+        return result;
     }
 
-    // Empty response
     console.warn(`[Parser/${engine}] No text or HTML in response`);
     return {
         engine,
