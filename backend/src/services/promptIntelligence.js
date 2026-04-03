@@ -1,4 +1,17 @@
-// Super 20 Compressed Prompts — exact user-specified templates with weights
+/**
+ * Super-20 Prompt Matrix — multi-dimensional visibility extraction framework.
+ *
+ * Every prompt is designed to extract 6 dimensions per brand:
+ *   Visibility · Ranking · Sentiment · Sources · Geo · Citations
+ *
+ * Layers:
+ *   1 – Visibility   (P01–P03)  organic, brand knowledge, conversational intent
+ *   2 – Ranking       (P04–P06)  competitive tier, head-to-head, forced scorecard
+ *   3 – Share of Voice (P07–P09)  SOV, segment ownership, use-case visibility
+ *   4 – Geo + Context (P10–P12)  geo visibility, multi-turn persistence, trend momentum
+ *   5 – Deep Probes   (P13–P20)  competitor extraction, switching, gaps, reputation,
+ *                                 source influence, positioning, semantic clusters, citation benchmark
+ */
 
 function fillVariables(promptTemplate, vars) {
     let result = promptTemplate;
@@ -18,9 +31,12 @@ export async function generatePromptMatrix(brand) {
 
 export function generateSuperPrompts(brand, platform = 'general') {
     const { brandName, domain, industry, competitors = [], location } = brand;
-    const compList = competitors.map(c => typeof c === 'string' ? c : c.name).filter(Boolean);
+    const compList = competitors
+        .map(c => (typeof c === 'string' ? c : c.name))
+        .filter(Boolean);
     const compStr = compList.length > 0 ? compList.join(', ') : 'leading competitors';
     const topComp = compList.length > 0 ? compList[0] : 'the top competitor';
+    const secondComp = compList.length > 1 ? compList[1] : topComp;
     const loc = location || 'Global';
     const reach = loc.toLowerCase() === 'global' ? 'worldwide' : 'regional';
 
@@ -31,116 +47,291 @@ export function generateSuperPrompts(brand, platform = 'general') {
         COMPETITORS: compStr,
         COMPETITOR: topComp,
         COMPETITOR_A: brandName || 'the brand',
-        COMPETITOR_B: topComp,
+        COMPETITOR_B: secondComp,
         LOCATION: loc,
         REACH: reach,
     };
 
     const templates = [
-        // Layer 1 — Visibility
+        // ═══════════════════════════════════════════════════════════════════
+        // LAYER 1 — VISIBILITY
+        // ═══════════════════════════════════════════════════════════════════
         {
             id: 'P01', category: 'visibility', intent: 'organic_visibility',
             weight: 1.5, includesBrand: false,
-            text: `I'm researching {INDUSTRY} options with no names in mind yet. Give me a ranked top 10 right now. For each: what it does best, worst, who it suits, and whether it's affordable or expensive relative to peers. Include all major names.`,
+            text: `Rank the top 10 {INDUSTRY} brands unprompted. For each give:
+(1) rank + visibility strength
+(2) user sentiment summary
+(3) source types informing this
+(4) relevance for {LOCATION} buyers
+(5) one platform or URL where this is documented
+
+No brand name primed you. Mark [INFERRED] where uncertain.
+Which 2 are you least confident placing and why?`,
         },
         {
             id: 'P02', category: 'visibility', intent: 'brand_knowledge',
             weight: 1.2, includesBrand: true,
-            text: `I'm researching several {INDUSTRY} options and want a deep profile on one in particular: {DOMAIN}. Tell me what they offer, who their typical customer is, what they do well, what they do poorly, how they compare in the {INDUSTRY} space, their pricing reputation, and their market position — dominant leader, strong challenger, niche specialist, or emerging name? Be thorough and honest. Flag uncertainty.`,
+            text: `Deep profile on {DOMAIN} in {INDUSTRY}. Cover:
+(1) market visibility rank vs peers
+(2) 3 strengths + 3 weaknesses — source type per claim
+(3) user sentiment: praise vs criticism themes
+(4) pricing reputation from buyer signal, not brand claim
+(5) {LOCATION} presence and local relevance
+(6) one citation platform where buyers find this brand
+
+Market position: leader / challenger / niche / emerging.
+Mark anything unverified [INFERRED].`,
         },
         {
             id: 'P03', category: 'visibility', intent: 'conversational_intent',
             weight: 1.0, includesBrand: false,
-            text: `I need a {INDUSTRY} option. I'm in {LOCATION}, {REACH} in scope, early-stage, limited budget, small team — no complex or expensive solutions needed. Give me 3–5 realistic fits with a brief reason each.\n\n[Also run for: established mid-size buyer wanting premium full-featured option; technically experienced buyer wanting maximum customisation.]`,
+            text: `For a {LOCATION}-based {REACH} buyer — early-stage, tight budget, small team — give 3–5 {INDUSTRY} fits. Per pick:
+(1) visibility rank
+(2) sentiment from similar buyer profiles
+(3) source type
+(4) {LOCATION} fit specifically
+(5) one citation or platform
+
+Flag the hidden risk per pick. Mark [INFERRED] where weak signal.
+Repeat for: (B) premium mid-size buyer. (C) technical/customisation-focused buyer.`,
         },
-        // Layer 2 — Ranking
+
+        // ═══════════════════════════════════════════════════════════════════
+        // LAYER 2 — RANKING
+        // ═══════════════════════════════════════════════════════════════════
         {
             id: 'P04', category: 'ranking', intent: 'competitive_tier',
             weight: 1.8, includesBrand: false,
-            text: `Give me a full market overview of {INDUSTRY}. Sort every significant player into four tiers: Leaders, Strong Performers, Contenders, Niche/Emerging. For each, one or two sentences on what specifically earns that placement — not general reputation.\n\nThen: which names nearly landed a tier higher or lower, and why? Who is actively moving between tiers?\n\nBuyer scope: {REACH}. Geography: {LOCATION}.`,
+            text: `Sort all significant {INDUSTRY} players into 4 tiers: Leaders / Strong Performers / Contenders / Niche-Emerging. Per brand:
+(1) specific reason for tier placement — not reputation
+(2) user sentiment signal
+(3) source type
+(4) {LOCATION} adjustment if global rank differs locally
+(5) one citation where this placement is evidenced
+
+Who nearly moved tiers? Who is actively shifting?
+Buyer context: {REACH} in {LOCATION}. Mark uncertain placements [LOW CONFIDENCE].`,
         },
         {
             id: 'P05', category: 'ranking', intent: 'head_to_head',
             weight: 1.5, includesBrand: true,
-            text: `Compare {COMPETITOR_A} vs {COMPETITOR_B} in {INDUSTRY} across: overall quality, ease of onboarding, pricing and value, reliability reputation, suitability for a {REACH} operation in {LOCATION}, and long-term scalability.\n\nGive a clear winner per dimension. Then one overall recommendation — pick one, no hedging.`,
+            text: `Compare {COMPETITOR_A} vs {COMPETITOR_B} for {REACH} buyers in {LOCATION}. Per dimension — quality, onboarding, pricing, reliability, geo fit, scalability, support:
+(1) winner — no ties
+(2) specific reason
+(3) sentiment signal from users
+(4) source type
+(5) {LOCATION} relevance
+
+End with one overall recommendation — pick one, defend it with specific reasons.
+No hedging.`,
         },
         {
             id: 'P06', category: 'ranking', intent: 'forced_scorecard',
             weight: 2.0, includesBrand: false,
-            text: `Rank ALL of these {INDUSTRY} options from 1st to last across every dimension below — no ties:\n\nOptions: {COMPETITORS}.\n\nDimensions:\n- Overall quality\n- Ease of onboarding\n- Pricing and value\n- Reliability and track record\n- Reputation and market trust\n- Innovation speed\n- Presence and support in {LOCATION}\n- Fit for a {REACH} operation\n\nAfter all rankings: overall winner, best value option, and your recommendation for a growing {REACH} organisation entering {INDUSTRY} for the first time.`,
+            text: `Rank {COMPETITORS} 1st to last — no ties — on: quality, onboarding, pricing/value, reliability, market trust, innovation, {LOCATION} presence, {REACH} fit. Per rank:
+(1) specific justification
+(2) user sentiment signal
+(3) source type
+(4) confidence: H / M / L
+
+Finish with: overall winner, best value pick, first-timer recommendation.
+Flag where your signal is weakest across the group.`,
         },
-        // Layer 3 — Share of Voice
+
+        // ═══════════════════════════════════════════════════════════════════
+        // LAYER 3 — SHARE OF VOICE
+        // ═══════════════════════════════════════════════════════════════════
         {
             id: 'P07', category: 'share_of_voice', intent: 'share_of_voice',
             weight: 1.8, includesBrand: false,
-            text: `What brands come to mind when you hear {INDUSTRY}? List every one — from most dominant to least known. Include niche, regional, and emerging names, not just major players.\n\nThen flag: which of these aren't pure {INDUSTRY} players but are commonly used or considered for {INDUSTRY} purposes? Include adjacent platforms and overlapping categories.`,
+            text: `List every {INDUSTRY} brand — dominant to obscure. Per brand:
+(1) visibility strength: strong / moderate / weak / trace
+(2) primary signal context: reviews / analyst / news / community
+(3) user sentiment direction
+(4) {LOCATION} presence
+(5) one citation platform
+
+Flag adjacent brands considered for {INDUSTRY} but not pure players.
+Which 3 brands dominate your training signal disproportionately — earned dominance or just content volume?`,
         },
         {
             id: 'P08', category: 'share_of_voice', intent: 'segment_ownership',
             weight: 1.5, includesBrand: false,
-            text: `In {INDUSTRY}, name one winner per row — no ties, no lists.\n\nBest for:\n- Small or early-stage buyers\n- Mid-size buyers with growth ambitions\n- Large/enterprise buyers\n- Limited-budget buyers\n- Non-expert buyers\n- Buyers based in {LOCATION}\n- Buyers at {REACH} scale\n- Best overall value\n\nWorth caution (one name + reason each):\n- Early-stage buyers should think twice before _____ because _____\n- Enterprise buyers should be cautious about _____ because _____\n- Budget-conscious buyers should avoid _____ because _____\n- Buyers outside US/EU should note _____ may not serve them because _____`,
+            text: `One brand per row — no ties. Best for: early-stage / mid-size growth / enterprise / budget / non-technical / {LOCATION} buyers / {REACH} scale / overall value. Per winner:
+(1) specific reason
+(2) sentiment signal
+(3) source type
+(4) {LOCATION} fit
+(5) confidence: H / M / L
+
+Then complete: "Early-stage avoid [Brand] because [specific reason]." — repeat for enterprise / budget / non-US/EU buyers.`,
         },
         {
             id: 'P09', category: 'share_of_voice', intent: 'use_case_visibility',
             weight: 1.5, includesBrand: false,
-            text: `In {INDUSTRY}, name the single best option per use case and explain why in one sentence. Don't distribute answers artificially if one option genuinely leads across multiple areas.\n\n- Highest overall quality\n- Fastest or easiest start\n- Maximum value on minimal spend\n- Multi-country {REACH} operations\n- Based in {LOCATION}, needing local support or compliance\n- Most established and trusted\n- Most flexible or customisable\n- Strongest post-purchase support\n- Best for significant growth without switching`,
+            text: `One winner per use case in {INDUSTRY} — don't distribute artificially:
+Highest quality / fastest start / best value / multi-country {REACH} / {LOCATION} local support / most trusted / most customisable / best support / best for growth.
+
+Per answer:
+(1) specific reason
+(2) sentiment signal
+(3) source type
+(4) {LOCATION} relevance
+(5) confidence: H / M / L`,
         },
-        // Layer 4 — Geo + Context
+
+        // ═══════════════════════════════════════════════════════════════════
+        // LAYER 4 — GEO + CONTEXT
+        // ═══════════════════════════════════════════════════════════════════
         {
             id: 'P10', category: 'geo_context', intent: 'geo_visibility',
             weight: 1.3, includesBrand: false,
-            text: `I'm in {LOCATION} and want the best {INDUSTRY} option that genuinely works for buyers there — not technically global options built primarily for US or Western European markets.\n\nTop 5 for {LOCATION} buyers. For each: do they have real local presence? Are they considered reliable specifically in {LOCATION}? Do they understand the local market? Are any originally from or primarily focused on {LOCATION}?`,
+            text: `Top 5 {INDUSTRY} options specifically for {LOCATION} buyers. Per brand:
+(1) local visibility rank
+(2) local user sentiment
+(3) source types with {LOCATION} signal
+(4) real local presence vs just technically available
+(5) one citation proving {LOCATION} relevance
+
+Flag global brands that underperform locally.
+Are there {LOCATION}-native brands overlooked globally?
+Where is your {LOCATION} signal weakest?`,
         },
         {
             id: 'P11', category: 'geo_context', intent: 'multi_turn_persistence',
             weight: 1.2, includesBrand: false,
-            text: `TURN 1: "What are the best {INDUSTRY} options for someone just starting their search?"\n\nTURN 2: "Which of those would still fit an organisation growing quickly and needing strong long-term credibility?"\n\nTURN 3: "Of those remaining, which are genuinely suited for a {REACH} operation with a presence in {LOCATION}?"\n\nTURN 4: "Between the top two you just named, which do you actually recommend and why? Give a clear answer."\n\n[Send as 4 separate conversation turns. Record which brand survives all 4 turns and which is chosen at Turn 4.]`,
+            text: `Answer these 4 questions about {INDUSTRY} in sequence:
+
+T1: "Best {INDUSTRY} options for a first-time buyer?"
+
+T2: "Which of those still fit a fast-growing org needing long-term credibility?"
+
+T3: "Which suit a {REACH} operation in {LOCATION} specifically?"
+
+T4: "Pick one from your top two. Specific reasons only — no hedging. What filtering logic did you apply each turn?"
+
+Record: survivor brand, T4 winner, filtering criteria per turn.`,
         },
         {
             id: 'P12', category: 'geo_context', intent: 'trend_momentum',
             weight: 1.3, includesBrand: false,
-            text: `How is {INDUSTRY} evolving right now? Who's gaining momentum? Who's stagnating or losing relevance?\n\nWhich player has made the most notable recent progress? Who do you predict will be dominant in three years, and why?\n\nDoes operating in or primarily serving {LOCATION} give any players a structural advantage or disadvantage as the market shifts?\n\nFor each of these options — {COMPETITORS} — place them on the momentum curve: rising, stable, or declining. What signals drive each view?`,
+            text: `For each of {COMPETITORS}, rate momentum: rising / stable / declining. Per brand:
+(1) specific signal driving the rating
+(2) user sentiment trajectory
+(3) source type
+(4) {LOCATION} structural impact
+(5) one citation
+
+Who made the most notable recent move?
+Who leads in 3 years — name one assumption that must hold.
+Where is your momentum data most likely outdated?`,
         },
-        // Layer 5 — Deep Probes
+
+        // ═══════════════════════════════════════════════════════════════════
+        // LAYER 5 — DEEP PROBES
+        // ═══════════════════════════════════════════════════════════════════
         {
             id: 'P13', category: 'deep_probe', intent: 'competitor_extraction',
             weight: 1.5, includesBrand: false,
-            text: `Map every brand competing for buyer attention and budget in {INDUSTRY} — exhaustively, not just top 10.\n\nCover:\n1. Direct competitors — same core job, same primary buyer\n2. Indirect competitors — adjacent categories buyers choose instead\n3. Regional/local competitors — strong specifically in {LOCATION}\n4. Budget alternatives — lower-cost or free options\n5. Premium/enterprise alternatives — when price isn't the constraint\n6. Emerging names — appeared or grown in the last 2–3 years, not yet household names\n7. DIY or no-vendor alternatives — how buyers avoid choosing any brand\n\nFor each: which angle it falls into and one sentence why. Then for each of these specifically — {COMPETITORS} — identify where they fit in this map and whether there are angles where they face no competition.`,
+            text: `Map every {INDUSTRY} competitor across 7 angles: direct / indirect / {LOCATION}-regional / budget-free / premium-enterprise / emerging last 2–3 years / no-vendor DIY. Per brand:
+(1) category
+(2) sentiment signal
+(3) source type
+(4) {LOCATION} relevance
+(5) one citation
+
+For {COMPETITORS} specifically: which category fits them and where do they face no competition?`,
         },
         {
             id: 'P14', category: 'deep_probe', intent: 'alternatives_switching',
             weight: 1.3, includesBrand: false,
-            text: `I'm currently using {COMPETITORS} for {INDUSTRY} and looking to switch. What alternatives should I seriously consider?\n\nFor each: what it does better than {COMPETITORS}, what I'd lose by switching, and whether the transition is typically straightforward or complicated.\n\nI'm a {REACH} operation in {LOCATION} — availability, local support, and contextual fit matter.`,
+            text: `I'm switching from {COMPETITORS} in {INDUSTRY}. I'm a {REACH} operation in {LOCATION}. Per alternative:
+(1) visibility vs {COMPETITORS}
+(2) what it does better — specific capability
+(3) what I lose — honest assessment
+(4) transition complexity: simple / moderate / complex
+(5) local availability in {LOCATION}
+(6) sentiment from actual switchers
+(7) source type + one citation
+
+Which alternatives disappoint post-switch despite frequent mention?`,
         },
         {
             id: 'P15', category: 'deep_probe', intent: 'competitive_gap',
             weight: 1.8, includesBrand: false,
-            text: `For this group of {INDUSTRY} options — {COMPETITORS} — answer exactly:\n\n1. Which single option has the most significant and specific advantage over the rest of the group? Not a broad strength — something precise that distinguishes it.\n\n2. For each option: name the one thing it does clearly better than all the others. Be specific about the capability.\n\n3. For each option: the one weakness it should address to most meaningfully improve its competitiveness against this group.`,
+            text: `For {COMPETITORS} in {INDUSTRY}:
+(1) which brand has the single most defensible advantage — name the specific capability
+(2) per brand: one distinct capability it beats all others at — no repeats
+(3) per brand: one specific weakness vs this group
+(4) sentiment signal per gap
+(5) source type
+(6) is there a capability gap none of them fills?
+
+Mark [INFERRED] where unverified.`,
         },
         {
             id: 'P16', category: 'deep_probe', intent: 'reputation_sentiment',
             weight: 1.5, includesBrand: false,
-            text: `I'm researching these {INDUSTRY} options before making a decision: {COMPETITORS}. For each one, what would I typically find in terms of reputation?\n\nCover: what satisfied customers praise, what dissatisfied ones criticise, whether it's seen as trustworthy and reliable, any notable controversies or negative events, and how its reputation compares to the others on this list.\n\nFor each point, name the source — review platforms, news, social media, professional communities, analyst opinions, etc.`,
+            text: `For each of {COMPETITORS}:
+(1) consistent praise themes — source type + signal strength
+(2) consistent criticism themes — source type + signal strength
+(3) documented controversies — name specific incidents, not general reputation
+(4) trust perception in {LOCATION} specifically
+(5) one citation URL per brand
+
+Who has the largest gap between public positioning and actual user sentiment?
+Who is most polarised — praised by some, harshly criticised by others?`,
         },
         {
             id: 'P17', category: 'deep_probe', intent: 'source_influence',
             weight: 1.2, includesBrand: false,
-            text: `If I'm thoroughly researching {INDUSTRY}, what sources should I consult? Top 3 per category:\n\n1. Most trusted review or comparison platforms\n2. Most trusted publications, newsletters, or analyst reports\n3. Most trusted online communities, forums, or professional groups\n4. Most useful video or multimedia sources\n5. Brands considered genuine thought leaders — whose own content is worth reading\n\nFor each source, name which {INDUSTRY} brands are most frequently featured, cited, or recommended there.`,
+            text: `Where do {INDUSTRY} buyers research? Top 3 per category:
+(1) review platforms
+(2) analyst reports and publications
+(3) communities and forums
+(4) video and multimedia
+(5) brand thought leadership worth reading
+
+Per source: which brands appear most + earned or paid prominence + sentiment bias + {LOCATION} relevance + one URL.
+Which 3 give the most unbiased signal?
+Any {LOCATION}-specific sources global rankings miss?`,
         },
         {
             id: 'P18', category: 'deep_probe', intent: 'positioning_validation',
             weight: 1.5, includesBrand: false,
-            text: `Among these {INDUSTRY} options — {COMPETITORS} — evaluate which has the strongest claim to market leadership for {REACH} buyers.\n\n1. For each, rate their leadership claim: strongly credible, partially credible, or weak — with specific reasoning, no hedging.\n\n2. Who currently has the strongest, most defensible claim overall, and what earns it?\n\n3. For each option: what specific changes — in product, reputation, or market presence — would it need to be considered a clear, unambiguous leader, especially for buyers in {LOCATION}?\n\n4. Is there positioning territory in {INDUSTRY} that any of these options could credibly own that no current leader occupies?`,
+            text: `For {COMPETITORS}, rate each leadership claim: strongly credible / partially credible / weak. Per brand:
+(1) specific evidence — not assertion
+(2) user sentiment on their leadership claim
+(3) source type
+(4) credibility specifically for {LOCATION} buyers
+(5) one citation
+
+Who holds the most defensible claim overall?
+Per non-leader: one specific change to become credible.
+Is there unclaimed positioning territory in {INDUSTRY}?`,
         },
         {
             id: 'P19', category: 'deep_probe', intent: 'semantic_cluster_gap',
             weight: 1.5, includesBrand: false,
-            text: `Map how {INDUSTRY} brands occupy conceptual territory.\n\nStep 1 — Association mapping: For each brand below, list 20 words or phrases — attributes, emotional associations, customer types, use cases, reputation signals.\nBrands: {COMPETITORS}.\n\nStep 2 — Ownership gaps: Which words appear frequently across most brands but are absent or weak for one or more of them?\n\nStep 3 — Differentiation assets: Which words appear strongly for one brand but rarely for its competitors?\n\nStep 4 — White space: Which high-value {INDUSTRY} terms aren't strongly associated with ANY of these brands?\n\nStep 5 — Verdict: For each brand, where is its semantic footprint weakest — and which 3 concepts should it most urgently try to own?`,
+            text: `For each of {COMPETITORS}, list 15 association words: capabilities, sentiment signals, buyer types, risk markers. Then:
+(1) words across all brands — category noise, not differentiators
+(2) words owned by one brand only — differentiation assets
+(3) high-value {INDUSTRY} terms no brand owns — white space
+(4) {LOCATION}-specific associations missing from all brands
+(5) per brand: 3 concepts to urgently claim`,
         },
         {
             id: 'P20', category: 'deep_probe', intent: 'citation_benchmark',
             weight: 1.5, includesBrand: false,
-            text: `When explaining how {INDUSTRY} works — different approaches, what separates strong from weak offerings — which real brands would you use as examples?\n\n1. The gold standard for best-in-class in {INDUSTRY} — which brand and why?\n2. The strongest reference point for value-for-money positioning?\n3. The most cited cautionary example — and what's the lesson?\n4. The benchmark you'd use to evaluate any {INDUSTRY} option — why does it hold that status?\n\nThen for each of these — {COMPETITORS} — does it appear in any of the four citation roles above? If not, what would it need to change to earn one?`,
+            text: `In {INDUSTRY}, name which brand holds each role:
+(1) gold standard — who defines best-in-class
+(2) value benchmark — who defines good value
+(3) cautionary example — specific incident, not general reputation
+(4) evaluation baseline — "compare everything against X"
+
+Per role: brand + specific reason + sentiment signal + source type + one citation URL.
+For each of {COMPETITORS}: do they hold a role? If not, what specifically earns them one?`,
         },
     ];
 

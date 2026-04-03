@@ -510,7 +510,7 @@ function DashboardInner() {
             case 'audit-health':
                 return <AuditHealthPage user={contextUser} activeProject={activeProject} auditManager={auditManager} />;
             case 'prompt-intel':
-                return <PromptIntelPage user={contextUser} />;
+                return <PromptIntelPage user={contextUser} scanManager={scanManager} />;
             case 'actions':
                 return <ActionsPage user={contextUser} onTabChange={setActiveTab} />;
             default:
