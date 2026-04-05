@@ -4,6 +4,7 @@ import {
     ChevronDown, ChevronUp, Link2, Check, MessageSquare, Copy, Search, AlertCircle,
 } from 'lucide-react';
 import { GeminiLogo, PerplexityLogo } from '../landing/AILogos';
+import { SentimentTriGauge } from '@/components/ui/SentimentTriGauge';
 
 function getVisibilityData(domain, projectId) {
     try {
@@ -173,7 +174,7 @@ function EngineResponseCard({ engineKey, data }) {
     }
     const hasResp = engineRowHasResponse(data);
     const ok = !!data && hasResp;
-    const sentiment = data?.sentiment && data.sentiment !== 'n/a' ? String(data.sentiment) : 'Neutral';
+    const sentimentRaw = data?.sentiment && data.sentiment !== 'n/a' ? String(data.sentiment) : 'neutral';
     const statusLine = data?.status ? String(data.status) : null;
 
     return (
@@ -211,7 +212,7 @@ function EngineResponseCard({ engineKey, data }) {
                     <Check className="w-3.5 h-3.5 shrink-0" strokeWidth={2.5} />
                     Brand Mentioned
                 </span>
-                <span className="text-[10px] text-[#9a9a9a] capitalize shrink-0">{sentiment}</span>
+                <SentimentTriGauge label={sentimentRaw} size="sm" className="shrink-0" />
             </div>
             <div className="px-3 py-2 flex-1 flex flex-col min-h-0">
                 <div className="flex items-center gap-1.5 text-[10px] font-bold text-[#5a5a5a] uppercase tracking-wider mb-1.5">

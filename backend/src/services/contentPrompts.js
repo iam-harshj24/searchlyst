@@ -1,4 +1,67 @@
-export function getPromptForPlatform({ platform, topic, brandName, industry, domain, keywords }) {
+function buildBrandHubBlock({ brandHubContext, safeBrand, safeDomain }) {
+    return brandHubContext?.trim()
+        ? `
+BRAND HUB — SUPPLIED CONTEXT (mandatory to use when relevant; cite inline):
+${brandHubContext.trim()}
+
+CITATION RULE: Whenever you use a fact, tone rule, or claim from the block above, add an inline citation such as:
+[Source: Brand Hub — Social] / [Source: Brand Hub — AI Visibility] / [Source: Brand Hub — Custom Inbox] / [Source: Brand Hub — Profile]
+matching the slice of context you used. Do not invent data not present in the topic or this block.
+`
+        : `
+BRAND HUB: No Social / AI Visibility / Custom Inbox text was attached to this request.
+Still ground brand-specific statements in the provided topic and brand fields, and cite: [Source: Brand Hub — Profile — ${safeBrand} (${safeDomain})] when stating positioning or offerings.
+`;
+}
+
+/** Blog + newsletter: Markdown in "content", FAQ + discoverability inside body (AEO/GEO). */
+function buildMasterLongform({ brandHubContext, safeBrand, safeDomain, safeIndustry }) {
+    const hubBlock = buildBrandHubBlock({ brandHubContext, safeBrand, safeDomain });
+    return `
+=== MASTER (LONG-FORM — Blog / Email newsletter) ===
+ROLE: You are an Expert AI Content Strategist. You optimize for AI search (AEO/GEO) and treat Brand Hub knowledge as authoritative when provided.
+
+${hubBlock}
+
+FORMATTING — "content" field:
+- Use GitHub-flavored Markdown: **bold**, *italics*, ## / ### headings, lists, blockquotes, --- where helpful for CMS paste (WordPress, Notion, etc.).
+
+STRUCTURE:
+- Introduction, actionable takeaways (align JSON keyTakeaways), conclusion with CTA.
+
+MANDATORY IN "content" MARKDOWN:
+- Before ## FAQ, include heading exactly: ### AI search & discoverability notes with 3–5 qualitative bullets (no fake numeric engine scores).
+- End with heading exactly: ## FAQ and 3–5 Q&As; mirror the same pairs in JSON "faq".
+
+=== END MASTER ===
+CONTEXT: Industry ${safeIndustry}. Brand ${safeBrand}. Domain ${safeDomain}.
+`;
+}
+
+/** Social / Reddit: plain paste-ready "content" — no markdown; SEO signals in JSON only. */
+function buildMasterSocial({ brandHubContext, safeBrand, safeDomain, safeIndustry }) {
+    const hubBlock = buildBrandHubBlock({ brandHubContext, safeBrand, safeDomain });
+    return `
+=== MASTER (SOCIAL — paste-ready plain text) ===
+ROLE: Expert content strategist for social and community platforms. Optimize for AEO/GEO without exposing markup to the reader.
+
+${hubBlock}
+
+CRITICAL — JSON "content" STRING (what the user copies and pastes):
+- Must be plain text ONLY: real line breaks, normal punctuation, optional • or numbered "1." lists, emojis only if native to that platform.
+- FORBIDDEN inside "content": markdown (** # ### * _ \` ), HTML, code fences, labels like "SECTION 1", "Tweet 3/12", character counts like "[243 chars]", "Best time to post", strategy decks, scores, JSON fragments, triple dashes as section dividers, "### AI search", "## FAQ", or any FAQ text.
+- Write for AEO/GEO using plain language: definitional opening sentences, entity names (${safeBrand}, ${safeDomain}), quotable standalone lines, stats with (Source: Organization, Year) in parentheses — never markdown bold.
+
+STRUCTURED DATA (NOT inside pasted "content"):
+- Put 3–5 Q&A pairs ONLY in JSON "faq" (natural questions people ask AI/search).
+- Put 3–5 qualitative discoverability bullets ONLY in JSON "discoverabilityNotes" (array of strings). No numeric fake rankings.
+
+=== END MASTER ===
+CONTEXT: Industry ${safeIndustry}. Brand ${safeBrand}. Domain ${safeDomain}.
+`;
+}
+
+export function getPromptForPlatform({ platform, topic, brandName, industry, domain, keywords, brandHubContext }) {
     const safeTopic = topic || 'General industry topics';
     const safeBrand = brandName || 'Our Brand';
     const safeDomain = domain || 'ourwebsite.com';
@@ -12,30 +75,54 @@ export function getPromptForPlatform({ platform, topic, brandName, industry, dom
         day: 'numeric',
     });
 
-    // Universal JSON wrapper added to the end of EVERY prompt
-    const JSON_OUTPUT_WRAPPER = `
----
-TODAY'S DATE (recency): ${todayLong}. Use ${currentYear} / "this year" for timely framing, stats, and titles unless the piece is explicitly historical — avoid defaulting to old years.
-CRITICAL JSON COMPLIANCE:
-All your generated content (including the post, hooks, formatting, metadata) MUST be delivered inside a strict JSON object. Do not output raw markdown outside of this JSON wrapper.
+    const MASTER_LONG = buildMasterLongform({ brandHubContext, safeBrand, safeDomain, safeIndustry });
+    const MASTER_SOCIAL = buildMasterSocial({ brandHubContext, safeBrand, safeDomain, safeIndustry });
 
-Return exactly this JSON format:
+    const JSON_OUTPUT_LONGFORM = `
+---
+TODAY'S DATE (recency): ${todayLong}. Use ${currentYear} / "this year" for timely framing unless historical.
+CRITICAL: Return ONE JSON object only. No text outside JSON.
+
 {
-    "title": "A catchy title for the generated content (e.g., Blog Title, Thread Hook, Newsletter Subject Line)",
-    "metaDescription": "A 150-160 character summary of the content and its purpose",
-    "keyTakeaways": ["Key insight 1", "Key insight 2", "Key insight 3"],
-    "content": "INSERT THE FULL GENERATED MARKDOWN CONTENT HERE. Include the hooks, the body, the metadata section, and all formatting using \n\n for line breaks.",
-    "faq": [{"q": "Extract any FAQs generated here", "a": "Extract the answer here"}],
-    "sources": [{"name": "Source Name", "description": "What this source covers"}],
+    "title": "Title or subject line",
+    "metaDescription": "150-160 character summary",
+    "keyTakeaways": ["3-7 bullets aligned with the piece"],
+    "content": "FULL MARKDOWN: intro, body with ##/### headings, ### AI search & discoverability notes (3-5 qualitative bullets, no fake scores), ## FAQ (3-5 Q&As), CTA. Escape newlines as \\\\n in JSON.",
+    "faq": [{"q": "Question", "a": "Answer"}],
+    "sources": [{"name": "Source Name", "description": "What it covers"}],
     "suggestedKeywords": ["keyword1", "keyword2"],
     "wordCount": 0,
     "readingTime": "1 min"
 }
+
+STRICT: "faq" 3-5 items matching ## FAQ in "content". "content" must include ### AI search & discoverability notes and ## FAQ. Do not append META SECTIONs, scores, or posting-time notes after the article inside "content".
+`;
+
+    const JSON_OUTPUT_SOCIAL = `
+---
+TODAY'S DATE (recency): ${todayLong}. Use ${currentYear} for timely framing unless historical.
+CRITICAL: Return ONE JSON object only. No text outside JSON.
+
+{
+    "title": "Short label (e.g. thread hook idea)",
+    "metaDescription": "150-160 character summary for previews",
+    "keyTakeaways": ["3-7 bullets summarizing the post"],
+    "content": "SINGLE plain-text string: the EXACT text the user pastes into the app. No markdown. No FAQ here. No strategy notes or scores.",
+    "faq": [{"q": "Natural question", "a": "Direct answer"}],
+    "sources": [{"name": "Source Name", "description": "Brief"}],
+    "suggestedKeywords": ["keyword1", "keyword2"],
+    "discoverabilityNotes": ["3-5 qualitative AEO/GEO signals for this piece — not shown in the post"],
+    "wordCount": 0,
+    "readingTime": "1 min"
+}
+
+STRICT: "content" is plain UTF-8 only (no ** # \` HTML). "faq" and "discoverabilityNotes" must each have 3-5 items. Never put FAQ or discoverability headings inside "content".
 `;
 
     // 1. Email Newsletter
     if (platform === 'Email Newsletter') {
-        return `You are an expert content strategist, SEO specialist, and email newsletter writer who deeply understands Answer Engine Optimization (AEO) and Generative Engine Optimization (GEO). Your job is to create a comprehensive, authoritative, and citation-worthy email newsletter post on the following topic:
+        return `${MASTER_LONG}
+You are an expert content strategist, SEO specialist, and email newsletter writer who deeply understands Answer Engine Optimization (AEO) and Generative Engine Optimization (GEO). Your job is to create a comprehensive, authoritative, and citation-worthy email newsletter post on the following topic:
 
 TOPIC: ${safeTopic}
 TARGET AUDIENCE: Subscribers, industry professionals, and potential customers of ${safeBrand}
@@ -118,7 +205,7 @@ Structure this section using ALL of the following GEO-optimized patterns:
 - This directly feeds AI engines' "People Also Ask" and correction-based responses.
 
 ### 7. FAQ SECTION (Critical for AEO)
-Generate 7-10 FAQs following these rules:
+Generate **between 3 and 5** FAQs only (Master System Prompt — same set must appear in JSON "faq"). Following these rules:
 - Each question must be written in natural, conversational language — exactly how a real person would ask Google or an AI assistant.
 - Questions should cover:
   - 2 basic/beginner questions ("What is...?", "How does... work?")
@@ -171,22 +258,17 @@ A: [Direct answer starting with the key information...]
 ---
 
 ## OUTPUT FORMAT:
-Deliver the complete newsletter post with all 10 sections above.
-Use proper markdown formatting (headers, bold, bullets, tables).
-After the post, provide a separate "META SECTION" that includes:
-- Suggested Blog Title
-- Meta Description
-- Target Keywords
-- Schema Markup Suggestion
-- AI Engine Optimization Score Self-Assessment
+Deliver the complete newsletter with all sections above inside the JSON "content" field as Markdown only.
+Do NOT append any META SECTION, scores, posting times, or strategy notes after the newsletter — nothing after the final resources/CTA inside "content". Put keywords only in JSON "suggestedKeywords".
 
-${JSON_OUTPUT_WRAPPER}
+${JSON_OUTPUT_LONGFORM}
 `;
     }
 
     // 2. LinkedIn Post
     if (platform === 'LinkedIn Post') {
-        return `You are a LinkedIn content strategist and AEO/GEO optimization expert. Create a high-performing LinkedIn post that is structured for maximum engagement, AI citability, and authority building.
+        return `${MASTER_SOCIAL}
+You are a LinkedIn content strategist and AEO/GEO optimization expert. Create a high-performing LinkedIn post that is structured for maximum engagement, AI citability, and authority building.
 
 TOPIC: ${safeTopic}
 AUTHOR NAME/TITLE: Representative from ${safeBrand}
@@ -197,81 +279,27 @@ GOAL: Establish Authority and Community Building
 
 ---
 
-## LINKEDIN POST STRUCTURE — Follow this EXACT framework:
+## LINKEDIN — PLAIN-TEXT POST (inside JSON "content" only)
 
-### SECTION 1: THE HOOK (First 2-3 Lines — ABOVE THE FOLD)
-Create the opening using ONE of these proven hook formulas:
-- **Bold Contrarian Statement:** "Most people think [common belief]. They're wrong. Here's why."
-- **Surprising Statistic:** "[Shocking number/stat] — and nobody is talking about it."
-- **Personal Story Entry:** "Last [week/month/year], I [did something]. It changed how I think about [topic]."
-- **Direct Challenge:** "If you're still doing [old approach], you're leaving [result] on the table."
+Build ONE finished post the user can paste into LinkedIn as-is:
+- Opening: first line = powerful standalone sentence (max ~15 words), blank line, then 1-2 short lines of tension or context.
+- Next: why this matters now (plain sentences, optional stat with (Source: Name, Year)).
+- Core: 5-7 short blocks separated by blank lines. Use lines starting with "1." "2." or bullet "•" — no markdown asterisks or hashes.
+- Include one "Here's what most people miss:" paragraph (plain text).
+- TL;DR: 3-5 lines starting with • 
+- End with ONE clear CTA (question or action).
+- Optional: last line can be 3-5 real LinkedIn hashtags as plain words with # (e.g. #Leadership) — no markdown.
 
-Rules:
-- First line must be a STANDALONE power sentence (max 15 words).
-- Add a line break after the first sentence.
-- Second line adds tension, curiosity, or context.
-- Provide 3 hook variations to choose from at the very top.
+Do NOT include: multiple hook options, "SECTION" labels, best-time-to-post, first-comment strategy, scores, FAQ, or discoverability headings in "content".
 
-### SECTION 2: THE CONTEXT BRIDGE (50-80 words)
-- Transition from the hook to the main insight.
-- Establish WHY this matters NOW.
-- Include ONE statistic with source: "(Source: [Org, Year])"
-
-### SECTION 3: THE CORE INSIGHT / FRAMEWORK (400-600 words)
-Structure using ONE of these formats:
-
-**Option A — Numbered Breakdown**
-Present 5-7 key points/strategies/lessons:
-- Each point: Bold emoji-led headline + 2-3 sentence explanation
-- Format: "1. [Bold Point] → [Explanation]"
-- At least 3 points must include a "quotable line" (self-contained, insightful).
-
-**Option B — Myth-Busting Framework**
-- Present 3-5 common myths/misconceptions:
-  - "❌ Myth: [Wrong belief]"
-  - "✅ Reality: [Correct insight with evidence]"
-
-### SECTION 4: THE "QUOTABLE PARAGRAPH" (40-60 words)
-- Write ONE standalone paragraph that is the most insightful, original take in the entire post.
-- Be self-contained and start with "Here's what most people miss:" 
-
-### SECTION 5: KEY TAKEAWAYS / TL;DR (60-80 words)
-- "TL;DR:" or "Here's what to remember:"
-- 3-5 bullet points using → or • or ✅
-
-### SECTION 6: ENGAGEMENT CTA (30-50 words)
-Create 2 options:
-- Option A — Question CTA (specific and easy-to-answer)
-- Option B — Challenge/Action CTA 
-
-### SECTION 7: HASHTAG BLOCK
-- Provide 3-5 relevant hashtags.
-
----
-
-## LINKEDIN-SPECIFIC WRITING RULES:
-1. **Line breaks are your weapon.** Never write paragraphs longer than 3 lines on mobile. 
-2. **Front-load every sentence.** Lead with the insight, not the setup.
-3. **Include entity references.** Name real companies, tools, people, studies. 
-4. **No external links in the post body.** Put links in the FIRST COMMENT instead.
-
----
-
-## OUTPUT FORMAT:
-Deliver the complete LinkedIn post with all sections.
-Use proper LinkedIn-native formatting (line breaks, emojis, bullets).
-After the post, provide:
-- Best Time to Post
-- First Comment Strategy
-- AI Citability Score (1-10)
-
-${JSON_OUTPUT_WRAPPER}
+${JSON_OUTPUT_SOCIAL}
 `;
     }
 
     // 3. X / Twitter Thread
     if (platform === 'X / Twitter Thread') {
-        return `You are a Twitter/X thread strategist and AEO/GEO optimization expert. Create a high-performing thread that goes viral through value density, shareability, and AI-citable structure.
+        return `${MASTER_SOCIAL}
+You are a Twitter/X thread strategist and AEO/GEO optimization expert. Create a high-performing thread that goes viral through value density, shareability, and AI-citable structure.
 
 TOPIC: ${safeTopic}
 AUTHOR/HANDLE: @${safeBrand.replace(/\s+/g, '')}
@@ -282,54 +310,26 @@ THREAD LENGTH: 10-15 tweets${safeKeywords}
 
 ---
 
-## TWITTER THREAD STRUCTURE — Follow this EXACT framework:
+## X / TWITTER THREAD — PLAIN TEXT (inside JSON "content" only)
 
-### TWEET 1: THE HOOK TWEET
-This tweet determines if ANYONE reads the rest. It must stop the scroll.
-Provide 3 Tweet 1 variations using formulas like:
-- "Unpopular opinion: [Bold statement about topic]. Here's why (with data): 🧵"
-- "[Topic] can [big result]. Here are [X] [lessons/rules] that most people miss: 🧵"
+Write 10-15 tweets as ONE plain string: each tweet on its own, separated by a blank line (double newline).
+- Tweet 1: scroll-stopping hook; you may end with 🧵
+- Tweet 2: context + credibility + one concrete number or timeframe
+- Middle tweets: each must stand alone, max ~270 characters per tweet (count yourself; do not print character counts in the text).
+- Include numbered ideas like "3/12 — insight here" using plain numbers and dashes, not brackets metadata.
+- Include TL;DR tweet and one CTA tweet and one question tweet.
+- Stats as (Source: Name, Year) in plain parens.
 
-### TWEET 2: THE CONTEXT TWEET
-- Establish credibility or set up WHY this matters.
-- Include one specific number, stat, or timeframe.
+Do NOT print [243 chars], [1/15] style metadata lines, posting times, strategies, scores, FAQ, or markdown in "content".
 
-### TWEETS 3-9/12: THE VALUE TWEETS (Core of the thread)
-Rules for each value tweet:
-- Open with a bold, numbered statement: "[Number]/[Total] — [Bold claim or principle]"
-- Explain in 1-2 sentences.
-- Each tweet must stand alone. (Screenshot-worthy)
-- Include at least 3 tweets with specific data/stats with "(Source: [Name])"
-- Include 1 "myth-busting" tweet.
-- Format using • or → natively. Max 270 chars per tweet.
-
-### TWEET 10/13: THE SUMMARY TWEET
-- "TL;DR:" or "The key points:"
-- List the 3-5 most important takeaways as short bullet points.
-
-### TWEET 11/14: THE CTA TWEET
-Create 2 options: Engagement CTA or Conversion CTA.
-
-### TWEET 12/15: THE ENGAGEMENT BAIT TWEET
-- Ask a specific, polarizing, or easy-to-answer question.
-
----
-
-## OUTPUT FORMAT:
-Deliver ALL tweets numbered clearly: [1/15], [2/15], etc.
-Show character count for each tweet in brackets: [243 chars].
-After the thread, provide:
-- Best Posting Time
-- Thread Companion Strategy
-- AI Citability Score (1-10)
-
-${JSON_OUTPUT_WRAPPER}
+${JSON_OUTPUT_SOCIAL}
 `;
     }
 
     // 4. Instagram Caption
     if (platform === 'Instagram Caption') {
-        return `You are an Instagram content strategist and AEO/GEO optimization expert. Create a high-performing Instagram caption that drives engagement, saves, shares, and is optimized for AI discoverability and citation.
+        return `${MASTER_SOCIAL}
+You are an Instagram content strategist and AEO/GEO optimization expert. Create a high-performing Instagram caption that drives engagement, saves, shares, and is optimized for AI discoverability and citation.
 
 TOPIC: ${safeTopic}
 ACCOUNT NAME: @${safeBrand.replace(/\s+/g, '')}
@@ -338,52 +338,26 @@ TONE: Bold & Direct / Educational${safeKeywords}
 
 ---
 
-## INSTAGRAM CAPTION STRUCTURE — Follow this EXACT framework:
+## INSTAGRAM CAPTION — PLAIN TEXT (inside JSON "content" only)
 
-### LINE 1: THE HOOK (First line before "...more")
-Provide 3 hook variations (max 100 characters, no emojis in first line).
+ONE paste-ready caption:
+- Line 1: hook before "more" (max ~100 characters, no emoji on line 1).
+- Short lines and blank lines for mobile; 3-6 emojis total in the caption body.
+- Core value: numbered mini-list or Problem → Insight → Action in plain sentences.
+- One save-worthy one-liner.
+- ONE CTA (save, share, or comment).
+- Final line(s): 15-25 real Instagram hashtags as #word tokens (plain text), space-separated — no markdown, no section headers.
 
-### LINES 2-4: THE CORE VALUE (100-150 words)
-Deliver the main insight in a compact, scannable format. Structure with a Mini Numbered List or Problem → Insight → Action.
-- Include at least ONE specific number or statistic.
-- Include at least ONE "quotable line".
+Do NOT add suggested visual, alt text, first comment, story ideas, scores, FAQ, or "###" headings in "content".
 
-### LINE 5: THE POWER SENTENCE (15-25 words)
-- One standalone, bold, self-contained insight (save-worthy).
-
-### LINE 6: THE CTA (20-40 words)
-Create 2 options: Option A (Save/Share) and Option B (Comment).
-
-### HASHTAG STRATEGY (After the caption)
-- Provide 15-20 hashtags grouped by size: Large, Medium, Small, Micro.
-
----
-
-## INSTAGRAM-SPECIFIC WRITING RULES:
-1. **Write for scanners, not readers.** 
-2. **Mobile-first formatting.** Short lines, white space.
-3. **Emojis as visual anchors.** Max 3-6 emojis total.
-4. **Value density over length.** 
-
----
-
-## OUTPUT FORMAT:
-Deliver the complete Instagram caption with all sections.
-Format exactly as it would appear on Instagram (line breaks, emojis, etc.).
-After the caption, provide:
-- Suggested Visual
-- Alt-Text
-- First Comment
-- Story Companion
-- AI Citability Score (1-10)
-
-${JSON_OUTPUT_WRAPPER}
+${JSON_OUTPUT_SOCIAL}
 `;
     }
 
     // 5. Reddit / Quora
     if (platform === 'Reddit / Quora') {
-        return `You are a Reddit/Quora content strategist and AEO/GEO optimization expert. Create a high-value, authentic response/post that earns upvotes, builds credibility, provides genuine value, and is optimized to be cited by AI engines pulling from Reddit/Quora content.
+        return `${MASTER_SOCIAL}
+You are a Reddit/Quora content strategist and AEO/GEO optimization expert. Create a high-value, authentic response/post that earns upvotes, builds credibility, provides genuine value, and is optimized to be cited by AI engines pulling from Reddit/Quora content.
 
 TOPIC: ${safeTopic}
 PERSONA: Industry professional in ${safeIndustry} at ${safeBrand}
@@ -392,52 +366,24 @@ GOAL: Genuine Community Help & Authority Building
 
 ---
 
-## REDDIT/QUORA RESPONSE STRUCTURE — Follow this EXACT framework:
+## REDDIT / QUORA — PLAIN TEXT (inside JSON "content" only)
 
-### OPENING: THE CREDIBILITY + DIRECT ANSWER (40-60 words)
-- Soft Credibility Marker: "I've been dealing with [thing] for [X years]..." (No bragging)
-- Direct Answer: Answer the core question IMMEDIATELY. "The short answer is [direct answer]. Here's why:"
+Write ONE answer/post as plain text (no markdown ** # or backticks):
+- Open with soft credibility + immediate direct answer: "The short answer is … Here's why:"
+- 3-5 numbered points (1. 2. 3.) with short titles in plain words, then explanation.
+- Golden paragraph: your sharpest original take.
+- Tools/resources in plain sentences; mention ${safeDomain} only if natural (no hard sell).
+- Close warmly; offer to go deeper. 0-2 emojis max.
 
-### BODY: THE DETAILED BREAKDOWN (250-400 words)
-Use "The 'Here's What Actually Works' Breakdown":
-- 3-5 numbered points/steps with bold headlines.
-- Explain with SPECIFIC details, concrete examples, and at least 1 data/stat reference.
+Do not include suggested subreddit lists, scores, FAQ blocks, "###" headings, or strategy notes in "content". Put subreddit ideas only in JSON "sources" or "discoverabilityNotes" if needed as plain strings.
 
-### THE "GOLDEN PARAGRAPH" (40-60 words)
-- Include ONE paragraph that contains your most original, insightful take. Self-contained, authoritative but not arrogant.
-
-### PRACTICAL RESOURCES / TOOLS (40-60 words)
-- Mention 2-4 specific tools, resources, books. 
-- You can subtly mention ${safeDomain} or your own guide ONLY IF it naturally fits, but Reddit users hate overt self-promotion.
-
-### CLOSING: THE GENUINE SIGN-OFF (20-40 words)
-- "Happy to go deeper into any of these if you have follow-up questions." (No CTA to follow).
-
----
-
-## REDDIT/QUORA-SPECIFIC WRITING RULES:
-1. **Be genuinely helpful above all else.** 
-2. **Conversational, not polished.** 
-3. **Specific > General. Always.** 
-4. **Edit: formatting.** Use bold, bullets, and markdown line breaks.
-5. **No emoji overuse.** 0-2 emojis max.
-
----
-
-## OUTPUT FORMAT:
-Deliver the complete Reddit/Quora response.
-Format as it would actually appear on the platform (markdown formatting, natural paragraph breaks). Do not include section labels like "BODY".
-After the response, provide:
-- Suggested Post Title
-- Suggested Subreddits / Quora Questions
-- AI Citation Probability (1-10)
-
-${JSON_OUTPUT_WRAPPER}
+${JSON_OUTPUT_SOCIAL}
 `;
     }
 
     // 6. Default (Blog / Article)
-    return `ROLE: You are an expert content strategist who creates comprehensive articles that AI search engines love to cite.
+    return `${MASTER_LONG}
+ROLE: You are an expert content strategist who creates comprehensive articles that AI search engines love to cite.
 
 TASK: Write an authoritative article about: "${safeTopic}"
 
@@ -448,14 +394,16 @@ CONTEXT:
 
 ARTICLE REQUIREMENTS:
 1. Write 1000-1500 words of high-quality, factual content optimized for Answer Engine Optimization (AEO).
-2. Include specific data points, statistics, and examples.
-3. Structure with clear H2 and H3 headings for scanability.
-4. Add inline citations in [Source: Name] format throughout.
-5. Include a "Key Takeaways" bulleted list at the top.
-6. Include an FAQ section (3-5 questions) at the end utilizing natural language queries.
-7. Include a "Sources & References" list at the very bottom.
-8. Optimize for E-E-A-T.
+2. Use rich Markdown: **bold**, *italics*, ## / ### headings, lists, blockquotes — optimized for copy-paste into CMS tools.
+3. Include specific data points, statistics, and examples.
+4. Structure with clear H2 and H3 headings for scanability.
+5. Add inline citations in [Source: Name] or [Source: Brand Hub — …] format throughout.
+6. Include a **Key Takeaways** bulleted list near the top (after a short introduction).
+7. Before the FAQ, include ### AI search & discoverability notes (Master rules).
+8. Include ## FAQ with **3 to 5** questions at the end (natural language queries); mirror in JSON "faq".
+9. Include a clear conclusion with CTA, then a **Sources & References** list at the very bottom.
+10. Optimize for E-E-A-T.
 
-${JSON_OUTPUT_WRAPPER}
+${JSON_OUTPUT_LONGFORM}
 `;
 }

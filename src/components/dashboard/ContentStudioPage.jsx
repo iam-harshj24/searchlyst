@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
     PenTool, Sparkles, FileText, Instagram, Linkedin, MessageCircle, Mail, 
-    Loader2, Copy, Check, ExternalLink, BookOpen, ChevronRight, Settings2, CornerDownLeft, Circle, Library, Twitter
+    Loader2, Copy, Check, ChevronRight, Settings2, CornerDownLeft, Circle, Library, Twitter
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { apiClient } from '@/api/apiClient';
 import ReactMarkdown from 'react-markdown';
+import { copyMarkdownToClipboard, copyPlainTextToClipboard, markdownToPlainClean, stripPasteMetaNoise } from '@/lib/copyRichMarkdown';
 
 // Keep existing util functions
 function normalizeArticle(article, topic) {
@@ -49,76 +50,122 @@ function normalizeArticle(article, topic) {
         faq: article.faq || [],
         sources: article.sources || [],
         suggestedKeywords: article.suggestedKeywords || [],
+        discoverabilityNotes: article.discoverabilityNotes || [],
         wordCount: article.wordCount,
         readingTime: article.readingTime,
     };
 }
 
 function getArticleFromItem(item) {
-    return item?.article || (item?.content ? { title: item.title, content: item.content, sources: item.sources || [], faq: item.faq || [], keyTakeaways: item.keyTakeaways || [], suggestedKeywords: item.suggestedKeywords || [], metaDescription: item.metaDescription } : null);
+    return item?.article || (item?.content ? { title: item.title, content: item.content, sources: item.sources || [], faq: item.faq || [], keyTakeaways: item.keyTakeaways || [], suggestedKeywords: item.suggestedKeywords || [], discoverabilityNotes: item.discoverabilityNotes || [], metaDescription: item.metaDescription } : null);
 }
 
-function getArticleContent(item) {
-    const art = getArticleFromItem(item);
-    return art?.content || '';
+function platformKindFromTabId(tabId) {
+    return ['linkedin', 'twitter', 'instagram', 'reddit'].includes(tabId) ? 'social' : 'longform';
 }
 
-function ArticleDisplay({ article }) {
-    if (!article) return null;
+function platformKindFromName(name) {
+    const social = ['LinkedIn Post', 'X / Twitter Thread', 'Instagram Caption', 'Reddit / Quora'];
+    return social.includes(name) ? 'social' : 'longform';
+}
+
+/** Blog / newsletter: Markdown export for CMS + rich copy. */
+function buildLongformMarkdownExport(article) {
+    if (!article) return '';
+    const lines = [];
+    if (article.title) lines.push(`# ${article.title}`, '');
+    if (article.metaDescription) lines.push(`*${article.metaDescription}*`, '');
+    if (article.keyTakeaways?.length) {
+        lines.push('## Key takeaways', '');
+        article.keyTakeaways.forEach((t) => lines.push(`- ${t}`));
+        lines.push('');
+    }
+    lines.push('---', '');
+    const body = (article.content || '').trim();
+    if (body) lines.push(body, '');
+    const contentLower = body.toLowerCase();
+    const faqInBody = /\n##\s*faq\b/.test(contentLower) || /^##\s*faq\b/m.test(contentLower);
+    if (!faqInBody && article.faq?.length) {
+        lines.push('## FAQ', '');
+        article.faq.forEach(({ q, a }) => {
+            lines.push(`**Q:** ${q}`, '', `${a}`, '');
+        });
+    }
+    if (article.sources?.length) {
+        lines.push('---', '', '## Sources', '');
+        article.sources.forEach((s) => {
+            lines.push(`- **${s.name}**${s.description ? ` — ${s.description}` : ''}`);
+        });
+        lines.push('');
+    }
+    if (article.suggestedKeywords?.length) {
+        lines.push(`*Keywords:* ${article.suggestedKeywords.join(', ')}`);
+    }
+    return lines.join('\n').trim();
+}
+
+/** Social: plain paste-ready body only (AEO/GEO data lives in JSON, not shown here). */
+function buildSocialPlainExport(article) {
+    if (!article) return '';
+    let c = (article.content || '').trim();
+    if (/[*_`#]/.test(c)) c = markdownToPlainClean(c);
+    return stripPasteMetaNoise(c);
+}
+
+function buildExportDraftForArticle(article, kind) {
+    if (!article) return '';
+    return kind === 'social' ? buildSocialPlainExport(article) : buildLongformMarkdownExport(article);
+}
+
+function ContentExportPanel({ value, onChange, variant }) {
+    const [tab, setTab] = useState('preview');
+    const isLongform = variant === 'longform';
+
     return (
-        <div className="p-6 space-y-6">
-            {article.metaDescription && <p className="text-[#888] text-[13px] italic">{article.metaDescription}</p>}
-            {article.keyTakeaways?.length > 0 && (
-                <div className="bg-[#00D26A]/10 rounded-xl p-5 border border-[#00D26A]/20 mb-8">
-                    <h4 className="text-[11px] font-bold text-[#00D26A] uppercase tracking-wider mb-3">Key Takeaways</h4>
-                    <ul className="space-y-2">
-                        {article.keyTakeaways.map((t, i) => (
-                            <li key={i} className="flex gap-2 text-[14px] text-[#ccc]"><span className="text-[#00D26A]">•</span> {t}</li>
-                        ))}
-                    </ul>
+        <div className="p-4 sm:p-6 space-y-4">
+            <p className="text-[#888] text-[12px] leading-relaxed">
+                {isLongform ? (
+                    <>Preview shows formatted article. Switch to Markdown to edit. Copy uses rich formatting for Word / CMS where supported.</>
+                ) : (
+                    <>This is the exact text to paste into your social app — no markdown symbols. Edit if needed, then Copy.</>
+                )}
+            </p>
+            {isLongform && (
+                <div className="flex gap-1 p-1 bg-[#111] border border-[#333] rounded-lg w-fit">
+                    <button
+                        type="button"
+                        onClick={() => setTab('preview')}
+                        className={`px-4 py-1.5 rounded-md text-[12px] font-semibold transition-all ${tab === 'preview' ? 'bg-[#E92A15] text-white' : 'text-[#888] hover:text-white'}`}
+                    >
+                        Preview
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setTab('edit')}
+                        className={`px-4 py-1.5 rounded-md text-[12px] font-semibold transition-all ${tab === 'edit' ? 'bg-[#E92A15] text-white' : 'text-[#888] hover:text-white'}`}
+                    >
+                        Markdown
+                    </button>
                 </div>
             )}
-            <div className="flex items-center gap-2 mb-8 text-[#888] text-[12px] font-medium">
-                <div className="w-1.5 h-1.5 rounded-full bg-[#555]"></div>
-                Generated {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} · 1,500–2,500 words
-            </div>
-            {article.title && <h1 className="text-[28px] font-bold text-white mb-8">{article.title}</h1>}
-            <div className="prose prose-invert max-w-none text-[#ccc] leading-relaxed text-[16px] 
-                [&_h1]:text-[28px] [&_h1]:font-bold [&_h1]:text-white [&_h1]:mb-6
-                [&_h2]:text-[18px] [&_h2]:font-bold [&_h2]:text-white [&_h2]:border-l-2 [&_h2]:border-white [&_h2]:pl-4 [&_h2]:mt-10 [&_h2]:mb-4
-                [&_h3]:text-[16px] [&_h3]:font-bold [&_h3]:text-white [&_h3]:border-l-2 [&_h3]:border-white [&_h3]:pl-4 [&_h3]:mt-8 [&_h3]:mb-3
-                [&_p]:my-5 
-                [&_ul]:list-none [&_ul_li]:relative [&_ul_li]:pl-6 [&_ul_li]:before:content-[''] [&_ul_li]:before:absolute [&_ul_li]:before:left-1 [&_ul_li]:before:top-2.5 [&_ul_li]:before:w-1.5 [&_ul_li]:before:h-1.5 [&_ul_li]:before:bg-[#555] [&_ul_li]:before:rounded-full 
-                [&_ol]:list-none [&_ol]:pl-0 [&_ol]:[counter-reset:list] [&_ol_li]:relative [&_ol_li]:pl-10 [&_ol_li]:mb-4 [&_ol_li]:[counter-increment:list] 
-                [&_ol_li]:before:content-[counter(list)] [&_ol_li]:before:absolute [&_ol_li]:before:left-0 [&_ol_li]:before:top-0.5 [&_ol_li]:before:w-6 [&_ol_li]:before:h-6 [&_ol_li]:before:rounded-full [&_ol_li]:before:border [&_ol_li]:before:border-[#444] [&_ol_li]:before:bg-[#1A1A1A] [&_ol_li]:before:flex [&_ol_li]:before:items-center [&_ol_li]:before:justify-center [&_ol_li]:before:text-[11px] [&_ol_li]:before:font-bold [&_ol_li]:before:text-white
-                [&_blockquote]:bg-[#111] [&_blockquote]:border [&_blockquote]:border-[#222] [&_blockquote]:rounded-[12px] [&_blockquote]:p-6 [&_blockquote]:my-8 [&_blockquote]:text-white [&_blockquote]:italic">
-                <ReactMarkdown>{article.content || ''}</ReactMarkdown>
-            </div>
-            {article.faq?.length > 0 && (
-                <div className="bg-[#1A1A1A] border border-[#333] rounded-xl p-5 mt-8">
-                    <h4 className="text-[11px] font-bold text-[#888] uppercase tracking-wider mb-4">Frequently Asked Questions</h4>
-                    <div className="space-y-4">
-                        {article.faq.map((item, i) => (
-                            <div key={i} className="bg-[#111] rounded-lg p-4 border border-[#222]">
-                                <p className="text-[14px] font-semibold text-white mb-2">Q: {item.q}</p>
-                                <p className="text-[13px] text-[#aaa]">A: {item.a}</p>
-                            </div>
-                        ))}
-                    </div>
+            {isLongform && tab === 'preview' ? (
+                <div
+                    className="min-h-[min(60vh,480px)] max-h-[min(70vh,560px)] overflow-y-auto rounded-xl border border-[#333] bg-[#0B0B0B] px-6 py-5 prose prose-invert max-w-none text-[#ccc] leading-relaxed text-[15px]
+                    [&_h1]:text-[26px] [&_h1]:font-bold [&_h1]:text-white [&_h1]:mb-4
+                    [&_h2]:text-[17px] [&_h2]:font-bold [&_h2]:text-white [&_h2]:mt-8 [&_h2]:mb-3
+                    [&_h3]:text-[15px] [&_h3]:font-bold [&_h3]:text-white [&_h3]:mt-6 [&_h3]:mb-2
+                    [&_p]:my-3 [&_strong]:text-white [&_li]:my-1"
+                >
+                    <ReactMarkdown>{value || '*Nothing to preview*'}</ReactMarkdown>
                 </div>
-            )}
-            {article.sources?.length > 0 && (
-                <div className="mt-8">
-                    <h4 className="text-[11px] font-bold text-[#666] uppercase tracking-wider mb-3 flex items-center gap-1.5"><BookOpen className="w-3.5 h-3.5" /> Source Attributions</h4>
-                    <div className="space-y-2">
-                        {article.sources.map((src, i) => (
-                            <div key={i} className="flex gap-3 p-3 rounded-lg bg-[#111] border border-[#222] hover:border-[#333] transition-colors">
-                                <ExternalLink className="w-4 h-4 text-[#E92A15] mt-0.5 shrink-0" />
-                                <div><p className="text-white text-[13px] font-medium">{src.name}</p>{src.description && <p className="text-[#888] text-[11px] mt-0.5">{src.description}</p>}</div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
+            ) : (
+                <textarea
+                    value={value}
+                    onChange={(e) => onChange(e.target.value)}
+                    spellCheck
+                    className={`w-full min-h-[min(60vh,480px)] resize-y rounded-xl border border-[#333] bg-[#0B0B0B] px-4 py-3 text-[15px] leading-relaxed text-[#e5e5e5] placeholder:text-[#555] focus:border-[#555] focus:outline-none focus:ring-1 focus:ring-[#444] ${isLongform ? 'font-mono text-[13px]' : 'font-sans'}`}
+                    aria-label={isLongform ? 'Markdown source' : 'Post text'}
+                />
             )}
         </div>
     );
@@ -139,6 +186,7 @@ const socialMediaPlatforms = [
 export default function ContentStudioPage({ user }) {
     const [step, setStep] = useState(1); // 1: Topic, 2: Platforms, 3: Generate, 4: Review
     const [topic, setTopic] = useState('');
+    const [brandHubContext, setBrandHubContext] = useState('');
     const [selectedPlatforms, setSelectedPlatforms] = useState(['blog']);
     const [activeTab, setActiveTab] = useState(null);
     const [generating, setGenerating] = useState(false);
@@ -150,6 +198,8 @@ export default function ContentStudioPage({ user }) {
     const [loadingSuggestions, setLoadingSuggestions] = useState(true);
     const [selectedLibraryItem, setSelectedLibraryItem] = useState(null);
     const [loadingLibrary, setLoadingLibrary] = useState(true);
+    const [exportDraft, setExportDraft] = useState('');
+    const [libExportDraft, setLibExportDraft] = useState('');
 
     // Contextual Defaults
     const brandName = user?.brandName || 'Camana Homes';
@@ -204,6 +254,21 @@ export default function ContentStudioPage({ user }) {
     }, [user?.projectId]);
 
     useEffect(() => {
+        if (step === 4 && activeTab && generatedContent[activeTab]) {
+            const kind = platformKindFromTabId(activeTab);
+            setExportDraft(buildExportDraftForArticle(generatedContent[activeTab], kind));
+        }
+    }, [step, activeTab, generatedContent]);
+
+    useEffect(() => {
+        if (!selectedLibraryItem?.id) return;
+        const art = getArticleFromItem(selectedLibraryItem);
+        if (!art) return;
+        const kind = platformKindFromName(selectedLibraryItem.platform || '');
+        setLibExportDraft(buildExportDraftForArticle(art, kind));
+    }, [selectedLibraryItem]);
+
+    useEffect(() => {
         const prefill = localStorage.getItem('searchlyst_content_prefill');
         if (!prefill) return;
         localStorage.removeItem('searchlyst_content_prefill');
@@ -248,6 +313,7 @@ export default function ContentStudioPage({ user }) {
                     platform: platformName,
                     keywords: '',
                     projectId: user?.projectId,
+                    ...(brandHubContext.trim() ? { brandHubContext: brandHubContext.trim() } : {}),
                 });
 
                 if (response.success && response.article) {
@@ -265,7 +331,7 @@ export default function ContentStudioPage({ user }) {
 
         } catch (error) {
             console.error('Content generation error:', error);
-            const fallback = { title: topic, content: `## Generation Failed\n\nContent generation encountered an error processing your requests.\n\nError: ${error.message}` };
+            const fallback = { title: topic, content: `Generation failed\n\nContent generation encountered an error.\n\n${error.message}` };
             setGeneratedContent({ [selectedPlatforms[0]]: fallback });
             setActiveTab(selectedPlatforms[0]);
         }
@@ -274,8 +340,17 @@ export default function ContentStudioPage({ user }) {
         setStep(4); // Review State
     };
 
-    const handleCopy = (text, id) => {
-        navigator.clipboard.writeText(text);
+    const handleCopy = async (text, id, mode) => {
+        try {
+            if (mode === 'social') await copyPlainTextToClipboard(text);
+            else await copyMarkdownToClipboard(text);
+        } catch {
+            try {
+                await navigator.clipboard.writeText(stripPasteMetaNoise((text || '').trim()));
+            } catch {
+                /* ignore */
+            }
+        }
         setCopied(id);
         setTimeout(() => setCopied(null), 2000);
     };
@@ -329,7 +404,7 @@ export default function ContentStudioPage({ user }) {
                     </div>
                     <div>
                         <h1 className="text-[19px] font-semibold text-white tracking-tight">Content Studio</h1>
-                        <p className="text-[#888] text-[13px] mt-0.5">Create AI-optimized content with sources & citations that AI search engines love to reference.</p>
+                        <p className="text-[#888] text-[13px] mt-0.5">Blog &amp; email: formatted preview + Markdown. Social: plain paste-ready copy. AEO/GEO structured in the model. Brand Hub when you attach context.</p>
                     </div>
                 </div>
                 <div className="flex items-center bg-[#111] border border-[#222] rounded-full p-1.5">
@@ -353,7 +428,7 @@ export default function ContentStudioPage({ user }) {
                                 <div className="p-5 border-b border-[#222] flex items-center justify-between bg-[#111]">
                                     <h3 className="text-white font-semibold text-[16px] truncate pr-4">{selectedLibraryItem.title}</h3>
                                     <div className="flex items-center gap-3 shrink-0">
-                                        <button onClick={() => handleCopy(getArticleContent(selectedLibraryItem), 'lib')} className="px-4 py-2 text-[12px] font-medium text-white bg-[#1A1A1A] border border-[#333] hover:bg-[#222] rounded-xl transition-all">
+                                        <button onClick={() => handleCopy(libExportDraft, 'lib', platformKindFromName(selectedLibraryItem?.platform || '') === 'social' ? 'social' : 'longform')} className="px-4 py-2 text-[12px] font-medium text-white bg-[#1A1A1A] border border-[#333] hover:bg-[#222] rounded-xl transition-all">
                                             {copied === 'lib' ? 'Copied!' : 'Copy'}
                                         </button>
                                         <button onClick={() => setSelectedLibraryItem(null)} className="px-4 py-2 text-[12px] font-medium text-white bg-[#E92A15] hover:bg-[#D12512] rounded-xl transition-all">
@@ -362,7 +437,12 @@ export default function ContentStudioPage({ user }) {
                                     </div>
                                 </div>
                                 <div className="max-h-[70vh] overflow-y-auto">
-                                    <ArticleDisplay article={getArticleFromItem(selectedLibraryItem)} />
+                                    <ContentExportPanel
+                                        key={selectedLibraryItem?.id}
+                                        value={libExportDraft}
+                                        onChange={setLibExportDraft}
+                                        variant={platformKindFromName(selectedLibraryItem?.platform || '') === 'social' ? 'social' : 'longform'}
+                                    />
                                 </div>
                             </div>
                         ) : contentLibrary.length === 0 ? (
@@ -440,6 +520,26 @@ export default function ContentStudioPage({ user }) {
                                         </div>
                                     </div>
                                 </div>
+
+                                <details className="mt-6 rounded-2xl border border-[#222] bg-[#0B0B0B] overflow-hidden open:border-[#333]">
+                                    <summary className="cursor-pointer px-5 py-3 text-[13px] font-semibold text-[#ccc] hover:bg-[#111] list-none flex items-center gap-2 marker:content-['']">
+                                        <span className="text-[#a78bfa]">▸</span>
+                                        Brand Hub context (optional — Social · AI visibility · Custom inbox)
+                                    </summary>
+                                    <div className="px-5 pb-4 pt-0 border-t border-[#1a1a1a]">
+                                        <p className="text-[12px] text-[#666] mt-3 mb-2 leading-relaxed">
+                                            Paste notes the model must treat as Brand Hub sources. It will cite them inline as{' '}
+                                            <code className="text-[11px] text-[#888]">[Source: Brand Hub — …]</code>.
+                                            Leave empty to use only your topic and profile fields.
+                                        </p>
+                                        <textarea
+                                            value={brandHubContext}
+                                            onChange={(e) => setBrandHubContext(e.target.value)}
+                                            placeholder={'e.g.\n[Social] Top themes from LinkedIn: …\n[AI Visibility] Models often cite competitor X for …\n[Custom Inbox] Never claim we offer …'}
+                                            className="w-full min-h-[120px] bg-[#080808] border border-[#2a2a2a] rounded-xl text-[#ddd] text-[13px] leading-relaxed p-4 placeholder:text-[#444] focus:outline-none focus:border-[#E92A15]/40 resize-y"
+                                        />
+                                    </div>
+                                </details>
 
                                 {/* AI Suggestions Array */}
                                 <div className="mt-12">
@@ -720,17 +820,17 @@ export default function ContentStudioPage({ user }) {
                                                         <span className="text-white text-[14px] font-bold tracking-wide">{activeP?.name}</span>
                                                     </div>
                                                     <div className="w-1 h-1 rounded-full bg-[#444]"></div>
-                                                    <span className="text-[#888] text-[12px] font-medium">4 citations</span>
+                                                    <span className="text-[#888] text-[12px] font-medium">
+                                                        {platformKindFromTabId(activeTab) === 'social' ? 'Plain-text · paste-ready' : 'Markdown · CMS-ready'}
+                                                    </span>
                                                     <div className="w-1 h-1 rounded-full bg-[#444]"></div>
-                                                    <span className="text-[#888] text-[12px] font-medium">FAQ included</span>
-                                                    <div className="w-1 h-1 rounded-full bg-[#444]"></div>
-                                                    <span className="text-[#888] text-[12px] font-medium">AI-ready</span>
+                                                    <span className="text-[#888] text-[12px] font-medium">AEO / GEO</span>
                                                 </div>
                                                 <div className="flex items-center gap-3">
                                                     <button onClick={handleGenerate} className="flex items-center gap-2 px-4 py-2 bg-transparent border border-[#333] hover:border-[#555] text-white rounded-lg text-[12px] font-semibold transition-all">
                                                         <Settings2 className="w-3.5 h-3.5" /> Regenerate
                                                     </button>
-                                                    <button onClick={() => handleCopy(article.content, activeTab)} className="flex items-center gap-2 px-4 py-2 bg-transparent border border-[#333] hover:border-[#555] text-white rounded-lg text-[12px] font-semibold transition-all">
+                                                    <button onClick={() => handleCopy(exportDraft, activeTab, platformKindFromTabId(activeTab) === 'social' ? 'social' : 'longform')} className="flex items-center gap-2 px-4 py-2 bg-transparent border border-[#333] hover:border-[#555] text-white rounded-lg text-[12px] font-semibold transition-all">
                                                         {copied === activeTab ? <Check className="w-3.5 h-3.5 text-[#00D26A]" /> : <Copy className="w-3.5 h-3.5" />} Copy
                                                     </button>
                                                     <button className="flex items-center gap-2 px-4 py-2 bg-[#E92A15] hover:bg-[#D12512] text-white rounded-lg text-[12px] font-semibold transition-all shadow-lg">
@@ -739,7 +839,12 @@ export default function ContentStudioPage({ user }) {
                                                 </div>
                                             </div>
                                             {/* Article Inner */}
-                                            <ArticleDisplay article={article} />
+                                            <ContentExportPanel
+                                                key={activeTab}
+                                                value={exportDraft}
+                                                onChange={setExportDraft}
+                                                variant={platformKindFromTabId(activeTab) === 'social' ? 'social' : 'longform'}
+                                            />
                                         </div>
                                     )
                                 })()}

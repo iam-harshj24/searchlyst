@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Globe, TrendingUp, TrendingDown } from 'lucide-react';
+import { SentimentTriGauge } from '@/components/ui/SentimentTriGauge';
 
 const regions = [
     { name: 'North America', code: 'NA', citations: 15200, sentiment: 0.78, trend: '+12%', trendUp: true },
@@ -41,6 +42,10 @@ export default function GeolocationPage() {
                             {region.trendUp ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                             {region.trend}
                         </p>
+                        <div className="mt-2 flex items-center justify-between gap-2">
+                            <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">Sentiment</span>
+                            <SentimentTriGauge value={Math.round(region.sentiment * 100)} size="sm" />
+                        </div>
                     </button>
                 ))}
             </div>

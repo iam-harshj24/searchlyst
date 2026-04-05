@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { apiClient } from '@/api/apiClient';
 import {
-    Activity, TrendingUp, TrendingDown, Target, Zap, Loader2,
+    Activity, TrendingUp, Target, Zap, Loader2,
     Users, BookOpen, Star, AlertCircle, BarChart3, Lightbulb, CheckCircle, Globe, RefreshCw,
-    Plug, Send, Download, Cpu, BarChart2, Layers, HelpCircle, PenTool,
+    Plug, Send, Download, Cpu, BarChart2, Layers, HelpCircle, PenTool, ExternalLink,
 } from 'lucide-react';
 import { ChatGPTLogo, GeminiLogo } from '../landing/AILogos';
 import {
@@ -13,6 +13,7 @@ import {
     BarChart, Bar, LineChart, Line, Legend,
 } from 'recharts';
 import { Button } from "@/components/ui/button";
+import { SentimentTriGauge } from '@/components/ui/SentimentTriGauge';
 import { Tooltip as UiTooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { buildVisibilityTrendDaily, buildVisibilityTrendWeekly } from '@/lib/visibilityTrend';
 import { classifyDomainContentType, classifyCitationRow } from '@/lib/urlContentType';
@@ -24,6 +25,31 @@ const SOV_BAR_COLORS = [
     '#ef4444', '#b91c1c', '#3b82f6', '#06b6d4', '#a855f7', '#f59e0b', '#10b981', '#ec4899',
     '#8b5cf6', '#14b8a6', '#f97316', '#6366f1', '#84cc16',
 ];
+
+const VIS_CACHE_VER = 'v1';
+
+function visibilityCacheKey(kind, projectId, domain, scannedAt) {
+    const d = (domain || '').toLowerCase();
+    return `aiVis:${VIS_CACHE_VER}:${kind}:${projectId || 'np'}:${d}:${scannedAt || ''}`;
+}
+
+function readVisibilitySessionCache(key) {
+    try {
+        const raw = sessionStorage.getItem(key);
+        if (!raw) return null;
+        return JSON.parse(raw);
+    } catch {
+        return null;
+    }
+}
+
+function writeVisibilitySessionCache(key, value) {
+    try {
+        sessionStorage.setItem(key, JSON.stringify(value));
+    } catch {
+        /* quota or private mode */
+    }
+}
 
 /** Single-word label for dominant prompt category (table column). */
 const PROMPT_CONTEXT_ONE_WORD = {
@@ -40,6 +66,33 @@ function dominantPromptContextWord(u) {
     const top = Object.entries(bp).sort((a, b) => b[1] - a[1])[0]?.[0];
     if (!top) return '—';
     return PROMPT_CONTEXT_ONE_WORD[top] || String(top).replace(/_/g, '').slice(0, 10);
+}
+
+/** Strip raw URLs / deploy hostnames from prompt snippets (cleaner table tooltips). */
+function sanitizePromptDisplayText(text) {
+    if (!text || typeof text !== 'string') return '';
+    return text
+        .replace(/\bhttps?:\/\/[^\s)\]]+/gi, '')
+        .replace(/\b[\w.-]+\.(web\.app|vercel\.app|netlify\.app|github\.io|firebaseapp\.com|pages\.dev)\b/gi, '')
+        .replace(/\s{2,}/g, ' ')
+        .replace(/^\s*[-–—]\s*/g, '')
+        .trim();
+}
+
+/** Show path (+ query) only — avoids long https://… noise in the table. */
+function formatSourcePathForTable(url) {
+    if (!url || typeof url !== 'string') return '—';
+    try {
+        const u = new URL(url);
+        let path = u.pathname || '/';
+        if (path.length > 1 && path.endsWith('/')) path = path.slice(0, -1);
+        const tail = (u.search || '') + (u.hash || '');
+        let s = (path || '/') + tail;
+        if (s.length > 56) s = `${s.slice(0, 54)}…`;
+        return s || '/';
+    } catch {
+        return url.replace(/^https?:\/\//i, '').split('/')[0]?.slice(0, 40) || '—';
+    }
 }
 
 /** Prefill payload for Content Studio (JSON string in localStorage). */
@@ -402,6 +455,8 @@ export default function AIVisibilityPage({ user, scanManager, onTabChange }) {
     const [urlInsightsLoading, setUrlInsightsLoading] = useState(false);
     const [urlInsightsErr, setUrlInsightsErr] = useState(null);
     const urlInsightsInFlightRef = useRef(false);
+    const urlInsightByUrlRef = useRef({});
+    urlInsightByUrlRef.current = urlInsightByUrl;
 
     const brandName = user?.brandName || 'Your Brand';
     const domain = user?.domain || '';
@@ -434,12 +489,24 @@ export default function AIVisibilityPage({ user, scanManager, onTabChange }) {
         setUrlPage(0);
     }, [result?.scannedAt, urlPageSize, domain]);
 
-    useEffect(() => {
-        setCitationBrief(null);
+    /** Load persisted URL-row insights + citation brief for this scan (layout: before URL-tab effect to avoid duplicate Gemini calls). */
+    useLayoutEffect(() => {
         setCitationBriefErr(null);
-        setUrlInsightByUrl({});
         setUrlInsightsErr(null);
-    }, [result?.scannedAt]);
+        const at = result?.scannedAt;
+        const pid = user?.projectId;
+        if (!at || !domain) {
+            setCitationBrief(null);
+            setUrlInsightByUrl({});
+            return;
+        }
+        const kInsights = visibilityCacheKey('urlInsights', pid, domain, at);
+        const kBrief = visibilityCacheKey('citationBrief', pid, domain, at);
+        const cachedInsights = readVisibilitySessionCache(kInsights);
+        const cachedBrief = readVisibilitySessionCache(kBrief);
+        setUrlInsightByUrl(cachedInsights && typeof cachedInsights === 'object' ? cachedInsights : {});
+        setCitationBrief(cachedBrief && cachedBrief.brief ? cachedBrief : null);
+    }, [result?.scannedAt, domain, user?.projectId]);
 
     // AUTO-START: Trigger scan only when backend check is done and no result exists
     useEffect(() => {
@@ -591,7 +658,7 @@ export default function AIVisibilityPage({ user, scanManager, onTabChange }) {
         setUrlPage((p) => Math.min(p, pc - 1));
     }, [allUrlRanking.length, urlPageSize]);
 
-    /** Auto-load Summary / Why cited for the current URLs table page (no button). */
+    /** Auto-load Summary / Why cited per URL page; cached in sessionStorage per scan (cleared when scannedAt changes). */
     useEffect(() => {
         if (tab !== 'urls' || !r?.scannedAt || status === 'scanning') return;
         const list = allUrlRanking;
@@ -604,13 +671,8 @@ export default function AIVisibilityPage({ user, scanManager, onTabChange }) {
         const visibleUrls = pageRows.map((u) => u.url).filter(Boolean);
         if (!visibleUrls.length) return;
 
-        const insightMissing = (row) => {
-            if (!row) return true;
-            const bad = (v) => !v || String(v).trim() === '' || String(v).trim() === '—';
-            return bad(row.summary) || bad(row.whyCited);
-        };
-
-        const pending = visibleUrls.filter((url) => insightMissing(urlInsightByUrl[url]));
+        const cache = urlInsightByUrlRef.current;
+        const pending = visibleUrls.filter((url) => cache[url] == null);
         if (!pending.length) return;
         if (urlInsightsInFlightRef.current) return;
 
@@ -618,6 +680,13 @@ export default function AIVisibilityPage({ user, scanManager, onTabChange }) {
         urlInsightsInFlightRef.current = true;
         setUrlInsightsLoading(true);
         setUrlInsightsErr(null);
+
+        const persistUrlInsights = (nextMap) => {
+            writeVisibilitySessionCache(
+                visibilityCacheKey('urlInsights', user?.projectId, domain, r.scannedAt),
+                nextMap,
+            );
+        };
 
         (async () => {
             try {
@@ -643,7 +712,16 @@ export default function AIVisibilityPage({ user, scanManager, onTabChange }) {
                             };
                         }
                     }
-                    if (!cancelled) setUrlInsightByUrl((prev) => ({ ...prev, ...map }));
+                    if (!cancelled) {
+                        setUrlInsightByUrl((prev) => {
+                            const next = { ...prev };
+                            for (const u of pending) {
+                                next[u] = map[u] || { summary: '—', whyCited: '—' };
+                            }
+                            persistUrlInsights(next);
+                            return next;
+                        });
+                    }
                 } else if (!cancelled) {
                     setUrlInsightsErr(res?.message || 'Could not load URL insights.');
                 }
@@ -660,7 +738,7 @@ export default function AIVisibilityPage({ user, scanManager, onTabChange }) {
             urlInsightsInFlightRef.current = false;
             setUrlInsightsLoading(false);
         };
-    }, [tab, r?.scannedAt, status, scanId, urlPage, urlPageSize, allUrlRanking, domain, user?.projectId, urlInsightByUrl]);
+    }, [tab, r?.scannedAt, status, scanId, urlPage, urlPageSize, allUrlRanking, domain, user?.projectId]);
 
     const tabs = [
         { k: 'overview', l: 'Overview', i: BarChart3 },
@@ -1010,7 +1088,7 @@ export default function AIVisibilityPage({ user, scanManager, onTabChange }) {
                                             <th className="pb-3 font-medium">BRAND</th>
                                             <th className="pb-3 text-right font-medium whitespace-nowrap">
                                                 SENTIMENT
-                                                <HelpHint text="0–100 index summarizing how positively this brand is portrayed in extracted mentions." />
+                                                <HelpHint text="Three-bar gauge: one red = negative, two grey = neutral, three white = positive (from the same 0–100 index)." />
                                             </th>
                                             <th className="pb-3 text-right pr-2 font-medium whitespace-nowrap">
                                                 SHARE
@@ -1023,8 +1101,6 @@ export default function AIVisibilityPage({ user, scanManager, onTabChange }) {
                                             if (!item) return null;
                                             const isTarget = item.name === (r.shareOfVoice?.brand?.name || brandName);
                                             const sentimentScore = sentimentIndex0to100(item.sentiment);
-                                            const sentimentColor = sentimentScore == null ? 'bg-[#222]/40 text-[#888]' : sentimentScore >= 75 ? 'bg-[#22c55e]/15 text-[#22c55e]' : sentimentScore >= 50 ? 'bg-[#eab308]/15 text-[#eab308]' : 'bg-[#ef4444]/15 text-[#ef4444]';
-                                            const sentimentIcon = sentimentScore == null ? <span className="text-[10px]">—</span> : sentimentScore >= 75 ? <TrendingUp className="w-3 h-3" /> : sentimentScore >= 50 ? <span className="text-[10px]">—</span> : <TrendingDown className="w-3 h-3" />;
                                             const pct = ((item.sov || 0) / totalSov * 100).toFixed(1);
                                             return (
                                                 <tr key={i} className="border-b border-[#1a1a1a] last:border-0 hover:bg-[#111] transition-colors">
@@ -1039,9 +1115,9 @@ export default function AIVisibilityPage({ user, scanManager, onTabChange }) {
                                                         </div>
                                                     </td>
                                                     <td className="py-3.5 text-right">
-                                                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold ${sentimentColor}`}>
-                                                            {sentimentIcon}{sentimentScore != null ? ` ${sentimentScore}` : ' n/a'}
-                                                        </span>
+                                                        <div className="inline-flex justify-end">
+                                                            <SentimentTriGauge value={sentimentScore} size="md" />
+                                                        </div>
                                                     </td>
                                                     <td className="py-3.5 text-right pr-2 text-white/90 font-semibold">{pct}%</td>
                                                 </tr>
@@ -1216,11 +1292,9 @@ export default function AIVisibilityPage({ user, scanManager, onTabChange }) {
                                             </div>
 
                                             <div className="flex items-center gap-3 shrink-0 text-right">
-                                                <div>
+                                                <div className="flex flex-col items-end gap-1">
                                                     <div className="text-[10px] font-semibold text-[#555] tracking-widest uppercase">Sentiment</div>
-                                                    <div className={`text-[13px] font-bold mt-0.5 tabular-nums ${entSent == null ? 'text-[#555]' : entSent >= 75 ? 'text-[#22c55e]' : entSent >= 50 ? 'text-[#eab308]' : 'text-[#ef4444]'}`}>
-                                                        {entSent != null ? entSent : 'n/a'}
-                                                    </div>
+                                                    <SentimentTriGauge value={entSent} size="md" />
                                                 </div>
                                                 <div className="flex items-center gap-3">
                                                     <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-[22px] ${
@@ -1324,36 +1398,41 @@ export default function AIVisibilityPage({ user, scanManager, onTabChange }) {
                                         Only my brand / owned
                                     </label>
                                 </div>
-                                <div className="overflow-x-auto rounded-xl border border-[#1a1a1a]">
-                                    <table className="w-full text-left text-[12px]">
+                                <div className="overflow-x-auto rounded-xl border border-[#262626]">
+                                    <table className="w-full text-left text-[13px] border-collapse">
                                         <thead>
-                                            <tr className="text-[#666] text-[10px] uppercase tracking-wider border-b border-[#1e1e1e] bg-[#111]">
-                                                <th className="py-3 pl-3 font-semibold">Domain</th>
-                                                <th className="py-3 font-semibold">Type</th>
-                                                <th className="py-3 text-right font-semibold">Mentions</th>
-                                                <th className="py-3 pr-3 text-right font-semibold">URLs</th>
+                                            <tr className="border-b border-[#262626]">
+                                                <th className="py-3 pl-4 text-[11px] font-medium text-[#737373]">Domain</th>
+                                                <th className="py-3 px-3 text-[11px] font-medium text-[#737373]">Type</th>
+                                                <th className="py-3 px-3 text-[11px] font-medium text-[#737373] text-center">Mentions</th>
+                                                <th className="py-3 pr-4 text-[11px] font-medium text-[#737373] text-right">Pages</th>
                                             </tr>
                                         </thead>
-                                        <tbody className="divide-y divide-[#1a1a1a]">
+                                        <tbody>
                                             {filteredRows.map((c, i) => (
-                                                <tr key={i} className={`transition-colors hover:bg-[#141414] ${c.isTargetBrand ? 'bg-emerald-500/[0.06]' : ''}`}>
-                                                    <td className="py-3 pl-3">
+                                                <tr key={i} className={`border-b border-[#1f1f1f] transition-colors hover:bg-[#141414]/80 ${c.isTargetBrand ? 'bg-emerald-500/[0.04]' : ''}`}>
+                                                    <td className="py-3.5 pl-4">
                                                         <div className="flex items-center gap-2.5 min-w-0">
-                                                            <div className="w-7 h-7 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a] flex items-center justify-center overflow-hidden shrink-0">
+                                                            <div className="w-8 h-8 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a] flex items-center justify-center overflow-hidden shrink-0">
                                                                 <img src={`https://www.google.com/s2/favicons?domain=${c.domain}&sz=32`} className="w-4 h-4" onError={ev => { ev.currentTarget.style.display = 'none' }} alt="" />
                                                             </div>
-                                                            <a href={`https://${c.domain}`} target="_blank" rel="noreferrer" className={`truncate max-w-[200px] font-medium ${c.isTargetBrand ? 'text-white' : 'text-[#93c5fd] hover:underline'}`}>
+                                                            <a href={`https://${c.domain}`} target="_blank" rel="noreferrer" className={`inline-flex items-center gap-1 truncate max-w-[220px] font-semibold text-[13px] ${c.isTargetBrand ? 'text-white hover:text-[#E92A15]' : 'text-white hover:text-[#E92A15]'}`}>
                                                                 {c.domain}
+                                                                <ExternalLink className="w-3 h-3 opacity-40 shrink-0" />
                                                             </a>
                                                         </div>
                                                     </td>
-                                                    <td className="py-3">
-                                                        <span className="text-[10px] px-2 py-1 rounded-md border border-[#2a2a2a] bg-[#141414] text-[#aaa]">
+                                                    <td className="py-3.5 px-3">
+                                                        <span className="inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-medium bg-[#2a2a2a] text-[#d4d4d4]">
                                                             {classifyCitationRow(c)}
                                                         </span>
                                                     </td>
-                                                    <td className="py-3 text-right text-white/90 font-semibold tabular-nums">{c.count}</td>
-                                                    <td className="py-3 pr-3 text-right text-[#888] tabular-nums">{c.uniqueUrls ?? '—'}</td>
+                                                    <td className="py-3.5 px-3 text-center">
+                                                        <span className="inline-flex min-w-[2rem] justify-center rounded-full bg-amber-500/15 text-amber-200 px-2.5 py-0.5 text-[12px] font-semibold tabular-nums">{c.count}</span>
+                                                    </td>
+                                                    <td className="py-3.5 pr-4 text-right">
+                                                        <span className="inline-flex rounded-full bg-[#262626] text-[#a3a3a3] px-2.5 py-0.5 text-[11px] font-medium tabular-nums">{c.uniqueUrls ?? '—'}</span>
+                                                    </td>
                                                 </tr>
                                             ))}
                                             {filteredRows.length === 0 && (
@@ -1461,8 +1540,13 @@ export default function AIVisibilityPage({ user, scanManager, onTabChange }) {
                                                     return;
                                                 }
                                                 const res = await apiClient.visibility.getCitationIntelligence(sid);
-                                                if (res?.success && res.brief) setCitationBrief(res);
-                                                else setCitationBriefErr(res?.message || 'Could not generate brief.');
+                                                if (res?.success && res.brief) {
+                                                    setCitationBrief(res);
+                                                    writeVisibilitySessionCache(
+                                                        visibilityCacheKey('citationBrief', user?.projectId, domain, r?.scannedAt),
+                                                        res,
+                                                    );
+                                                } else setCitationBriefErr(res?.message || 'Could not generate brief.');
                                             } catch (e) {
                                                 setCitationBriefErr(e?.message || 'Request failed');
                                             } finally {
@@ -1615,148 +1699,145 @@ export default function AIVisibilityPage({ user, scanManager, onTabChange }) {
                                 </div>
                             )}
                             <div className="overflow-x-auto">
-                                <p className="px-5 pt-1 pb-2 text-[10px] text-[#666]">
-                                    <span className="text-[#888]">CTX</span> is one word for the dominant prompt type.
-                                    Summary and Why cited load automatically for the rows on this page; change page to fetch the next set.
+                                <p className="px-5 pt-2 pb-3 text-[11px] text-[#737373] leading-relaxed">
+                                    Hover a source for the full link and related prompts (URLs in prompts are hidden for readability). AI summary columns load for this page automatically.
                                 </p>
-                                <table className="w-full text-left text-[12px] min-w-[1280px]">
+                                <table className="w-full text-left text-[13px] min-w-[920px] border-collapse">
                                     <thead>
-                                        <tr className="border-y border-[#1a1a1a] bg-[#080808]">
-                                            <th className="py-2.5 pl-5 pr-3 text-[10px] font-semibold tracking-wider text-[#888] uppercase w-[3%]">#</th>
-                                            <th className="py-2.5 px-3 text-[10px] font-semibold tracking-wider text-[#888] uppercase w-[14%]">TITLE</th>
-                                            <th className="py-2.5 px-3 text-[10px] font-semibold tracking-wider text-[#888] uppercase w-[12%]">URL</th>
-                                            <th className="py-2.5 px-3 text-[10px] font-semibold tracking-wider text-[#888] uppercase w-[7%]">DOMAIN</th>
-                                            <th className="py-2.5 px-3 text-[10px] font-semibold tracking-wider text-[#888] uppercase text-center w-[5%]">CITED</th>
-                                            <th className="py-2.5 px-3 text-[10px] font-semibold tracking-wider text-[#888] uppercase text-center w-[6%]">ENGINES</th>
-                                            <th className="py-2.5 px-3 text-[10px] font-semibold tracking-wider text-[#888] uppercase text-center w-[5%]">PROMPTS</th>
-                                            <th className="py-2.5 px-3 text-[10px] font-semibold tracking-wider text-[#888] uppercase text-right w-[6%]">TYPE</th>
-                                            <th className="py-2.5 px-3 text-[10px] font-semibold tracking-wider text-[#888] uppercase text-center w-[5%]" title="Dominant prompt category (one word)">CTX</th>
-                                            <th className="py-2.5 px-3 text-[10px] font-semibold tracking-wider text-[#888] uppercase w-[11%]">DETAILS</th>
-                                            <th className="py-2.5 px-3 text-[10px] font-semibold tracking-wider text-[#a78bfa] uppercase w-[13%]">SUMMARY (AI)</th>
-                                            <th className="py-2.5 px-3 text-[10px] font-semibold tracking-wider text-[#a78bfa] uppercase w-[13%]">WHY CITED (AI)</th>
-                                            <th className="py-2.5 pl-3 pr-5 text-[10px] font-semibold tracking-wider text-[#888] uppercase text-right w-[9%]">STUDIO</th>
+                                        <tr className="border-b border-[#262626]">
+                                            <th className="py-3 pl-5 pr-2 text-[11px] font-medium text-[#737373] w-10">#</th>
+                                            <th className="py-3 px-3 text-[11px] font-medium text-[#737373] min-w-[240px]">Source</th>
+                                            <th className="py-3 px-3 text-[11px] font-medium text-[#737373] text-center">Cited</th>
+                                            <th className="py-3 px-3 text-[11px] font-medium text-[#737373] text-center">Models</th>
+                                            <th className="py-3 px-3 text-[11px] font-medium text-[#737373] text-center">Prompts</th>
+                                            <th className="py-3 px-3 text-[11px] font-medium text-[#737373] text-right">Type</th>
+                                            <th className="py-3 px-3 text-[11px] font-medium text-[#737373] text-center" title="Dominant prompt category">Ctx</th>
+                                            <th className="py-3 px-3 text-[11px] font-medium text-[#737373] min-w-[200px]">Summary</th>
+                                            <th className="py-3 px-3 text-[11px] font-medium text-[#737373] min-w-[200px]">Why cited</th>
+                                            <th className="py-3 pl-3 pr-5 text-[11px] font-medium text-[#737373] text-right">Studio</th>
                                         </tr>
                                     </thead>
-                                    <tbody>
+                                    <tbody className="text-[#e5e5e5]">
                                         {pageRows.map((u, i) => {
                                             const ins = urlInsightByUrl[u.url];
                                             const ctxWord = dominantPromptContextWord(u);
-                                            const displayTitle = (u.title || '').trim() || '—';
-                                            const qs = (u.sampleQueries || []).filter(Boolean).slice(0, 3);
+                                            const displayTitle = (u.title || '').trim();
+                                            const pathOnly = formatSourcePathForTable(u.url);
+                                            const qs = (u.sampleQueries || []).filter(Boolean).slice(0, 4).map(sanitizePromptDisplayText).filter(Boolean);
+                                            const typeLabel = u.isTargetBrand ? 'Your brand' : u.isCompetitor ? 'Competitor' : classifyDomainContentType(u.domain);
+                                            const typePill = u.isTargetBrand
+                                                ? 'bg-emerald-500/15 text-emerald-200'
+                                                : u.isCompetitor
+                                                    ? 'bg-orange-500/15 text-orange-200'
+                                                    : 'bg-[#2a2a2a] text-[#a3a3a3]';
+                                            const tooltipLines = [
+                                                u.url,
+                                                qs.length ? `Prompts: ${qs.slice(0, 3).join(' · ')}` : null,
+                                            ].filter(Boolean);
                                             return (
-                                            <tr key={sliceStart + i} className={`border-b border-[#1a1a1a] hover:bg-[#111] transition-colors ${u.isTargetBrand ? 'bg-green-500/5' : ''}`}>
-                                                <td className="py-3 pl-5 pr-3 text-[#555] font-medium align-top">{sliceStart + i + 1}</td>
-                                                <td className="py-3 px-3 align-top max-w-[200px]">
-                                                    <p className="text-[12px] text-white font-medium leading-snug line-clamp-3" title={displayTitle !== '—' ? displayTitle : u.url}>{displayTitle}</p>
+                                            <tr key={sliceStart + i} className={`border-b border-[#1f1f1f] hover:bg-[#141414]/80 transition-colors ${u.isTargetBrand ? 'bg-emerald-500/[0.04]' : ''}`}>
+                                                <td className="py-4 pl-5 pr-2 align-middle text-[12px] text-[#737373] tabular-nums font-medium">{sliceStart + i + 1}</td>
+                                                <td className="py-4 px-3 align-middle max-w-[320px]">
+                                                    <UiTooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <div className="cursor-default text-left space-y-1">
+                                                                <div className="flex items-start gap-2.5">
+                                                                    <div className="w-8 h-8 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a] flex items-center justify-center overflow-hidden shrink-0 mt-0.5">
+                                                                        <img src={`https://www.google.com/s2/favicons?domain=${u.domain}&sz=32`} className="w-4 h-4" onError={(ev) => { ev.currentTarget.style.display = 'none'; }} alt="" />
+                                                                    </div>
+                                                                    <div className="min-w-0 flex-1">
+                                                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                                                            <a href={u.url} target="_blank" rel="noreferrer" className="text-[13px] font-semibold text-white hover:text-[#E92A15] inline-flex items-center gap-1 group">
+                                                                                <span className="truncate max-w-[200px]">{u.domain}</span>
+                                                                                <ExternalLink className="w-3.5 h-3.5 opacity-50 group-hover:opacity-100 shrink-0" />
+                                                                            </a>
+                                                                        </div>
+                                                                        {displayTitle ? (
+                                                                            <p className="text-[12px] text-[#a3a3a3] leading-snug line-clamp-2 mt-0.5" title={displayTitle}>{displayTitle}</p>
+                                                                        ) : null}
+                                                                        <p className="text-[11px] text-[#525252] font-mono truncate mt-0.5" title={u.url}>{pathOnly}</p>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent side="bottom" className="max-w-sm text-[11px] bg-[#1a1a1a] border-[#333] text-[#d4d4d4]">
+                                                            <p className="break-all text-[#fafafa] mb-1">{u.url}</p>
+                                                            {qs.length > 0 ? (
+                                                                <ul className="list-disc pl-3 space-y-1 text-[#a3a3a3]">
+                                                                    {qs.map((q, qi) => (
+                                                                        <li key={qi}>{q}</li>
+                                                                    ))}
+                                                                </ul>
+                                                            ) : (
+                                                                <p className="text-[#666]">No sample prompts for this row.</p>
+                                                            )}
+                                                        </TooltipContent>
+                                                    </UiTooltip>
                                                 </td>
-                                                <td className="py-3 px-3 align-top">
-                                                    <a href={u.url} target="_blank" rel="noreferrer" className="text-blue-400/80 hover:text-blue-400 hover:underline text-[11px] break-all line-clamp-2" title={u.url}>
-                                                        {u.url.length > 56 ? u.url.substring(0, 56) + '…' : u.url}
-                                                    </a>
+                                                <td className="py-4 px-3 align-middle text-center">
+                                                    <span className={`inline-flex min-w-[2rem] justify-center rounded-full px-2.5 py-0.5 text-[12px] font-semibold tabular-nums ${
+                                                        u.count >= 3 ? 'bg-amber-500/15 text-amber-200' : u.count >= 2 ? 'bg-[#2a2a2a] text-neutral-200' : 'bg-[#262626] text-[#a3a3a3]'
+                                                    }`}>{u.count}</span>
                                                 </td>
-                                                <td className="py-3 px-3 align-top">
-                                                    <div className="flex items-center gap-1.5">
-                                                        <div className="w-3.5 h-3.5 rounded bg-[#1e1e1e] flex items-center justify-center overflow-hidden shrink-0">
-                                                            <img src={`https://www.google.com/s2/favicons?domain=${u.domain}&sz=16`} className="w-3 h-3" onError={ev => { ev.currentTarget.style.display = 'none' }} alt="" />
-                                                        </div>
-                                                        <span className="text-[#aaa] text-[11px] break-all">{u.domain}</span>
-                                                    </div>
-                                                </td>
-                                                <td className="py-3 px-3 text-center align-top">
-                                                    <span className={`text-[13px] font-semibold ${u.count >= 3 ? 'text-amber-400' : u.count >= 2 ? 'text-white' : 'text-[#888]'}`}>{u.count}</span>
-                                                </td>
-                                                <td className="py-3 px-3 text-center align-top">
-                                                    <div className="flex items-center justify-center gap-1 flex-wrap">
+                                                <td className="py-4 px-3 align-middle text-center">
+                                                    <div className="inline-flex flex-wrap items-center justify-center gap-1 rounded-full border border-[#333] bg-[#0f0f0f] px-2 py-1.5 max-w-[132px] mx-auto">
                                                         {(u.engines || []).map((eng) => (
                                                             <UrlEngineLogo key={`${sliceStart + i}-${eng}`} engineKey={eng} />
                                                         ))}
                                                     </div>
                                                 </td>
-                                                <td className="py-3 px-3 text-center text-[#888] align-top">{u.promptCount}</td>
-                                                <td className="py-3 px-3 text-right align-top">
-                                                    <span className={`inline-block text-[9px] px-1.5 py-0.5 rounded border ${
-                                                        u.isTargetBrand ? 'bg-green-500/10 text-green-400 border-green-500/20' :
-                                                        u.isCompetitor ? 'bg-red-500/10 text-red-400 border-red-500/20' :
-                                                        'bg-[#1a1a1a] text-[#666] border-[#2a2a2a]'
-                                                    }`}>
-                                                        {u.isTargetBrand ? 'Your brand' : u.isCompetitor ? 'Competitor' : classifyDomainContentType(u.domain)}
+                                                <td className="py-4 px-3 align-middle text-center">
+                                                    <span className="inline-flex rounded-full bg-[#262626] text-[#d4d4d4] px-2.5 py-0.5 text-[11px] font-medium tabular-nums">{u.promptCount}</span>
+                                                </td>
+                                                <td className="py-4 px-3 align-middle text-right">
+                                                    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-medium ${typePill}`}>
+                                                        {typeLabel}
                                                     </span>
                                                 </td>
-                                                <td className="py-3 px-2 text-center align-top">
-                                                    <span className="text-[11px] font-semibold text-[#c4c4c4] tabular-nums" title="Dominant prompt category for this URL">{ctxWord}</span>
+                                                <td className="py-4 px-3 align-middle text-center">
+                                                    <span className="inline-flex rounded-full bg-[#262626] text-[#d4d4d4] px-2.5 py-0.5 text-[11px] font-medium">{ctxWord}</span>
                                                 </td>
-                                                <td className="py-3 px-2 align-top max-w-[200px]">
-                                                    <details className="text-[10px]">
-                                                        <summary className="cursor-pointer list-none text-[#a78bfa] hover:text-[#c4b5fd] select-none marker:content-['']">
-                                                            📂 See details
-                                                        </summary>
-                                                        <div className="mt-2 pl-2 border-l border-[#333] space-y-2 text-[#999]">
-                                                            <div>
-                                                                <p className="text-[9px] uppercase tracking-wider text-[#666] mb-1">Prompt / structure</p>
-                                                                {qs.length > 0 ? (
-                                                                    <ul className="list-disc pl-3 space-y-1 text-[10px] leading-snug">
-                                                                        {qs.map((q, qi) => (
-                                                                            <li key={qi} className="line-clamp-4">{q}</li>
-                                                                        ))}
-                                                                    </ul>
-                                                                ) : (
-                                                                    <p className="text-[10px] text-[#555]">No sample prompts stored for this URL.</p>
-                                                                )}
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-[9px] uppercase tracking-wider text-[#666] mb-1">Signals (from this scan)</p>
-                                                                <p className="text-[10px] text-[#777] leading-snug mb-1">These are derived from our visibility run, not secret engine ranking scores.</p>
-                                                                <ul className="list-disc pl-3 space-y-0.5 text-[10px]">
-                                                                    <li>Citation weight: {u.count} mentions</li>
-                                                                    <li>Prompt breadth: {u.promptCount} distinct prompts</li>
-                                                                    <li>Engine spread: {(u.engines || []).length ? (u.engines || []).join(', ') : '—'}</li>
-                                                                    <li>Role: {u.isTargetBrand ? 'Your domain' : u.isCompetitor ? 'Flagged competitor' : 'Third-party'}</li>
-                                                                </ul>
-                                                            </div>
-                                                        </div>
-                                                    </details>
-                                                </td>
-                                                <td className="py-3 px-3 align-top max-w-[260px] text-[11px] text-[#c4c4c4] leading-snug">
+                                                <td className="py-4 px-3 align-middle max-w-[260px] text-[12px] text-[#c4c4c4] leading-snug">
                                                     {urlInsightsLoading && !ins ? (
-                                                        <span className="text-[#555] animate-pulse">Generating…</span>
+                                                        <span className="text-[#525252] animate-pulse">Generating…</span>
                                                     ) : ins?.summary ? (
                                                         ins.summary
                                                     ) : (
-                                                        <span className="text-[#555]">—</span>
+                                                        <span className="text-[#525252]">—</span>
                                                     )}
                                                 </td>
-                                                <td className="py-3 px-3 align-top max-w-[280px] text-[11px] text-[#9ca3af] leading-snug">
+                                                <td className="py-4 px-3 align-middle max-w-[280px] text-[12px] text-[#a3a3a3] leading-snug">
                                                     {urlInsightsLoading && !ins ? (
-                                                        <span className="text-[#555] animate-pulse">Generating…</span>
+                                                        <span className="text-[#525252] animate-pulse">Generating…</span>
                                                     ) : ins?.whyCited ? (
                                                         ins.whyCited
                                                     ) : (
-                                                        <span className="text-[#555]">—</span>
+                                                        <span className="text-[#525252]">—</span>
                                                     )}
                                                 </td>
-                                                <td className="py-3 pl-3 pr-5 align-top text-right">
+                                                <td className="py-4 pl-3 pr-5 align-middle text-right">
                                                     <Button
                                                         type="button"
                                                         variant="outline"
                                                         size="sm"
                                                         disabled={!onTabChange}
                                                         title={onTabChange ? 'Open Content Studio with this source as context' : undefined}
-                                                        className="h-7 px-2 text-[9px] gap-1 border-[#333] bg-[#141414] text-[#e5e5e5] hover:bg-[#1f1f1f] max-w-[140px]"
+                                                        className="h-8 rounded-full px-3 text-[10px] gap-1.5 border-[#333] bg-[#141414] text-[#e5e5e5] hover:bg-[#1f1f1f] hover:border-[#444]"
                                                         onClick={() => {
                                                             const raw = buildContentStudioPrefillFromCitation(u, ins, brandName);
                                                             localStorage.setItem('searchlyst_content_prefill', raw);
                                                             onTabChange?.('content-studio');
                                                         }}
                                                     >
-                                                        <PenTool className="w-3 h-3 shrink-0" />
-                                                        <span className="truncate">Create similar</span>
+                                                        <PenTool className="w-3.5 h-3.5 shrink-0" />
+                                                        <span className="truncate max-w-[88px]">Create similar</span>
                                                     </Button>
                                                 </td>
                                             </tr>
                                             );
                                         })}
                                         {allUrls.length === 0 && (
-                                            <tr><td colSpan={13} className="py-12 text-center text-[#555] text-sm">No URLs found. Run a scan to populate.</td></tr>
+                                            <tr><td colSpan={10} className="py-12 text-center text-[#737373] text-sm">No URLs found. Run a scan to populate.</td></tr>
                                         )}
                                     </tbody>
                                 </table>
@@ -1800,6 +1881,7 @@ export default function AIVisibilityPage({ user, scanManager, onTabChange }) {
                                     const query = g.query || g.topic || (typeof g === 'string' ? g : '');
                                     const topic = g.contentTopic || query;
                                     const angle = g.contentAngle || '';
+                                    const queryClean = sanitizePromptDisplayText(query) || query;
                                     const competitors = g.competitorsPresent || (Array.isArray(g.competitors) ? g.competitors.map(c => typeof c === 'string' ? { name: c, count: 1 } : c) : []);
                                     return (
                                         <div key={i} className="p-4 bg-amber-500/5 border border-amber-500/10 rounded-xl space-y-2">
@@ -1810,7 +1892,7 @@ export default function AIVisibilityPage({ user, scanManager, onTabChange }) {
                                             {angle ? (
                                                 <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed">{angle}</p>
                                             ) : null}
-                                            <p className="text-[11px] text-[var(--text-muted)] italic border-l-2 border-[#333] pl-2">&ldquo;{query}&rdquo;</p>
+                                            <p className="text-[11px] text-[var(--text-muted)] italic border-l-2 border-[#333] pl-2">&ldquo;{queryClean}&rdquo;</p>
                                             {competitors.length > 0 && (
                                                 <div className="flex gap-1 flex-wrap pt-1 items-center">
                                                     <span className="text-[10px] text-[var(--text-muted)] mr-1">Competitors cited:</span>

@@ -56,12 +56,20 @@ function formatDate(d) {
 
 export async function generateArticle(req, res) {
     try {
-        const { topic, brandName, industry, domain, platform, keywords, projectId } = req.body;
+        const { topic, brandName, industry, domain, platform, keywords, projectId, brandHubContext } = req.body;
         if (!topic) return res.status(400).json({ success: false, message: 'Topic is required' });
         const userId = req.user.id;
 
         const model = getModel();
-        const prompt = getPromptForPlatform({ platform, topic, brandName, industry, domain, keywords });
+        const prompt = getPromptForPlatform({
+            platform,
+            topic,
+            brandName,
+            industry,
+            domain,
+            keywords,
+            brandHubContext: typeof brandHubContext === 'string' ? brandHubContext : undefined,
+        });
 
         const result = await model.generateContent(prompt);
         const text = result.response.text().trim();

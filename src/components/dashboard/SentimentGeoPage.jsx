@@ -10,6 +10,7 @@ import {
 import {
     ComposableMap, Geographies, Geography, ZoomableGroup
 } from 'react-simple-maps';
+import { SentimentTriGauge } from '@/components/ui/SentimentTriGauge';
 
 const GEO_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
 
@@ -62,20 +63,21 @@ const COUNTRY_CODES = {
     'qatar': 'QA', 'pakistan': 'PK', 'bangladesh': 'BD',
 };
 
+/** Map fill: red (low) → grey (mid) → white-ish (high). */
 function getSentimentColor(sentiment) {
     if (!sentiment && sentiment !== 0) return '#1a1a1a';
-    if (sentiment >= 80) return '#4a7c4e';
-    if (sentiment >= 65) return '#7c6a2a';
-    if (sentiment >= 50) return '#7c4a20';
-    return '#7c2020';
+    if (sentiment >= 80) return '#3f3f3f';
+    if (sentiment >= 65) return '#303030';
+    if (sentiment >= 50) return '#282828';
+    return '#3a2222';
 }
 
 function getSentimentColorBright(sentiment) {
     if (!sentiment && sentiment !== 0) return '#333';
-    if (sentiment >= 80) return '#22c55e';
-    if (sentiment >= 65) return '#f59e0b';
-    if (sentiment >= 50) return '#f97316';
-    return '#ef4444';
+    if (sentiment >= 80) return '#f5f5f5';
+    if (sentiment >= 65) return '#a3a3a3';
+    if (sentiment >= 50) return '#737373';
+    return '#E92A15';
 }
 
 /** Display weights for KPI only — neutral 62.5 matches backend (0.25 → ((0.25+1)/2)×100). */
@@ -125,11 +127,9 @@ function MapTooltip({ info, x, y }) {
                     <span className="text-[#666]">Citations:</span>
                     <span className="text-white font-bold">{info.citations?.toLocaleString()}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center">
                     <span className="text-[#666]">Sentiment:</span>
-                    <span className="font-bold" style={{ color: getSentimentColorBright(info.sentiment) }}>
-                        {info.sentiment}%
-                    </span>
+                    <SentimentTriGauge value={info.sentiment} size="sm" />
                 </div>
                 <div className="flex justify-between">
                     <span className="text-[#666]">Mentions:</span>
@@ -149,9 +149,9 @@ function deriveSentimentAndGeo(scanResult) {
     const totalSentimentRuns = sentiment.total || 0;
 
     const sentimentBreakdown = [
-        { name: 'Positive', value: summary.positive || 0, color: '#e5e5e5' },
-        { name: 'Neutral', value: summary.neutral || 0, color: '#555' },
-        { name: 'Negative', value: summary.negative || 0, color: '#ef4444' },
+        { name: 'Positive', value: summary.positive || 0, color: '#f5f5f5' },
+        { name: 'Neutral', value: summary.neutral || 0, color: '#737373' },
+        { name: 'Negative', value: summary.negative || 0, color: '#E92A15' },
     ];
 
     const ENGINE_ORDER_LOCAL = ['perplexity', 'gemini', 'googleAI'];
@@ -285,9 +285,9 @@ export default function SentimentGeoPage({ user, scanManager }) {
     const hasData = !!(scanResult && derived);
 
     const sentimentBreakdown = derived?.sentimentBreakdown || [
-        { name: 'Positive', value: 0, color: '#e5e5e5' },
-        { name: 'Neutral', value: 0, color: '#555' },
-        { name: 'Negative', value: 0, color: '#ef4444' },
+        { name: 'Positive', value: 0, color: '#f5f5f5' },
+        { name: 'Neutral', value: 0, color: '#737373' },
+        { name: 'Negative', value: 0, color: '#E92A15' },
     ];
     const summary = derived?.summary || { positive: 0, neutral: 0, negative: 0 };
     const prompts = derived?.prompts || [];
@@ -317,7 +317,7 @@ export default function SentimentGeoPage({ user, scanManager }) {
                 {/* KPI Row */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                     {[
-                        { label: 'Avg Sentiment', value: hasData ? `${avgSentiment}%` : '—', icon: Smile, change: hasData ? `${avgSentiment > 50 ? '+' : ''}${avgSentiment - 50}%` : '—', positive: avgSentiment >= 50 },
+                        { label: 'Avg Sentiment', value: hasData ? `${avgSentiment}%` : '—', icon: Smile, change: hasData ? `${avgSentiment > 50 ? '+' : ''}${avgSentiment - 50}%` : '—', positive: avgSentiment >= 50, sentimentGauge: hasData ? avgSentiment : null },
                         { label: 'Total Citations', value: hasData ? String(totalCitations) : '—', icon: Search, change: hasData ? `${totalCitations}` : '—', positive: true },
                         { label: 'Active Regions', value: hasData ? String(activeRegions) : '—', icon: Globe, change: hasData ? `${activeRegions}` : '—', positive: true },
                         { label: 'Negative Mentions', value: hasData ? `${negativePct}%` : '—', icon: Frown, change: hasData ? `${negativePct}%` : '—', positive: negativePct <= 15 },
@@ -331,10 +331,22 @@ export default function SentimentGeoPage({ user, scanManager }) {
                                         <Icon className="w-[14px] h-[14px] text-[#555]" />
                                     </div>
                                 </div>
-                                <p className="text-white text-[32px] font-bold tracking-tight leading-none mb-3">{kpi.value}</p>
+                                {kpi.sentimentGauge != null ? (
+                                    <div className="mb-3">
+                                        <div className="flex items-center gap-4">
+                                            <SentimentTriGauge value={kpi.sentimentGauge} size="lg" />
+                                            <div>
+                                                <p className="text-white text-[28px] font-bold tabular-nums leading-none">{kpi.value}</p>
+                                                <p className="text-[#525252] text-[11px] mt-1">1 red · 2 grey · 3 white</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <p className="text-white text-[32px] font-bold tracking-tight leading-none mb-3">{kpi.value}</p>
+                                )}
                                 <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold ${kpi.positive
-                                    ? 'bg-[#0a1a0a] text-[#22c55e] border border-[#22c55e]/20'
-                                    : 'bg-[#1a0a0a] text-[#E92A15] border border-[#E92A15]/20'
+                                    ? 'bg-[#1a1a1a] text-[#e5e5e5] border border-[#404040]'
+                                    : 'bg-[#1a0a0a] text-[#E92A15] border border-[#E92A15]/25'
                                 }`}>
                                     {kpi.positive
                                         ? <ArrowUpRight className="w-3 h-3" />
@@ -356,9 +368,9 @@ export default function SentimentGeoPage({ user, scanManager }) {
                                 <p className="text-[#666] text-[13px] mt-0.5">How AI platforms perceive your brand across all analyzed responses</p>
                             </div>
                             <div className="flex items-center gap-4 text-[11px] shrink-0">
-                                <span className="flex items-center gap-1.5 text-[#ccc]"><span className="w-2 h-2 rounded-full bg-white inline-block" />Positive</span>
-                                <span className="flex items-center gap-1.5 text-[#666]"><span className="w-2 h-2 rounded-full bg-[#666] inline-block" />Neutral</span>
-                                <span className="flex items-center gap-1.5 text-[#666]"><span className="w-2 h-2 rounded-full bg-[#E92A15] inline-block" />Negative</span>
+                                <span className="flex items-center gap-1.5 text-[#ccc]"><span className="w-2 h-2 rounded-full bg-[#f5f5f5] inline-block" />Positive</span>
+                                <span className="flex items-center gap-1.5 text-[#888]"><span className="w-2 h-2 rounded-full bg-[#737373] inline-block" />Neutral</span>
+                                <span className="flex items-center gap-1.5 text-[#888]"><span className="w-2 h-2 rounded-full bg-[#E92A15] inline-block" />Negative</span>
                             </div>
                         </div>
                         {/* Horizontal stacked bar */}
@@ -367,7 +379,7 @@ export default function SentimentGeoPage({ user, scanManager }) {
                                 <div key={i}>
                                     <div className="flex items-center justify-between mb-2">
                                         <span className="text-[#888] text-[13px] font-medium">{item.name}</span>
-                                        <span className={`text-[14px] font-bold ${i === 2 ? 'text-[#E92A15]' : 'text-white'}`}>{item.value}%</span>
+                                        <span className={`text-[14px] font-bold ${i === 2 ? 'text-[#E92A15]' : i === 0 ? 'text-[#f5f5f5]' : 'text-[#a3a3a3]'}`}>{item.value}%</span>
                                     </div>
                                     <div className="w-full h-3 bg-[#1a1a1a] rounded-full overflow-hidden">
                                         <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.max(item.value, 2)}%`, backgroundColor: item.color }} />
@@ -415,7 +427,7 @@ export default function SentimentGeoPage({ user, scanManager }) {
                                         <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
                                         <span className="text-[#888] text-[13px]">{item.name}</span>
                                     </div>
-                                    <span className={`text-[13px] font-bold ${i === 2 ? 'text-[#E92A15]' : 'text-white'}`}>{item.value}%</span>
+                                    <span className={`text-[13px] font-bold ${i === 2 ? 'text-[#E92A15]' : i === 0 ? 'text-[#f5f5f5]' : 'text-[#a3a3a3]'}`}>{item.value}%</span>
                                 </div>
                             ))}
                         </div>
@@ -459,15 +471,10 @@ export default function SentimentGeoPage({ user, scanManager }) {
                                         const d = (row.perEngine || []).find(e => e.engine === eng);
                                         if (!d || !d.mentioned) return <span className="text-[#444] text-[11px]">—</span>;
                                         const s = (d.sentiment || 'neutral').toLowerCase();
-                                        const clr = s === 'positive' ? 'text-[#22c55e] bg-[#0a1a0a] border-[#22c55e]/30' :
-                                                    s === 'negative' ? 'text-[#ef4444] bg-[#1a0a0a] border-[#ef4444]/30' :
-                                                    'text-[#eab308] bg-[#1a1a0a] border-[#eab308]/30';
-                                        const icon = s === 'positive' ? <ArrowUpRight className="w-3 h-3" /> :
-                                                     s === 'negative' ? <ArrowDownRight className="w-3 h-3" /> : null;
                                         return (
-                                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-semibold border ${clr}`}>
-                                                {icon}{s.charAt(0).toUpperCase() + s.slice(1)}
-                                            </span>
+                                            <div className="flex justify-center">
+                                                <SentimentTriGauge label={s === 'n/a' ? null : s} size="sm" />
+                                            </div>
                                         );
                                     };
                                     return (
@@ -570,14 +577,14 @@ export default function SentimentGeoPage({ user, scanManager }) {
 
                         <div className="flex items-center gap-4 mt-4">
                             <span className="text-[#666] text-[11px]">Low</span>
-                            <div className="flex-1 h-2 rounded-full" style={{ background: 'linear-gradient(to right, #7c2020, #7c4a20, #7c6a2a, #4a7c4e)' }} />
+                            <div className="flex-1 h-2 rounded-full" style={{ background: 'linear-gradient(to right, #E92A15, #737373, #d4d4d4, #f5f5f5)' }} />
                             <span className="text-[#666] text-[11px]">High</span>
                             <div className="flex items-center gap-3 ml-2">
                                 {[
-                                    { dot: '#22c55e', label: '≥80%' },
-                                    { dot: '#f59e0b', label: '65–79%' },
-                                    { dot: '#f97316', label: '50–64%' },
-                                    { dot: '#ef4444', label: '<50%' },
+                                    { dot: '#f5f5f5', label: '≥80%' },
+                                    { dot: '#a3a3a3', label: '65–79%' },
+                                    { dot: '#737373', label: '50–64%' },
+                                    { dot: '#E92A15', label: '<50%' },
                                 ].map(({ dot, label }) => (
                                     <span key={label} className="flex items-center gap-1 text-[11px] text-[#666]">
                                         <span className="w-2 h-2 rounded-full" style={{ backgroundColor: dot }} />

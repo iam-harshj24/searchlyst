@@ -3,6 +3,7 @@ import {
     Users, Plus, Target, ChevronRight, X, MapPin, Building2,
     Globe2, PenTool, Eye, LayoutGrid, Link2, BarChart3, TrendingUp,
 } from 'lucide-react';
+import { SentimentTriGauge } from '@/components/ui/SentimentTriGauge';
 
 function getVisibilityData(domain, projectId) {
     try {
@@ -514,10 +515,14 @@ export default function CompetitorsPage({ user, onTabChange }) {
                                         </p>
                                     </div>
                                     <div className="rounded-xl border border-[#222] bg-[#111] p-3">
-                                        <p className="text-[9px] text-[#666] uppercase font-bold tracking-wider mb-1">Sentiment index</p>
-                                        <p className="text-white text-[20px] font-bold tabular-nums">
-                                            {competitorProfile?.sov?.sentiment != null ? Math.round(competitorProfile.sov.sentiment) : '—'}
-                                        </p>
+                                        <p className="text-[9px] text-[#666] uppercase font-bold tracking-wider mb-2">Sentiment</p>
+                                        <div className="flex items-center min-h-[28px]">
+                                            {competitorProfile?.sov?.sentiment != null ? (
+                                                <SentimentTriGauge value={Math.round(competitorProfile.sov.sentiment)} size="lg" />
+                                            ) : (
+                                                <span className="text-[#555] text-sm">—</span>
+                                            )}
+                                        </div>
                                     </div>
                                     <div className="rounded-xl border border-[#222] bg-[#111] p-3">
                                         <p className="text-[9px] text-[#666] uppercase font-bold tracking-wider mb-1">Prompts hit</p>
