@@ -226,6 +226,14 @@ export const apiClient = {
     async suggestCompetitors(data) {
       return apiClient.post('/visibility/suggest-competitors', data);
     },
+    async getCitationIntelligence(scanId) {
+      return apiClient.post('/visibility/citation-intelligence', { scanId });
+    },
+    async getCitationUrlInsights(scanId, urls) {
+      const body = { scanId };
+      if (Array.isArray(urls) && urls.length > 0) body.urls = urls;
+      return apiClient.post('/visibility/citation-url-insights', body);
+    },
   },
 
   // Waitlist specific methods

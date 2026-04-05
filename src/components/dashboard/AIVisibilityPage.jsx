@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { apiClient } from '@/api/apiClient';
 import {
     Activity, TrendingUp, TrendingDown, Target, Zap, Loader2,
     Users, BookOpen, Star, AlertCircle, BarChart3, Lightbulb, CheckCircle, Globe, RefreshCw,
-    Plug, Send, Download, Cpu, BarChart2, Layers, HelpCircle,
+    Plug, Send, Download, Cpu, BarChart2, Layers, HelpCircle, PenTool,
 } from 'lucide-react';
 import { ChatGPTLogo, GeminiLogo } from '../landing/AILogos';
 import {
@@ -24,6 +24,40 @@ const SOV_BAR_COLORS = [
     '#ef4444', '#b91c1c', '#3b82f6', '#06b6d4', '#a855f7', '#f59e0b', '#10b981', '#ec4899',
     '#8b5cf6', '#14b8a6', '#f97316', '#6366f1', '#84cc16',
 ];
+
+/** Single-word label for dominant prompt category (table column). */
+const PROMPT_CONTEXT_ONE_WORD = {
+    visibility: 'Visibility',
+    ranking: 'Ranking',
+    share_of_voice: 'SOV',
+    geo_context: 'Geo',
+    deep_probe: 'Research',
+    other: 'Other',
+};
+
+function dominantPromptContextWord(u) {
+    const bp = u.byPromptCategory || u.byCategory || {};
+    const top = Object.entries(bp).sort((a, b) => b[1] - a[1])[0]?.[0];
+    if (!top) return '—';
+    return PROMPT_CONTEXT_ONE_WORD[top] || String(top).replace(/_/g, '').slice(0, 10);
+}
+
+/** Prefill payload for Content Studio (JSON string in localStorage). */
+function buildContentStudioPrefillFromCitation(u, ins, brandName) {
+    const title = (u.title || '').trim() || u.domain || 'Cited source';
+    const lines = [
+        `[Similar to cited source] ${title}`,
+        `Source URL: ${u.url}`,
+        ins?.summary ? `What it is (AI): ${ins.summary}` : null,
+        ins?.whyCited ? `Why models cite it (AI): ${ins.whyCited}` : null,
+        `Write new on-brand content for "${brandName}" that serves the same intent but differentiates the brand; follow Content Studio citations from Brand Hub + visibility notes.`,
+    ].filter(Boolean);
+    return JSON.stringify({
+        topic: lines.join('\n\n'),
+        sourceUrl: u.url,
+        sourceTitle: title,
+    });
+}
 
 /** Normalize entity name for stable color lookup across bar + line charts */
 function normEntityName(s) {
@@ -347,7 +381,7 @@ function ScanProgressWidget({ phase, phaseDetail, progress, scanId }) {
     );
 }
 
-export default function AIVisibilityPage({ user, scanManager }) {
+export default function AIVisibilityPage({ user, scanManager, onTabChange }) {
     const {
         scanId, scanStatus: status, scanResult: result, scanPhase: phase,
         scanPhaseDetail: phaseDetail, scanProgress: progress,
@@ -361,6 +395,13 @@ export default function AIVisibilityPage({ user, scanManager }) {
     const [urlPageSize, setUrlPageSize] = useState(10);
     const [urlPage, setUrlPage] = useState(0);
     const [sourcesBrandOnly, setSourcesBrandOnly] = useState(false);
+    const [citationBrief, setCitationBrief] = useState(null);
+    const [citationBriefLoading, setCitationBriefLoading] = useState(false);
+    const [citationBriefErr, setCitationBriefErr] = useState(null);
+    const [urlInsightByUrl, setUrlInsightByUrl] = useState({});
+    const [urlInsightsLoading, setUrlInsightsLoading] = useState(false);
+    const [urlInsightsErr, setUrlInsightsErr] = useState(null);
+    const urlInsightsInFlightRef = useRef(false);
 
     const brandName = user?.brandName || 'Your Brand';
     const domain = user?.domain || '';
@@ -392,6 +433,13 @@ export default function AIVisibilityPage({ user, scanManager }) {
     useEffect(() => {
         setUrlPage(0);
     }, [result?.scannedAt, urlPageSize, domain]);
+
+    useEffect(() => {
+        setCitationBrief(null);
+        setCitationBriefErr(null);
+        setUrlInsightByUrl({});
+        setUrlInsightsErr(null);
+    }, [result?.scannedAt]);
 
     // AUTO-START: Trigger scan only when backend check is done and no result exists
     useEffect(() => {
@@ -455,7 +503,9 @@ export default function AIVisibilityPage({ user, scanManager }) {
         let allUrls = r.urlRanking?.urls || [];
         if (allUrls.length === 0 && r.prompts?.length) {
             const urlMap = {};
+            const runCat = (p) => p.category || 'other';
             for (const p of r.prompts) {
+                const qSample = (p.query || '').trim().slice(0, 220);
                 for (const [eng, data] of Object.entries(p.engines || {})) {
                     for (const cit of (data.citations || [])) {
                         if (!cit.url) continue;
@@ -469,19 +519,68 @@ export default function AIVisibilityPage({ user, scanManager }) {
                                 category: cit.category || 'other',
                                 count: 0,
                                 engines: new Set(),
-                                promptCount: 0,
                                 _prompts: new Set(),
+                                byPromptCategory: {},
+                                _queries: new Set(),
                             };
                         }
                         urlMap[cit.url].count++;
                         urlMap[cit.url].engines.add(eng);
                         if (p.promptId) urlMap[cit.url]._prompts.add(p.promptId);
+                        const cat = runCat(p);
+                        const pc = urlMap[cit.url].byPromptCategory;
+                        pc[cat] = (pc[cat] || 0) + 1;
+                        if (qSample) urlMap[cit.url]._queries.add(qSample);
                     }
                 }
             }
             allUrls = Object.values(urlMap)
-                .map((u) => ({ ...u, engines: Array.from(u.engines), promptCount: u._prompts.size }))
+                .map((u) => {
+                    const { _prompts, _queries, ...base } = u;
+                    const ent = Object.entries(base.byPromptCategory || {});
+                    const dominant = ent.sort((a, b) => b[1] - a[1])[0];
+                    return {
+                        url: base.url,
+                        domain: base.domain,
+                        title: base.title,
+                        isTargetBrand: base.isTargetBrand,
+                        isCompetitor: base.isCompetitor,
+                        category: dominant?.[0] || base.category || 'other',
+                        byPromptCategory: base.byPromptCategory || {},
+                        sampleQueries: [..._queries].slice(0, 4),
+                        count: base.count,
+                        engines: Array.from(base.engines),
+                        promptCount: _prompts.size,
+                    };
+                })
                 .sort((a, b) => b.count - a.count);
+        }
+        // Older saved scans: urlRanking rows may lack prompt-level context — fill from prompts when possible.
+        if (r.prompts?.length && r.urlRanking?.urls?.length && allUrls.length > 0) {
+            const enrichMap = {};
+            for (const p of r.prompts) {
+                const cat = p.category || 'other';
+                const qSample = (p.query || '').trim().slice(0, 220);
+                for (const [, data] of Object.entries(p.engines || {})) {
+                    for (const cit of (data.citations || [])) {
+                        if (!cit.url) continue;
+                        if (!enrichMap[cit.url]) enrichMap[cit.url] = { byPromptCategory: {}, sampleQueries: new Set() };
+                        const e = enrichMap[cit.url];
+                        e.byPromptCategory[cat] = (e.byPromptCategory[cat] || 0) + 1;
+                        if (qSample) e.sampleQueries.add(qSample);
+                    }
+                }
+            }
+            allUrls = allUrls.map((u) => {
+                if (u.byPromptCategory && Object.keys(u.byPromptCategory).length > 0) return u;
+                const e = enrichMap[u.url];
+                if (!e) return u;
+                return {
+                    ...u,
+                    byPromptCategory: e.byPromptCategory,
+                    sampleQueries: [...e.sampleQueries].slice(0, 4),
+                };
+            });
         }
         return allUrls;
     }, [r]);
@@ -491,6 +590,77 @@ export default function AIVisibilityPage({ user, scanManager }) {
         const pc = Math.max(1, Math.ceil(n / urlPageSize));
         setUrlPage((p) => Math.min(p, pc - 1));
     }, [allUrlRanking.length, urlPageSize]);
+
+    /** Auto-load Summary / Why cited for the current URLs table page (no button). */
+    useEffect(() => {
+        if (tab !== 'urls' || !r?.scannedAt || status === 'scanning') return;
+        const list = allUrlRanking;
+        if (!list.length) return;
+
+        const pageCount = Math.max(1, Math.ceil(list.length / urlPageSize));
+        const safePage = Math.min(urlPage, pageCount - 1);
+        const sliceStart = safePage * urlPageSize;
+        const pageRows = list.slice(sliceStart, sliceStart + urlPageSize);
+        const visibleUrls = pageRows.map((u) => u.url).filter(Boolean);
+        if (!visibleUrls.length) return;
+
+        const insightMissing = (row) => {
+            if (!row) return true;
+            const bad = (v) => !v || String(v).trim() === '' || String(v).trim() === '—';
+            return bad(row.summary) || bad(row.whyCited);
+        };
+
+        const pending = visibleUrls.filter((url) => insightMissing(urlInsightByUrl[url]));
+        if (!pending.length) return;
+        if (urlInsightsInFlightRef.current) return;
+
+        let cancelled = false;
+        urlInsightsInFlightRef.current = true;
+        setUrlInsightsLoading(true);
+        setUrlInsightsErr(null);
+
+        (async () => {
+            try {
+                let sid = scanId;
+                if (!sid && domain) {
+                    const latest = await apiClient.visibility.getLatestScan(user?.projectId, domain);
+                    sid = latest?.scan?.id;
+                }
+                if (cancelled) return;
+                if (!sid) {
+                    setUrlInsightsErr('No scan ID available for URL insights.');
+                    return;
+                }
+                const res = await apiClient.visibility.getCitationUrlInsights(sid, pending);
+                if (cancelled) return;
+                if (res?.success && Array.isArray(res.insights)) {
+                    const map = {};
+                    for (const row of res.insights) {
+                        if (row?.url) {
+                            map[row.url] = {
+                                summary: row.summary || '—',
+                                whyCited: row.whyCited || row.why_cited || '—',
+                            };
+                        }
+                    }
+                    if (!cancelled) setUrlInsightByUrl((prev) => ({ ...prev, ...map }));
+                } else if (!cancelled) {
+                    setUrlInsightsErr(res?.message || 'Could not load URL insights.');
+                }
+            } catch (e) {
+                if (!cancelled) setUrlInsightsErr(e?.message || 'Request failed');
+            } finally {
+                urlInsightsInFlightRef.current = false;
+                if (!cancelled) setUrlInsightsLoading(false);
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+            urlInsightsInFlightRef.current = false;
+            setUrlInsightsLoading(false);
+        };
+    }, [tab, r?.scannedAt, status, scanId, urlPage, urlPageSize, allUrlRanking, domain, user?.projectId, urlInsightByUrl]);
 
     const tabs = [
         { k: 'overview', l: 'Overview', i: BarChart3 },
@@ -1265,6 +1435,48 @@ export default function AIVisibilityPage({ user, scanManager }) {
                                     <p className="text-[#666] text-[12px]">{totalUrls} unique URLs found across {totalMentions} citations</p>
                                 </div>
                                 <div className="flex flex-wrap items-center gap-2">
+                                    {urlInsightsLoading && (
+                                        <span className="flex items-center gap-1.5 text-[11px] text-[#888] shrink-0">
+                                            <Loader2 className="w-3.5 h-3.5 animate-spin text-[#a78bfa]" />
+                                            Loading summaries…
+                                        </span>
+                                    )}
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={citationBriefLoading || !r?.scannedAt}
+                                        className="h-8 text-[11px] gap-1.5 border-[#333] bg-[#141414] text-[#e5e5e5] hover:bg-[#1a1a1a] hover:text-white shrink-0"
+                                        onClick={async () => {
+                                            setCitationBriefErr(null);
+                                            setCitationBriefLoading(true);
+                                            try {
+                                                let sid = scanId;
+                                                if (!sid && domain) {
+                                                    const latest = await apiClient.visibility.getLatestScan(user?.projectId, domain);
+                                                    sid = latest?.scan?.id;
+                                                }
+                                                if (!sid) {
+                                                    setCitationBriefErr('No scan ID found. Run a full visibility scan, then try again.');
+                                                    return;
+                                                }
+                                                const res = await apiClient.visibility.getCitationIntelligence(sid);
+                                                if (res?.success && res.brief) setCitationBrief(res);
+                                                else setCitationBriefErr(res?.message || 'Could not generate brief.');
+                                            } catch (e) {
+                                                setCitationBriefErr(e?.message || 'Request failed');
+                                            } finally {
+                                                setCitationBriefLoading(false);
+                                            }
+                                        }}
+                                    >
+                                        {citationBriefLoading ? (
+                                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                        ) : (
+                                            <Lightbulb className="w-3.5 h-3.5 text-amber-400/90" />
+                                        )}
+                                        Scan overview (Gemini)
+                                    </Button>
                                     <span className="text-[10px] text-[#666] uppercase font-semibold">Per page</span>
                                     {[10, 20, 50].map((n) => (
                                         <button
@@ -1280,6 +1492,104 @@ export default function AIVisibilityPage({ user, scanManager }) {
                                     ))}
                                 </div>
                             </div>
+                            {citationBriefErr && (
+                                <div className="px-5 pb-3">
+                                    <p className="text-amber-400/90 text-[12px]">{citationBriefErr}</p>
+                                </div>
+                            )}
+                            {urlInsightsErr && (
+                                <div className="px-5 pb-3">
+                                    <p className="text-amber-400/90 text-[12px]">{urlInsightsErr}</p>
+                                </div>
+                            )}
+                            {citationBrief?.brief && (
+                                <div className="mx-5 mb-4 rounded-xl border border-[#2a2a2a] bg-[#080808] overflow-hidden">
+                                    <div className="px-4 py-2 border-b border-[#1e1e1e] flex items-center gap-2">
+                                        <GeminiLogo className="w-4 h-4 text-[#4285f4]" />
+                                        <span className="text-[11px] font-semibold text-[#aaa] uppercase tracking-wider">Citation intelligence</span>
+                                        {citationBrief.aggregateMeta && (
+                                            <span className="text-[10px] text-[#555] ml-auto tabular-nums">
+                                                {citationBrief.aggregateMeta.totalUniqueUrls} URLs · {citationBrief.aggregateMeta.totalCitationEvents} cites
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="p-4 space-y-4 text-[13px] text-[#ccc] leading-relaxed">
+                                        {citationBrief.brief.executiveSummary && (
+                                            <div className="space-y-2">
+                                                {String(citationBrief.brief.executiveSummary).split(/\n\n+/).map((para, i) => (
+                                                    <p key={i} className="text-[#d4d4d4]">{para.trim()}</p>
+                                                ))}
+                                            </div>
+                                        )}
+                                        {Array.isArray(citationBrief.brief.competitorTakeaways) && citationBrief.brief.competitorTakeaways.length > 0 && (
+                                            <div>
+                                                <p className="text-[10px] font-bold uppercase tracking-wider text-[#888] mb-2">Competitors in citations</p>
+                                                <ul className="space-y-2">
+                                                    {citationBrief.brief.competitorTakeaways.map((row, i) => (
+                                                        <li key={i} className="pl-3 border-l-2 border-orange-500/40">
+                                                            <span className="text-white font-medium">{row.label}</span>
+                                                            {row.insight ? <p className="text-[#aaa] mt-0.5">{row.insight}</p> : null}
+                                                            {Array.isArray(row.exampleUrls) && row.exampleUrls.length > 0 && (
+                                                                <ul className="mt-1 space-y-0.5">
+                                                                    {row.exampleUrls.map((u, j) => (
+                                                                        <li key={j}>
+                                                                            <a href={u} target="_blank" rel="noreferrer" className="text-[11px] text-blue-400/80 hover:underline break-all">{u}</a>
+                                                                        </li>
+                                                                    ))}
+                                                                </ul>
+                                                            )}
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+                                        {citationBrief.brief.whereYouAreCited && (
+                                            <div>
+                                                <p className="text-[10px] font-bold uppercase tracking-wider text-[#888] mb-1">Your brand URLs</p>
+                                                <p className="text-[#bbb]">{citationBrief.brief.whereYouAreCited}</p>
+                                            </div>
+                                        )}
+                                        {citationBrief.brief.categoryNarratives && typeof citationBrief.brief.categoryNarratives === 'object' && (
+                                            <div>
+                                                <p className="text-[10px] font-bold uppercase tracking-wider text-[#888] mb-2">By prompt type</p>
+                                                <dl className="space-y-2 text-[12px]">
+                                                    {Object.entries(citationBrief.brief.categoryNarratives).map(([k, v]) => {
+                                                        if (!v || String(v).trim() === '') return null;
+                                                        const label = citationBrief.aggregateMeta?.categoryLabels?.[k] || k.replace(/_/g, ' ');
+                                                        return (
+                                                            <div key={k}>
+                                                                <dt className="text-[#888] font-medium capitalize">{label}</dt>
+                                                                <dd className="text-[#bbb] mt-0.5">{v}</dd>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </dl>
+                                            </div>
+                                        )}
+                                        {Array.isArray(citationBrief.brief.contentGaps) && citationBrief.brief.contentGaps.length > 0 && (
+                                            <div>
+                                                <p className="text-[10px] font-bold uppercase tracking-wider text-[#888] mb-2">Content gaps</p>
+                                                <ul className="space-y-2">
+                                                    {citationBrief.brief.contentGaps.map((g, i) => (
+                                                        <li key={i} className="rounded-lg bg-amber-500/5 border border-amber-500/15 px-3 py-2">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-white font-medium text-[12px]">{g.headline}</span>
+                                                                {g.priority && (
+                                                                    <span className="text-[9px] uppercase px-1.5 py-0.5 rounded border border-[#333] text-[#888]">{g.priority}</span>
+                                                                )}
+                                                            </div>
+                                                            {g.detail && <p className="text-[#aaa] text-[11px] mt-1">{g.detail}</p>}
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+                                        {citationBrief.brief.limitations && (
+                                            <p className="text-[10px] text-[#666] italic border-t border-[#1e1e1e] pt-3">{citationBrief.brief.limitations}</p>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                             {urlBarData.length > 0 && (
                                 <div className="px-5 pb-4 border-b border-[#1a1a1a]">
                                     <p className="text-[#888] text-[11px] mb-2 font-medium">Most-cited URLs (top {urlBarData.length})</p>
@@ -1305,49 +1615,66 @@ export default function AIVisibilityPage({ user, scanManager }) {
                                 </div>
                             )}
                             <div className="overflow-x-auto">
-                                <table className="w-full text-left text-[12px]">
+                                <p className="px-5 pt-1 pb-2 text-[10px] text-[#666]">
+                                    <span className="text-[#888]">CTX</span> is one word for the dominant prompt type.
+                                    Summary and Why cited load automatically for the rows on this page; change page to fetch the next set.
+                                </p>
+                                <table className="w-full text-left text-[12px] min-w-[1280px]">
                                     <thead>
                                         <tr className="border-y border-[#1a1a1a] bg-[#080808]">
-                                            <th className="py-2.5 pl-5 pr-3 text-[10px] font-semibold tracking-wider text-[#888] uppercase w-[5%]">#</th>
-                                            <th className="py-2.5 px-3 text-[10px] font-semibold tracking-wider text-[#888] uppercase w-[45%]">URL</th>
-                                            <th className="py-2.5 px-3 text-[10px] font-semibold tracking-wider text-[#888] uppercase w-[12%]">DOMAIN</th>
-                                            <th className="py-2.5 px-3 text-[10px] font-semibold tracking-wider text-[#888] uppercase text-center w-[10%]">TIMES CITED</th>
-                                            <th className="py-2.5 px-3 text-[10px] font-semibold tracking-wider text-[#888] uppercase text-center w-[10%]">ENGINES</th>
-                                            <th className="py-2.5 px-3 text-[10px] font-semibold tracking-wider text-[#888] uppercase text-center w-[10%]">PROMPTS</th>
-                                            <th className="py-2.5 pl-3 pr-5 text-[10px] font-semibold tracking-wider text-[#888] uppercase text-right w-[8%]">TYPE</th>
+                                            <th className="py-2.5 pl-5 pr-3 text-[10px] font-semibold tracking-wider text-[#888] uppercase w-[3%]">#</th>
+                                            <th className="py-2.5 px-3 text-[10px] font-semibold tracking-wider text-[#888] uppercase w-[14%]">TITLE</th>
+                                            <th className="py-2.5 px-3 text-[10px] font-semibold tracking-wider text-[#888] uppercase w-[12%]">URL</th>
+                                            <th className="py-2.5 px-3 text-[10px] font-semibold tracking-wider text-[#888] uppercase w-[7%]">DOMAIN</th>
+                                            <th className="py-2.5 px-3 text-[10px] font-semibold tracking-wider text-[#888] uppercase text-center w-[5%]">CITED</th>
+                                            <th className="py-2.5 px-3 text-[10px] font-semibold tracking-wider text-[#888] uppercase text-center w-[6%]">ENGINES</th>
+                                            <th className="py-2.5 px-3 text-[10px] font-semibold tracking-wider text-[#888] uppercase text-center w-[5%]">PROMPTS</th>
+                                            <th className="py-2.5 px-3 text-[10px] font-semibold tracking-wider text-[#888] uppercase text-right w-[6%]">TYPE</th>
+                                            <th className="py-2.5 px-3 text-[10px] font-semibold tracking-wider text-[#888] uppercase text-center w-[5%]" title="Dominant prompt category (one word)">CTX</th>
+                                            <th className="py-2.5 px-3 text-[10px] font-semibold tracking-wider text-[#888] uppercase w-[11%]">DETAILS</th>
+                                            <th className="py-2.5 px-3 text-[10px] font-semibold tracking-wider text-[#a78bfa] uppercase w-[13%]">SUMMARY (AI)</th>
+                                            <th className="py-2.5 px-3 text-[10px] font-semibold tracking-wider text-[#a78bfa] uppercase w-[13%]">WHY CITED (AI)</th>
+                                            <th className="py-2.5 pl-3 pr-5 text-[10px] font-semibold tracking-wider text-[#888] uppercase text-right w-[9%]">STUDIO</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {pageRows.map((u, i) => (
+                                        {pageRows.map((u, i) => {
+                                            const ins = urlInsightByUrl[u.url];
+                                            const ctxWord = dominantPromptContextWord(u);
+                                            const displayTitle = (u.title || '').trim() || '—';
+                                            const qs = (u.sampleQueries || []).filter(Boolean).slice(0, 3);
+                                            return (
                                             <tr key={sliceStart + i} className={`border-b border-[#1a1a1a] hover:bg-[#111] transition-colors ${u.isTargetBrand ? 'bg-green-500/5' : ''}`}>
-                                                <td className="py-3 pl-5 pr-3 text-[#555] font-medium">{sliceStart + i + 1}</td>
-                                                <td className="py-3 px-3">
-                                                    <a href={u.url} target="_blank" rel="noreferrer" className="text-blue-400/80 hover:text-blue-400 hover:underline text-[11px] truncate block max-w-[350px]" title={u.url}>
-                                                        {u.url.length > 70 ? u.url.substring(0, 70) + '…' : u.url}
-                                                    </a>
-                                                    {u.title && <p className="text-[#555] text-[10px] mt-0.5 truncate max-w-[350px]">{u.title}</p>}
+                                                <td className="py-3 pl-5 pr-3 text-[#555] font-medium align-top">{sliceStart + i + 1}</td>
+                                                <td className="py-3 px-3 align-top max-w-[200px]">
+                                                    <p className="text-[12px] text-white font-medium leading-snug line-clamp-3" title={displayTitle !== '—' ? displayTitle : u.url}>{displayTitle}</p>
                                                 </td>
-                                                <td className="py-3 px-3">
+                                                <td className="py-3 px-3 align-top">
+                                                    <a href={u.url} target="_blank" rel="noreferrer" className="text-blue-400/80 hover:text-blue-400 hover:underline text-[11px] break-all line-clamp-2" title={u.url}>
+                                                        {u.url.length > 56 ? u.url.substring(0, 56) + '…' : u.url}
+                                                    </a>
+                                                </td>
+                                                <td className="py-3 px-3 align-top">
                                                     <div className="flex items-center gap-1.5">
                                                         <div className="w-3.5 h-3.5 rounded bg-[#1e1e1e] flex items-center justify-center overflow-hidden shrink-0">
                                                             <img src={`https://www.google.com/s2/favicons?domain=${u.domain}&sz=16`} className="w-3 h-3" onError={ev => { ev.currentTarget.style.display = 'none' }} alt="" />
                                                         </div>
-                                                        <span className="text-[#aaa] text-[11px] truncate max-w-[100px]">{u.domain}</span>
+                                                        <span className="text-[#aaa] text-[11px] break-all">{u.domain}</span>
                                                     </div>
                                                 </td>
-                                                <td className="py-3 px-3 text-center">
+                                                <td className="py-3 px-3 text-center align-top">
                                                     <span className={`text-[13px] font-semibold ${u.count >= 3 ? 'text-amber-400' : u.count >= 2 ? 'text-white' : 'text-[#888]'}`}>{u.count}</span>
                                                 </td>
-                                                <td className="py-3 px-3 text-center">
+                                                <td className="py-3 px-3 text-center align-top">
                                                     <div className="flex items-center justify-center gap-1 flex-wrap">
                                                         {(u.engines || []).map((eng) => (
                                                             <UrlEngineLogo key={`${sliceStart + i}-${eng}`} engineKey={eng} />
                                                         ))}
                                                     </div>
                                                 </td>
-                                                <td className="py-3 px-3 text-center text-[#888]">{u.promptCount}</td>
-                                                <td className="py-3 pl-3 pr-5 text-right">
-                                                    <span className={`text-[9px] px-1.5 py-0.5 rounded border ${
+                                                <td className="py-3 px-3 text-center text-[#888] align-top">{u.promptCount}</td>
+                                                <td className="py-3 px-3 text-right align-top">
+                                                    <span className={`inline-block text-[9px] px-1.5 py-0.5 rounded border ${
                                                         u.isTargetBrand ? 'bg-green-500/10 text-green-400 border-green-500/20' :
                                                         u.isCompetitor ? 'bg-red-500/10 text-red-400 border-red-500/20' :
                                                         'bg-[#1a1a1a] text-[#666] border-[#2a2a2a]'
@@ -1355,10 +1682,81 @@ export default function AIVisibilityPage({ user, scanManager }) {
                                                         {u.isTargetBrand ? 'Your brand' : u.isCompetitor ? 'Competitor' : classifyDomainContentType(u.domain)}
                                                     </span>
                                                 </td>
+                                                <td className="py-3 px-2 text-center align-top">
+                                                    <span className="text-[11px] font-semibold text-[#c4c4c4] tabular-nums" title="Dominant prompt category for this URL">{ctxWord}</span>
+                                                </td>
+                                                <td className="py-3 px-2 align-top max-w-[200px]">
+                                                    <details className="text-[10px]">
+                                                        <summary className="cursor-pointer list-none text-[#a78bfa] hover:text-[#c4b5fd] select-none marker:content-['']">
+                                                            📂 See details
+                                                        </summary>
+                                                        <div className="mt-2 pl-2 border-l border-[#333] space-y-2 text-[#999]">
+                                                            <div>
+                                                                <p className="text-[9px] uppercase tracking-wider text-[#666] mb-1">Prompt / structure</p>
+                                                                {qs.length > 0 ? (
+                                                                    <ul className="list-disc pl-3 space-y-1 text-[10px] leading-snug">
+                                                                        {qs.map((q, qi) => (
+                                                                            <li key={qi} className="line-clamp-4">{q}</li>
+                                                                        ))}
+                                                                    </ul>
+                                                                ) : (
+                                                                    <p className="text-[10px] text-[#555]">No sample prompts stored for this URL.</p>
+                                                                )}
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-[9px] uppercase tracking-wider text-[#666] mb-1">Signals (from this scan)</p>
+                                                                <p className="text-[10px] text-[#777] leading-snug mb-1">These are derived from our visibility run, not secret engine ranking scores.</p>
+                                                                <ul className="list-disc pl-3 space-y-0.5 text-[10px]">
+                                                                    <li>Citation weight: {u.count} mentions</li>
+                                                                    <li>Prompt breadth: {u.promptCount} distinct prompts</li>
+                                                                    <li>Engine spread: {(u.engines || []).length ? (u.engines || []).join(', ') : '—'}</li>
+                                                                    <li>Role: {u.isTargetBrand ? 'Your domain' : u.isCompetitor ? 'Flagged competitor' : 'Third-party'}</li>
+                                                                </ul>
+                                                            </div>
+                                                        </div>
+                                                    </details>
+                                                </td>
+                                                <td className="py-3 px-3 align-top max-w-[260px] text-[11px] text-[#c4c4c4] leading-snug">
+                                                    {urlInsightsLoading && !ins ? (
+                                                        <span className="text-[#555] animate-pulse">Generating…</span>
+                                                    ) : ins?.summary ? (
+                                                        ins.summary
+                                                    ) : (
+                                                        <span className="text-[#555]">—</span>
+                                                    )}
+                                                </td>
+                                                <td className="py-3 px-3 align-top max-w-[280px] text-[11px] text-[#9ca3af] leading-snug">
+                                                    {urlInsightsLoading && !ins ? (
+                                                        <span className="text-[#555] animate-pulse">Generating…</span>
+                                                    ) : ins?.whyCited ? (
+                                                        ins.whyCited
+                                                    ) : (
+                                                        <span className="text-[#555]">—</span>
+                                                    )}
+                                                </td>
+                                                <td className="py-3 pl-3 pr-5 align-top text-right">
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        disabled={!onTabChange}
+                                                        title={onTabChange ? 'Open Content Studio with this source as context' : undefined}
+                                                        className="h-7 px-2 text-[9px] gap-1 border-[#333] bg-[#141414] text-[#e5e5e5] hover:bg-[#1f1f1f] max-w-[140px]"
+                                                        onClick={() => {
+                                                            const raw = buildContentStudioPrefillFromCitation(u, ins, brandName);
+                                                            localStorage.setItem('searchlyst_content_prefill', raw);
+                                                            onTabChange?.('content-studio');
+                                                        }}
+                                                    >
+                                                        <PenTool className="w-3 h-3 shrink-0" />
+                                                        <span className="truncate">Create similar</span>
+                                                    </Button>
+                                                </td>
                                             </tr>
-                                        ))}
+                                            );
+                                        })}
                                         {allUrls.length === 0 && (
-                                            <tr><td colSpan={7} className="py-12 text-center text-[#555] text-sm">No URLs found. Run a scan to populate.</td></tr>
+                                            <tr><td colSpan={13} className="py-12 text-center text-[#555] text-sm">No URLs found. Run a scan to populate.</td></tr>
                                         )}
                                     </tbody>
                                 </table>

@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
     LayoutDashboard, Bot, Eye, BarChart3, Compass, PenTool,
     Activity, UserCircle, TrendingUp, User, LogOut,
     FileSearch, Globe, Swords, Terminal, Bell, Users,
+    ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import ProjectSwitcher from './ProjectSwitcher';
+
+const SIDEBAR_COLLAPSED_KEY = 'searchlyst_sidebar_collapsed';
 
 const menuSections = [
     {
@@ -41,20 +44,44 @@ const menuSections = [
 ];
 
 export default function Sidebar({ activeTab, onTabChange, user, authUser, userRole, projects, activeProject, onProjectSwitch, onAddProject, onLogout, scanActive, auditActive }) {
-    const [collapsed, setCollapsed] = useState(false);
+    const [collapsed, setCollapsed] = useState(() => {
+        try {
+            return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1';
+        } catch {
+            return false;
+        }
+    });
+
+    const toggleCollapsed = useCallback(() => {
+        setCollapsed((c) => {
+            const next = !c;
+            try {
+                localStorage.setItem(SIDEBAR_COLLAPSED_KEY, next ? '1' : '0');
+            } catch { /* ignore */ }
+            return next;
+        });
+    }, []);
 
     return (
-        <div className={`${collapsed ? 'w-16' : 'w-60'} shrink-0 bg-[#0B0B0B] border-r border-[#222] h-screen flex flex-col transition-all duration-300`}>
-            {/* Logo */}
-            <div className="h-[93px] px-5 border-b border-[#222] flex flex-col justify-center">
-                <div className="flex items-center justify-between">
-                    <div className="flex flex-col items-start gap-1">
-                        <img src="/searchlyst_logo.png" alt="Searchlyst" className="w-[140px] h-auto object-contain" />
-                        {!collapsed && (
-                            <span className="bg-[#1e0a0a] text-[#E92A15] text-[10px] uppercase font-bold tracking-[0.1em] px-2 py-0.5 rounded border border-[#bb2525]/20">BETA</span>
-                        )}
+        <div className={`${collapsed ? 'w-[4.25rem]' : 'w-60'} shrink-0 bg-[#0B0B0B] border-r border-[#222] h-screen flex flex-col transition-all duration-300`}>
+            {/* Logo + collapse */}
+            <div className={`h-[93px] border-b border-[#222] flex items-center gap-2 shrink-0 ${collapsed ? 'px-2 justify-center flex-col' : 'px-4'}`}>
+                <button
+                    type="button"
+                    onClick={toggleCollapsed}
+                    className="p-2 rounded-xl text-[#888] hover:text-white hover:bg-[#1A1A1A] transition-colors shrink-0 border border-transparent hover:border-[#2a2a2a]"
+                    title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                    aria-expanded={!collapsed}
+                    aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                >
+                    {collapsed ? <ChevronRight className="w-5 h-5" strokeWidth={2} /> : <ChevronLeft className="w-5 h-5" strokeWidth={2} />}
+                </button>
+                {!collapsed && (
+                    <div className="flex flex-col items-start gap-1 min-w-0 flex-1">
+                        <img src="/searchlyst_logo.png" alt="Searchlyst" className="w-[120px] h-auto object-contain" />
+                        <span className="bg-[#1e0a0a] text-[#E92A15] text-[10px] uppercase font-bold tracking-[0.1em] px-2 py-0.5 rounded border border-[#bb2525]/20">BETA</span>
                     </div>
-                </div>
+                )}
             </div>
 
             {/* Project Switcher */}

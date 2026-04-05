@@ -111,6 +111,7 @@ function useScanManager(user) {
                         const fallback = await apiClient.visibility.getLatestScan(projectId, domain);
                         if (fallback?.scan?.result) {
                             setScanResult(fallback.scan.result);
+                            if (fallback.scan?.id) setScanId(fallback.scan.id);
                             localStorage.setItem(storageKey, JSON.stringify(fallback.scan.result));
                             setScanStatus('completed');
                             return;
@@ -179,6 +180,7 @@ function useScanManager(user) {
                 const res = await apiClient.visibility.getLatestScan(projectId, domain);
                 if (res?.scan?.result) {
                     setScanResult(res.scan.result);
+                    if (res.scan?.id) setScanId(res.scan.id);
                     setScanStatus('completed');
                     localStorage.setItem(storageKey, JSON.stringify(res.scan.result));
                 }
@@ -500,7 +502,7 @@ function DashboardInner() {
             case 'content-studio':
                 return <ContentStudioPage user={contextUser} />;
             case 'ai-visibility':
-                return <AIVisibilityPage user={contextUser} scanManager={scanManager} />;
+                return <AIVisibilityPage user={contextUser} scanManager={scanManager} onTabChange={setActiveTab} />;
             case 'competitive-intel':
                 return <CompetitiveIntelPage user={contextUser} onTabChange={setActiveTab} />;
             case 'competitors':
