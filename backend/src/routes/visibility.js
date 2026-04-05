@@ -8,6 +8,8 @@ import {
     runCustomPrompt,
     runCustomPromptsBatch,
     suggestCompetitors,
+    postCitationIntelligence,
+    postCitationUrlInsights,
 } from '../controllers/visibilityController.js';
 import { authenticateToken } from '../middleware/auth.js';
 
@@ -19,6 +21,8 @@ router.post('/scan', startVisibilityScan);
 router.post('/run-prompt', runCustomPrompt);
 router.post('/run-prompts', runCustomPromptsBatch);
 router.post('/suggest-competitors', suggestCompetitors);
+router.post('/citation-intelligence', postCitationIntelligence);
+router.post('/citation-url-insights', postCitationUrlInsights);
 router.get('/scans', listScans);
 router.get('/latest', getLatestScan);
 router.get('/history', getScanHistory);

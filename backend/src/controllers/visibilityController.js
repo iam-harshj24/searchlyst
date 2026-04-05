@@ -16,6 +16,12 @@ import {
 import { queryPerplexity, queryGemini, queryGoogleAI } from '../services/infaticaService.js';
 import { parseResponse } from '../services/responseParser.js';
 import { prisma } from '../lib/prisma.js';
+import {
+    aggregateCitationsForIntelligence,
+    generateCitationIntelligenceBrief,
+    generatePerUrlTableInsights,
+    extractCompetitorContext,
+} from '../services/citationIntelligenceService.js';
 
 function buildCompStr(competitors) {
     const list = (competitors || []).map(c => typeof c === 'string' ? c : (c.name || c.domain)).filter(Boolean);
@@ -853,5 +859,156 @@ Rules:
         return res.json({ success: true, suggestions: suggestions.slice(0, 20) });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
+    }
+}
+
+/**
+ * POST /api/visibility/citation-intelligence
+ * Body: { scanId }
+ * Uses Gemini to summarize all cited URLs, grouped by prompt category and competitor vs own-brand context.
+ */
+export async function postCitationIntelligence(req, res) {
+    try {
+        const userId = req.user.id;
+        const scanId = req.body?.scanId;
+        if (!scanId || typeof scanId !== 'string') {
+            return res.status(400).json({ success: false, message: 'scanId is required' });
+        }
+
+        const scan = await prisma.visibilityScan.findFirst({
+            where: { id: scanId, userId },
+        });
+        if (!scan) {
+            return res.status(404).json({ success: false, message: 'Scan not found' });
+        }
+
+        let allRuns = [];
+        try {
+            const raw = scan.allRuns ? (typeof scan.allRuns === 'string' ? JSON.parse(scan.allRuns) : scan.allRuns) : [];
+            allRuns = Array.isArray(raw) ? raw : [];
+        } catch {
+            allRuns = [];
+        }
+
+        if (allRuns.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'This scan has no stored citation runs yet. Finish a full visibility scan first.',
+            });
+        }
+
+        let scanResults = null;
+        try {
+            scanResults = scan.results ? (typeof scan.results === 'string' ? JSON.parse(scan.results) : scan.results) : null;
+        } catch {
+            scanResults = null;
+        }
+
+        const competitorNames = extractCompetitorContext(scanResults);
+        const aggregate = aggregateCitationsForIntelligence(allRuns);
+        const competitorGaps = normalizeGaps(scanResults?.competitorGaps || []);
+
+        const { brief, aggregateMeta } = await generateCitationIntelligenceBrief({
+            brandName: scan.brandName || scanResults?.brandName || 'Your brand',
+            domain: scan.domain || scanResults?.domain || '',
+            industry: scan.industry || scanResults?.industry || '',
+            competitorNames,
+            aggregate,
+            competitorGaps,
+        });
+
+        return res.json({
+            success: true,
+            scanId: scan.id,
+            generatedAt: new Date().toISOString(),
+            brief,
+            aggregateMeta,
+        });
+    } catch (error) {
+        const msg = error?.message || String(error);
+        if (msg.includes('GEMINI_API_KEY')) {
+            return res.status(503).json({ success: false, message: msg });
+        }
+        console.error('[postCitationIntelligence]', msg);
+        res.status(500).json({ success: false, message: msg });
+    }
+}
+
+/**
+ * POST /api/visibility/citation-url-insights
+ * Body: { scanId, urls?: string[] } — if urls is a non-empty array, only those rows are summarized (e.g. current table page).
+ */
+export async function postCitationUrlInsights(req, res) {
+    try {
+        const userId = req.user.id;
+        const scanId = req.body?.scanId;
+        if (!scanId || typeof scanId !== 'string') {
+            return res.status(400).json({ success: false, message: 'scanId is required' });
+        }
+
+        const scan = await prisma.visibilityScan.findFirst({
+            where: { id: scanId, userId },
+        });
+        if (!scan) {
+            return res.status(404).json({ success: false, message: 'Scan not found' });
+        }
+
+        let allRuns = [];
+        try {
+            const raw = scan.allRuns ? (typeof scan.allRuns === 'string' ? JSON.parse(scan.allRuns) : scan.allRuns) : [];
+            allRuns = Array.isArray(raw) ? raw : [];
+        } catch {
+            allRuns = [];
+        }
+
+        if (allRuns.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'This scan has no stored citation runs yet. Finish a full visibility scan first.',
+            });
+        }
+
+        const aggregate = aggregateCitationsForIntelligence(allRuns);
+        const byUrl = new Map((aggregate.allCitationUrls || []).map((row) => [row.url, row]));
+
+        const requested = Array.isArray(req.body?.urls)
+            ? req.body.urls.filter((u) => typeof u === 'string' && u.trim().length > 0)
+            : null;
+
+        let rowsToInsight;
+        if (requested && requested.length > 0) {
+            rowsToInsight = requested.map((u) => byUrl.get(u)).filter(Boolean);
+            if (rowsToInsight.length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'None of the requested URLs appear in this scan.',
+                });
+            }
+        } else if (requested && requested.length === 0) {
+            return res.json({
+                success: true,
+                scanId: scan.id,
+                generatedAt: new Date().toISOString(),
+                insights: [],
+            });
+        } else {
+            rowsToInsight = aggregate.topUrls.slice(0, 54);
+        }
+
+        const insights = await generatePerUrlTableInsights(rowsToInsight, scan.brandName || 'Your brand');
+
+        return res.json({
+            success: true,
+            scanId: scan.id,
+            generatedAt: new Date().toISOString(),
+            insights,
+        });
+    } catch (error) {
+        const msg = error?.message || String(error);
+        if (msg.includes('GEMINI_API_KEY')) {
+            return res.status(503).json({ success: false, message: msg });
+        }
+        console.error('[postCitationUrlInsights]', msg);
+        res.status(500).json({ success: false, message: msg });
     }
 }

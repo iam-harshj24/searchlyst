@@ -620,6 +620,8 @@ export function computeUrlRanking(allRunResults) {
     const urlStats = {};
 
     for (const run of allRunResults) {
+        const runCategory = run.category || 'other';
+        const querySample = (run.query || '').trim().slice(0, 220);
         for (const citation of (run.citations || [])) {
             const url = citation.url;
             if (!url) continue;
@@ -634,27 +636,39 @@ export function computeUrlRanking(allRunResults) {
                     count: 0,
                     engines: new Set(),
                     prompts: new Set(),
+                    byPromptCategory: {},
+                    sampleQueries: new Set(),
                 };
             }
             urlStats[url].count++;
             urlStats[url].engines.add(run.engine);
             if (run.promptId) urlStats[url].prompts.add(run.promptId);
             if (!urlStats[url].title && citation.title) urlStats[url].title = citation.title;
+            const pc = urlStats[url].byPromptCategory;
+            pc[runCategory] = (pc[runCategory] || 0) + 1;
+            if (querySample) urlStats[url].sampleQueries.add(querySample);
         }
     }
 
     const urls = Object.values(urlStats)
-        .map(u => ({
-            url: u.url,
-            domain: u.domain,
-            title: u.title,
-            category: u.category,
-            isTargetBrand: u.isTargetBrand,
-            isCompetitor: u.isCompetitor,
-            count: u.count,
-            engines: Array.from(u.engines),
-            promptCount: u.prompts.size,
-        }))
+        .map((u) => {
+            const entries = Object.entries(u.byPromptCategory || {});
+            const dominant = entries.sort((a, b) => b[1] - a[1])[0];
+            const category = dominant?.[0] || u.category || 'other';
+            return {
+                url: u.url,
+                domain: u.domain,
+                title: u.title,
+                category,
+                byPromptCategory: u.byPromptCategory || {},
+                sampleQueries: [...u.sampleQueries].slice(0, 4),
+                isTargetBrand: u.isTargetBrand,
+                isCompetitor: u.isCompetitor,
+                count: u.count,
+                engines: Array.from(u.engines),
+                promptCount: u.prompts.size,
+            };
+        })
         .sort((a, b) => b.count - a.count);
 
     return {

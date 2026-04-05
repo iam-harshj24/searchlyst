@@ -205,10 +205,20 @@ export default function ContentStudioPage({ user }) {
 
     useEffect(() => {
         const prefill = localStorage.getItem('searchlyst_content_prefill');
-        if (prefill) {
-            setTopic(prefill);
-            localStorage.removeItem('searchlyst_content_prefill');
+        if (!prefill) return;
+        localStorage.removeItem('searchlyst_content_prefill');
+        try {
+            const parsed = JSON.parse(prefill);
+            if (parsed && typeof parsed.topic === 'string' && parsed.topic.trim()) {
+                setTopic(parsed.topic.trim());
+                setStep(1);
+                return;
+            }
+        } catch {
+            /* plain string */
         }
+        setTopic(prefill);
+        setStep(1);
     }, []);
 
     const togglePlatform = (id) => {
