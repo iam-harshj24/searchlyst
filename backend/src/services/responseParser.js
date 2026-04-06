@@ -1,5 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import * as cheerio from 'cheerio';
+import { multiFactorSentiment0to100, weightedOverallFromFactors } from './multiFactorSentiment.js';
+import { buildGeminiSentimentBatchPrompt } from './geminiSentimentPrompt.js';
 
 let genAI = null;
 function getModel() {
@@ -242,20 +244,21 @@ function countOccurrences(text, term) {
     return (text.match(new RegExp(escaped, 'gi')) || []).length;
 }
 
-const POSITIVE = ['best', 'top', 'leading', 'excellent', 'recommended', 'trusted', 'popular', 'premier', 'outstanding', 'innovative', 'reliable', 'renowned', 'quality', 'professional', 'superior', 'preferred', 'award'];
-const NEGATIVE = ['worst', 'bad', 'poor', 'avoid', 'scam', 'complaint', 'issue', 'problem', 'negative', 'decline', 'fail', 'expensive', 'unreliable', 'disappointing', 'mediocre', 'controversial'];
+/**
+ * Lexical 0–100 sentiment around entity mention (fallback when LLM batch is skipped or fails).
+ * Uses multi-factor model: emotion, polarity, intensity, subjectivity, toxicity — see multiFactorSentiment.js.
+ */
+export function lexicalSentiment0to100(textLower, entityName) {
+    return multiFactorSentiment0to100(textLower, entityName);
+}
 
-function quickSentiment(text, brandName) {
-    const brandLower = brandName.toLowerCase();
-    const idx = text.indexOf(brandLower);
-    if (idx === -1) return 'neutral';
-    const window = text.substring(Math.max(0, idx - 150), Math.min(text.length, idx + brandLower.length + 150));
-    let pos = 0, neg = 0;
-    POSITIVE.forEach(w => { if (window.includes(w)) pos++; });
-    NEGATIVE.forEach(w => { if (window.includes(w)) neg++; });
-    if (pos > neg + 1) return 'positive';
-    if (neg > pos + 1) return 'negative';
-    return 'neutral';
+/** Aligns with multi-factor spec: ≥70 positive, ≥40 neutral, else negative. */
+export function sentimentScoreToLabel(score) {
+    const n = Number(score);
+    if (!Number.isFinite(n)) return 'neutral';
+    if (n >= 70) return 'positive';
+    if (n >= 40) return 'neutral';
+    return 'negative';
 }
 
 function getSnippet(text, term, maxLen = 200) {
@@ -323,11 +326,13 @@ function buildRunData(text, sources, brandName, domain, competitors, engine) {
     // Build entity list
     const allEntities = [];
     if (brandMentioned) {
+        const brandScore = lexicalSentiment0to100(textLower, brandName);
         allEntities.push({
             name: brandName, domain,
             mentions: brandMatch.count,
             firstPosition: brandMatch.firstPos,
-            sentiment: quickSentiment(textLower, brandName),
+            sentiment: sentimentScoreToLabel(brandScore),
+            sentimentScore: brandScore,
             snippet: getSnippet(text, brandMatch.snippetTerm),
             isTargetBrand: true, isCompetitor: false,
         });
@@ -340,11 +345,13 @@ function buildRunData(text, sources, brandName, domain, competitors, engine) {
         const compAliases = getAliases(name, cDomain);
         const compMatch = checkMentions(textLower, compAliases);
         if (compMatch.count > 0) {
+            const compScore = lexicalSentiment0to100(textLower, name);
             allEntities.push({
                 name, domain: cDomain.replace(/^www\./, ''),
                 mentions: compMatch.count,
                 firstPosition: compMatch.firstPos,
-                sentiment: quickSentiment(textLower, name),
+                sentiment: sentimentScoreToLabel(compScore),
+                sentimentScore: compScore,
                 snippet: getSnippet(text, compMatch.snippetTerm),
                 isTargetBrand: false, isCompetitor: true,
             });
@@ -507,6 +514,127 @@ export function fastParse(html, brandName, domain, competitors, engine, extraSou
     }));
 
     return { ...runData, citations };
+}
+
+// ── Per-prompt Gemini sentiment (0–100), batched by promptId ─────────────────
+
+function parseJsonObjectLoose(text) {
+    const t = String(text || '').trim().replace(/```json\n?/gi, '').replace(/```\n?/g, '').trim();
+    const m = t.match(/\{[\s\S]*\}/);
+    if (!m) return null;
+    try {
+        return JSON.parse(m[0]);
+    } catch {
+        return null;
+    }
+}
+
+function numOrNullSent(v) {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return null;
+    return Math.min(100, Math.max(0, Math.round(n)));
+}
+
+/**
+ * Accepts legacy per-engine number or rich object { overall, emotion, polarity, intensity, subjectivity, toxicity, rationale }.
+ */
+function parseEngineLLMSentimentPayload(payload) {
+    if (payload === undefined || payload === null) return { score: null, analysis: null };
+    if (typeof payload === 'number') {
+        const n = numOrNullSent(payload);
+        return n != null ? { score: n, analysis: null } : { score: null, analysis: null };
+    }
+    if (typeof payload === 'object') {
+        const emotion = numOrNullSent(payload.emotion);
+        const polarity = numOrNullSent(payload.polarity);
+        const intensity = numOrNullSent(payload.intensity);
+        const subjectivity = numOrNullSent(payload.subjectivity);
+        const toxicity = numOrNullSent(payload.toxicity);
+        const factors = { emotion, polarity, intensity, subjectivity, toxicity };
+        let overall = numOrNullSent(payload.overall ?? payload.score);
+        if (overall == null) overall = weightedOverallFromFactors(factors);
+        if (overall == null) return { score: null, analysis: null };
+        const rationale =
+            typeof payload.rationale === 'string' ? payload.rationale.trim().slice(0, 500) : null;
+        const hasAnyFactor = [emotion, polarity, intensity, subjectivity, toxicity].some((x) => x != null);
+        const analysis =
+            hasAnyFactor || rationale
+                ? {
+                      emotion,
+                      polarity,
+                      intensity,
+                      subjectivity,
+                      toxicity,
+                      rationale,
+                      source: 'gemini_batch',
+                  }
+                : null;
+        return { score: overall, analysis };
+    }
+    return { score: null, analysis: null };
+}
+
+/** New shape { engines: { perplexity, gemini, googleAI } } or legacy flat keys. */
+function coalesceEnginesFromBatchJson(scores) {
+    if (!scores || typeof scores !== 'object') return {};
+    if (scores.engines && typeof scores.engines === 'object') return scores.engines;
+    return {
+        perplexity: scores.perplexity,
+        gemini: scores.gemini,
+        googleAI: scores.googleAI,
+    };
+}
+
+/**
+ * One Gemini call per promptId: all engine excerpts in one request → JSON scores per engine.
+ * Mutates run.brandEntity.sentimentScore and .sentiment in place.
+ * Skips when GEMINI_API_KEY is unset or VISIBILITY_SKIP_LLM_SENTIMENT=1.
+ */
+export async function batchApplyGeminiSentimentByPrompt(allRuns, brandName) {
+    if (!process.env.GEMINI_API_KEY?.trim()) return;
+    if (process.env.VISIBILITY_SKIP_LLM_SENTIMENT === '1') return;
+    if (!brandName || !Array.isArray(allRuns) || allRuns.length === 0) return;
+
+    const byPrompt = new Map();
+    for (const run of allRuns) {
+        const id = run.promptId;
+        if (id == null || id === '') continue;
+        if (!byPrompt.has(id)) byPrompt.set(id, []);
+        byPrompt.get(id).push(run);
+    }
+
+    for (const [, runs] of byPrompt) {
+        if (!runs.some((r) => r.brandMentioned && r.brandEntity)) continue;
+
+        const blocks = runs.map((r) => {
+            const excerpt = String(r.rawText || '').replace(/\s+/g, ' ').trim().slice(0, 1400);
+            return `${r.engine}:\n"""${excerpt || '(no text)'}"""`;
+        }).join('\n\n');
+
+        try {
+            const model = getModel();
+            const userPrompt = buildGeminiSentimentBatchPrompt(brandName, blocks);
+
+            const result = await model.generateContent(userPrompt);
+            const raw = result.response?.text?.() ?? '';
+            const scores = parseJsonObjectLoose(raw);
+            if (!scores || typeof scores !== 'object') continue;
+
+            const engines = coalesceEnginesFromBatchJson(scores);
+            for (const r of runs) {
+                if (!r.brandEntity) continue;
+                const payload = engines[r.engine];
+                const { score, analysis } = parseEngineLLMSentimentPayload(payload);
+                if (score != null) {
+                    r.brandEntity.sentimentScore = score;
+                    r.brandEntity.sentiment = sentimentScoreToLabel(score);
+                    if (analysis) r.brandEntity.sentimentAnalysis = analysis;
+                }
+            }
+        } catch (err) {
+            console.warn('[GeminiSentiment] batch failed:', err.message);
+        }
+    }
 }
 
 // ── Deep AI Analysis (batch) ──────────────────────────────────────────────────

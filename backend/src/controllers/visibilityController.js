@@ -14,7 +14,7 @@ import {
     computeUrlRanking,
 } from '../services/scoringEngine.js';
 import { queryPerplexity, queryGemini, queryGoogleAI } from '../services/infaticaService.js';
-import { parseResponse } from '../services/responseParser.js';
+import { parseResponse, batchApplyGeminiSentimentByPrompt } from '../services/responseParser.js';
 import { prisma } from '../lib/prisma.js';
 import {
     aggregateCitationsForIntelligence,
@@ -135,11 +135,15 @@ function attachPromptSentimentSchema(p) {
         const row = eng[ek];
         const sent = row?.sentiment && row.sentiment !== 'n/a' ? row.sentiment : 'n/a';
         sentimentByEngine[ek] = sent;
+        const sc = row?.sentimentScore;
+        const sentimentScore = sc != null && Number.isFinite(Number(sc)) ? Math.min(100, Math.max(0, Math.round(Number(sc)))) : null;
         engineSentiments.push({
             engine: ek,
             label: engineDisplayLabel(ek),
             mentioned: !!row?.mentioned,
             sentiment: sent,
+            sentimentScore,
+            sentimentAnalysis: row?.sentimentAnalysis || null,
             positionRank: row?.positionRank ?? null,
         });
     }
@@ -166,7 +170,7 @@ function normalizeGaps(gaps) {
     }).filter(Boolean);
 }
 
-function buildOverviewFromPlatforms(platformResults, allRuns, brandName, domain, industry, competitors) {
+function buildOverviewFromPlatforms(platformResults, allRuns, brandName, domain, industry, competitors, previousRuns = null) {
     const score = computeVisibilityScore(allRuns, brandName);
     const sov = computeShareOfVoice(allRuns, brandName, competitors, domain);
     const perEngine = computePerEngine(allRuns);
@@ -175,7 +179,7 @@ function buildOverviewFromPlatforms(platformResults, allRuns, brandName, domain,
     const queryTracking = computeQueryTracking(allRuns, brandName);
     const sourceDomains = computeSourceDomains(allRuns);
     const urlRanking = computeUrlRanking(allRuns);
-    const industryRanking = computeIndustryPresenceRanking(allRuns, brandName);
+    const industryRanking = computeIndustryPresenceRanking(allRuns, brandName, previousRuns);
     const competitorGaps = computeCompetitorGap(allRuns, brandName, competitors);
 
     const promptMap = {};
@@ -194,6 +198,10 @@ function buildOverviewFromPlatforms(platformResults, allRuns, brandName, domain,
             mentioned: run.brandMentioned,
             snippet: run.brandEntity?.snippet || null,
             sentiment: run.brandEntity?.sentiment || 'n/a',
+            sentimentScore: run.brandEntity?.sentimentScore != null && Number.isFinite(Number(run.brandEntity.sentimentScore))
+                ? Math.min(100, Math.max(0, Math.round(Number(run.brandEntity.sentimentScore))))
+                : null,
+            sentimentAnalysis: run.brandEntity?.sentimentAnalysis || null,
             positionRank: run.brandEntity?.positionRank || null,
             citations: run.citations || [],
             rawText: run.rawText || null,
@@ -292,7 +300,7 @@ function assembleResult(overview, platformResults, intelligence, brandName, doma
  * Early results fire at ~50% completion so the frontend can start rendering.
  * Final results saved after all pipelines finish + deep analysis.
  */
-async function executeScan(scanId, brandName, domain, industry, competitors, location, country, language) {
+async function executeScan(scanId, userId, projectId, brandName, domain, industry, competitors, location, country, language) {
     const expandedCompetitors = (competitors || []).map(c => typeof c === 'string' ? { name: c, domain: c } : c);
 
     try {
@@ -321,7 +329,7 @@ async function executeScan(scanId, brandName, domain, industry, competitors, loc
             // Early results callback — fires at ~50% completion across all 3 pipelines
             async (phase1Runs, allPrompts) => {
                 try {
-                    const earlyOverview = buildOverviewFromPlatforms({}, phase1Runs, brandName, domain, industry, expandedCompetitors);
+                    const earlyOverview = buildOverviewFromPlatforms({}, phase1Runs, brandName, domain, industry, expandedCompetitors, null);
                     const earlyResult = assembleResult(earlyOverview, {}, null, brandName, domain, industry, [], true);
                     earlyResult.completedPhase = 1;
 
@@ -352,12 +360,44 @@ async function executeScan(scanId, brandName, domain, industry, competitors, loc
             data: { progress: JSON.stringify({ phase: 'analyzing', detail: 'Computing final scores & running AI analysis...', completed: completedCalls, total: completedCalls }) }
         });
 
+        const wherePrev = { userId, status: 'completed', id: { not: scanId } };
+        if (projectId != null && !Number.isNaN(Number(projectId))) {
+            wherePrev.projectId = projectId;
+        } else if (domain) {
+            wherePrev.domain = domain;
+        }
+        const prevScan = await prisma.visibilityScan.findFirst({
+            where: wherePrev,
+            orderBy: { created_at: 'desc' },
+            select: { allRuns: true },
+        });
+        let previousRuns = null;
+        if (prevScan?.allRuns) {
+            try {
+                previousRuns =
+                    typeof prevScan.allRuns === 'string' ? JSON.parse(prevScan.allRuns) : prevScan.allRuns;
+                if (!Array.isArray(previousRuns) || previousRuns.length === 0) previousRuns = null;
+            } catch (_) {
+                previousRuns = null;
+            }
+        }
+
         const [intelligence, overview] = await Promise.all([
             batchDeepAnalysis(allRuns, brandName, domain, expandedCompetitors).catch(err => {
                 console.error('[Scan] Deep analysis failed:', err.message);
                 return null;
             }),
-            Promise.resolve(buildOverviewFromPlatforms(platformResults, allRuns, brandName, domain, industry, expandedCompetitors)),
+            Promise.resolve(
+                buildOverviewFromPlatforms(
+                    platformResults,
+                    allRuns,
+                    brandName,
+                    domain,
+                    industry,
+                    expandedCompetitors,
+                    previousRuns,
+                ),
+            ),
         ]);
 
         const finalResult = assembleResult(overview, platformResults, intelligence, brandName, domain, industry, errors, false);
@@ -426,7 +466,7 @@ export async function startVisibilityScan(req, res) {
             }
         });
 
-        executeScan(scanId, brandName, domain, industry || '', competitors || [], location || '', country || '', language || 'English');
+        executeScan(scanId, userId, projectId ? parseInt(projectId, 10) : null, brandName, domain, industry || '', competitors || [], location || '', country || '', language || 'English');
         res.json({ success: true, scanId, status: 'scanning' });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -528,12 +568,83 @@ function extractMentionLeaders(results, defaultBrandName) {
 }
 
 function extractTargetPromptCoverage(results, brandName) {
+    const bn = String(brandName || '').trim();
+    if (!bn) return null;
     const rows = results?.industryRanking;
-    if (!Array.isArray(rows) || !brandName) return null;
-    const target = rows.find(
-        (r) => r?.isTargetBrand === true || (r?.name && String(r.name).toLowerCase() === String(brandName).toLowerCase())
-    );
-    return target?.promptCoverage != null && target?.promptCoverage !== undefined ? Number(target.promptCoverage) : null;
+    if (Array.isArray(rows)) {
+        const target = rows.find(
+            (r) => r?.isTargetBrand === true || (r?.name && String(r.name).toLowerCase() === bn.toLowerCase())
+        );
+        if (target?.promptCoverage != null && target?.promptCoverage !== undefined) {
+            const n = Number(target.promptCoverage);
+            if (Number.isFinite(n)) return n;
+        }
+    }
+    const prompts = results?.prompts;
+    if (!Array.isArray(prompts) || prompts.length === 0) return null;
+    const total = prompts.length;
+    let hit = 0;
+    for (const p of prompts) {
+        if (Object.values(p.engines || {}).some((e) => e?.mentioned)) hit += 1;
+    }
+    return Math.round((hit / total) * 1000) / 10;
+}
+
+/** Per-engine visibility scores for trend pills (matches frontend `platforms.*.score.overall`). */
+function extractPlatformScores(results) {
+    if (!results?.platforms) return null;
+    return {
+        perplexity: results.platforms.perplexity?.score?.overall ?? null,
+        gemini: results.platforms.gemini?.score?.overall ?? null,
+        googleAI: results.platforms.googleAI?.score?.overall ?? null,
+    };
+}
+
+/**
+ * Compact geo/sentiment KPI snapshot for Sentiment & Geo deltas (aligned with SentimentGeoPage derive).
+ */
+function extractSentimentGeoSnapshot(results) {
+    if (!results) return null;
+    try {
+        const summary = results.sentiment?.summary || { positive: 0, neutral: 100, negative: 0 };
+        const citationDomains = results.citationSummary || results.sourceDomains?.topDomains || [];
+        const regionMap = {};
+        for (const citation of citationDomains) {
+            const d = (citation.domain || '').toLowerCase();
+            let geo = 'global';
+            if (d.endsWith('.co.uk') || d.endsWith('.uk')) geo = 'united kingdom';
+            else if (d.endsWith('.de')) geo = 'germany';
+            else if (d.endsWith('.fr')) geo = 'france';
+            else if (d.endsWith('.in') || d.includes('.co.in')) geo = 'india';
+            else if (d.endsWith('.au') || d.endsWith('.com.au')) geo = 'australia';
+            else if (d.endsWith('.ca')) geo = 'canada';
+            else if (d.endsWith('.jp')) geo = 'japan';
+            else if (d.endsWith('.br')) geo = 'brazil';
+            else if (d.endsWith('.com') || d.endsWith('.org') || d.endsWith('.io') || d.endsWith('.net')) geo = 'united states';
+
+            if (!regionMap[geo]) regionMap[geo] = { citations: 0 };
+            regionMap[geo].citations += citation.count || 1;
+        }
+        const totalCitations = citationDomains.reduce((s, c) => s + (c.count || 1), 0);
+        const activeRegions = Object.keys(regionMap).filter((g) => g !== 'global').length;
+        const sentimentIndex =
+            summary.sentimentIndex != null && Number.isFinite(Number(summary.sentimentIndex))
+                ? Number(summary.sentimentIndex)
+                : null;
+        return {
+            sentimentSummary: {
+                positive: Number(summary.positive) || 0,
+                neutral: Number(summary.neutral) || 0,
+                negative: Number(summary.negative) || 0,
+            },
+            sentimentIndex,
+            totalCitations,
+            activeRegions,
+            negativePct: Number(summary.negative) || 0,
+        };
+    } catch {
+        return null;
+    }
 }
 
 /** Score history for charts (chronological). Returns most recent N scans by default. */
@@ -577,9 +688,20 @@ export async function getScanHistory(req, res) {
                     components: results?.score?.components || {},
                     promptCoverage: extractTargetPromptCoverage(results, s.brandName || results?.brandName),
                     mentionLeaders: extractMentionLeaders(results, s.brandName || results?.brandName),
+                    platformScores: extractPlatformScores(results),
+                    geoSnapshot: extractSentimentGeoSnapshot(results),
                 };
             } catch {
-                return { id: s.id, date: s.created_at, score: 0, components: {}, promptCoverage: null, mentionLeaders: [] };
+                return {
+                    id: s.id,
+                    date: s.created_at,
+                    score: 0,
+                    components: {},
+                    promptCoverage: null,
+                    mentionLeaders: [],
+                    platformScores: null,
+                    geoSnapshot: null,
+                };
             }
         });
 
@@ -657,16 +779,34 @@ export async function runCustomPrompt(req, res) {
 
         const hasData = (raw) => raw && (raw.text || raw.html || (Array.isArray(raw.sources) && raw.sources.length > 0));
 
+        const customPid = `custom_${Date.now()}`;
         const results = await Promise.allSettled(
             engines.map(async ({ key, fn }) => {
                 const raw = await fn(query, country || '', language || '');
                 if (hasData(raw)) {
                     const parsed = parseResponse(raw, brandName || '', domain || '', expandedCompetitors, key);
-                    return { engine: key, success: true, ...parsed };
+                    return { engine: key, success: true, promptId: customPid, ...parsed };
                 }
                 return { engine: key, success: false };
             })
         );
+
+        const batchRuns = [];
+        for (const r of results) {
+            const val = r.status === 'fulfilled' ? r.value : null;
+            if (val?.success) {
+                batchRuns.push({
+                    promptId: val.promptId,
+                    engine: val.engine,
+                    brandMentioned: val.brandMentioned,
+                    brandEntity: val.brandEntity,
+                    rawText: val.rawText,
+                });
+            }
+        }
+        if (batchRuns.length > 0 && brandName) {
+            await batchApplyGeminiSentimentByPrompt(batchRuns, brandName);
+        }
 
         for (const r of results) {
             const val = r.status === 'fulfilled' ? r.value : { engine: 'unknown', success: false };
@@ -674,6 +814,10 @@ export async function runCustomPrompt(req, res) {
                 mentioned: val.brandMentioned || false,
                 snippet: val.brandEntity?.snippet || null,
                 sentiment: val.brandEntity?.sentiment || 'n/a',
+                sentimentScore: val.brandEntity?.sentimentScore != null && Number.isFinite(Number(val.brandEntity.sentimentScore))
+                    ? Math.min(100, Math.max(0, Math.round(Number(val.brandEntity.sentimentScore))))
+                    : null,
+                sentimentAnalysis: val.brandEntity?.sentimentAnalysis || null,
                 positionRank: val.brandEntity?.positionRank || null,
                 citations: val.citations || [],
                 rawText: val.rawText || null,
@@ -682,7 +826,7 @@ export async function runCustomPrompt(req, res) {
         }
 
         const basePrompt = {
-            promptId: `custom_${Date.now()}`,
+            promptId: customPid,
             query: query.trim(),
             category: 'custom',
             intent: 'custom_prompt',
@@ -728,16 +872,34 @@ export async function runCustomPromptsBatch(req, res) {
             if (!q) continue;
 
             const engineResults = {};
+            const batchPid = `custom_${Date.now()}_${prompts.length}`;
             const settled = await Promise.allSettled(
                 engines.map(async ({ key, fn }) => {
                     const raw = await fn(q, country || '', language || '');
                     if (hasData(raw)) {
                         const parsed = parseResponse(raw, brandName || '', domain || '', expandedCompetitors, key);
-                        return { engine: key, success: true, ...parsed };
+                        return { engine: key, success: true, promptId: batchPid, ...parsed };
                     }
                     return { engine: key, success: false };
                 }),
             );
+
+            const batchRuns = [];
+            for (const r of settled) {
+                const val = r.status === 'fulfilled' ? r.value : null;
+                if (val?.success) {
+                    batchRuns.push({
+                        promptId: val.promptId,
+                        engine: val.engine,
+                        brandMentioned: val.brandMentioned,
+                        brandEntity: val.brandEntity,
+                        rawText: val.rawText,
+                    });
+                }
+            }
+            if (batchRuns.length > 0 && brandName) {
+                await batchApplyGeminiSentimentByPrompt(batchRuns, brandName);
+            }
 
             for (const r of settled) {
                 const val = r.status === 'fulfilled' ? r.value : { engine: 'unknown', success: false };
@@ -745,6 +907,10 @@ export async function runCustomPromptsBatch(req, res) {
                     mentioned: val.brandMentioned || false,
                     snippet: val.brandEntity?.snippet || null,
                     sentiment: val.brandEntity?.sentiment || 'n/a',
+                    sentimentScore: val.brandEntity?.sentimentScore != null && Number.isFinite(Number(val.brandEntity.sentimentScore))
+                        ? Math.min(100, Math.max(0, Math.round(Number(val.brandEntity.sentimentScore))))
+                        : null,
+                    sentimentAnalysis: val.brandEntity?.sentimentAnalysis || null,
                     positionRank: val.brandEntity?.positionRank || null,
                     citations: val.citations || [],
                     rawText: val.rawText || null,
@@ -753,7 +919,7 @@ export async function runCustomPromptsBatch(req, res) {
             }
 
             prompts.push(attachPromptSentimentSchema({
-                promptId: `custom_${Date.now()}_${prompts.length}`,
+                promptId: batchPid,
                 query: q,
                 category: 'custom',
                 intent: 'custom_prompt',

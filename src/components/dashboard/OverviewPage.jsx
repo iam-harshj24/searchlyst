@@ -6,6 +6,7 @@ import {
 import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid } from 'recharts';
 import { apiClient } from '../../api/apiClient.js';
 import { buildVisibilityTrendDaily, buildVisibilityTrendWeekly } from '@/lib/visibilityTrend';
+import { SingleBrandTooltipShell } from '@/components/charts/BrandChartUi';
 
 const getDomainColor = (domain) => {
     const colors = [
@@ -414,8 +415,14 @@ export default function OverviewPage({ domains, activeProject, onAddDomain, onTa
                             <XAxis dataKey="date" tick={{ fill: '#666', fontSize: 11 }} axisLine={false} tickLine={false} tickMargin={12} />
                             <YAxis domain={[0, 100]} tick={{ fill: '#666', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}%`} width={35} />
                             <Tooltip
-                                contentStyle={{ backgroundColor: '#1A1A1A', border: '1px solid #333', borderRadius: '12px', color: '#fff' }}
-                                itemStyle={{ color: '#fff', fontWeight: 'bold' }}
+                                content={(tp) => (
+                                    <SingleBrandTooltipShell
+                                        {...tp}
+                                        brandName={displayBrandName}
+                                        domain={user?.domain}
+                                        valueLabel="Visibility"
+                                    />
+                                )}
                             />
                             <Area type="monotone" dataKey="score" stroke="#fff" strokeWidth={2} fill="rgba(255,255,255,0.03)" activeDot={{ r: 5, fill: '#E92A15', stroke: '#fff', strokeWidth: 2 }} dot={{ r: 3, fill: '#fff' }} />
                         </AreaChart>

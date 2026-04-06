@@ -1,4 +1,5 @@
 import React from 'react';
+import { TrendPill } from '@/components/ui/TrendPill';
 
 /**
  * Maps 0–100 sentiment index to tier: negative (1 bar red), neutral (2 bars grey), positive (3 bars white).
@@ -6,8 +7,8 @@ import React from 'react';
 export function sentimentScoreToTier(score) {
     if (score == null || Number.isNaN(Number(score))) return null;
     const n = Number(score);
-    if (n >= 75) return 'positive';
-    if (n >= 50) return 'neutral';
+    if (n >= 70) return 'positive';
+    if (n >= 40) return 'neutral';
     return 'negative';
 }
 
@@ -84,6 +85,57 @@ export function SentimentTriGauge({
             <div className={`flex-1 h-full border-r ${s.gap} ${count >= 2 ? active : inactive}`} />
             <div className={`flex-1 h-full ${count >= 3 ? active : inactive}`} />
         </div>
+    );
+}
+
+/** Same 0–100 mapping as scoring engine: positive → 100, neutral → 62.5, negative → 0. */
+const LABEL_TO_PERCENT = { positive: 100, neutral: 62.5, negative: 0 };
+
+export function sentimentLabelToApproxPercent(label) {
+    const t = sentimentLabelToTier(label);
+    if (!t) return null;
+    return LABEL_TO_PERCENT[t];
+}
+
+/**
+ * Text-only sentiment: primary % (from 0–100 number or positive/neutral/negative label) plus optional inline trend (↑/↓ + % + suffix).
+ * Replaces tri-bar “pill” gauges across the app.
+ */
+export function SentimentPercentDisplay({
+    label,
+    value,
+    trendPct,
+    trendSuffix = '',
+    align = 'end',
+    size = 'md',
+    className = '',
+}) {
+    let pct = null;
+    if (value != null && typeof value === 'number' && !Number.isNaN(value)) {
+        pct = Math.round(Math.min(100, Math.max(0, value)) * 10) / 10;
+    } else if (label != null && label !== '' && label !== 'n/a') {
+        pct = sentimentLabelToApproxPercent(label);
+    }
+    const justify =
+        align === 'center' ? 'justify-center' : align === 'start' ? 'justify-start' : 'justify-end';
+    const mainCls =
+        size === 'lg' ? 'text-[15px]' : size === 'sm' ? 'text-[11px]' : 'text-[13px]';
+    if (pct == null) {
+        return (
+            <span className={`text-[#555] tabular-nums text-[11px] ${justify} flex ${className}`}>—</span>
+        );
+    }
+    const tr = trendPct != null && Number.isFinite(Number(trendPct)) ? Number(trendPct) : null;
+    return (
+        <span className={`inline-flex flex-wrap items-center gap-x-2 gap-y-1 ${justify} ${className}`}>
+            <span className={`font-semibold tabular-nums text-white ${mainCls}`}>{pct.toFixed(1)}%</span>
+            {tr != null && (
+                <span className="inline-flex items-center gap-1 shrink-0">
+                    <TrendPill delta={tr} format="percent" />
+                    {trendSuffix ? <span className="text-[10px] text-[#666]">{trendSuffix}</span> : null}
+                </span>
+            )}
+        </span>
     );
 }
 

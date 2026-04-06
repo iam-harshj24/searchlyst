@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { TrendingUp, ChevronUp, ChevronDown, Sparkles, Activity } from 'lucide-react';
+import { TrendingUp, ChevronUp, ChevronDown, Sparkles, Users, AlertCircle } from 'lucide-react';
+import { promptPreview } from '@/lib/promptPreview';
 
 function getVisibilityData(domain, projectId) {
     try {
@@ -18,12 +19,24 @@ function Skeleton({ className = '' }) {
     return <div className={`animate-pulse bg-[#1a1a1a] rounded ${className}`} />;
 }
 
-export default function CompetitiveIntelPage({ user, onTabChange }) {
+export default function CompetitiveIntelPage({ user, scanManager, onTabChange }) {
+    const [entitiesOpen, setEntitiesOpen] = useState(true);
+    const [gapsOpen, setGapsOpen] = useState(true);
     const [aiPanelOpen, setAiPanelOpen] = useState(true);
 
-    const scanData = useMemo(() => getVisibilityData(user?.domain, user?.projectId), [user?.domain, user?.projectId]);
+    const scanData = useMemo(() => {
+        const live = scanManager?.scanResult;
+        if (live && (live.prompts?.length || live.entityGraph?.length || live.intelligence || live.competitorGaps?.length)) {
+            return live;
+        }
+        return getVisibilityData(user?.domain, user?.projectId);
+    }, [scanManager?.scanResult, user?.domain, user?.projectId]);
+
     const intelligence = scanData?.intelligence || null;
+    const entities = Array.isArray(scanData?.entityGraph) ? scanData.entityGraph : [];
+    const gaps = Array.isArray(scanData?.competitorGaps) ? scanData.competitorGaps : [];
     const hasScan = !!scanData;
+    const brandName = user?.brandName || 'Your brand';
 
     return (
         <div className="w-full pb-12">
@@ -33,10 +46,10 @@ export default function CompetitiveIntelPage({ user, onTabChange }) {
                         <TrendingUp className="w-5 h-5 text-[#E92A15]" />
                     </div>
                     <div>
-                        <h1 className="text-[19px] font-semibold text-white tracking-tight">Competitive Intelligence</h1>
+                        <h1 className="text-[19px] font-semibold text-white tracking-tight">Competitive Intent</h1>
                         <p className="text-[#888] text-[13px] mt-0.5">
                             {hasScan
-                                ? 'AI interpretation of your latest visibility scan.'
+                                ? 'Entities, gap topics, and AI insights from your latest visibility scan.'
                                 : 'Run a visibility scan to unlock competitive insights.'}{' '}
                             <button
                                 type="button"
@@ -51,6 +64,125 @@ export default function CompetitiveIntelPage({ user, onTabChange }) {
             </div>
 
             <div className="mt-8 space-y-6 max-w-[1400px]">
+                {/* Entity landscape */}
+                <div className="bg-[#0B0B0B] border border-[#222] rounded-2xl overflow-hidden">
+                    <button
+                        type="button"
+                        onClick={() => setEntitiesOpen((o) => !o)}
+                        className="w-full flex items-center justify-between px-6 py-4 hover:bg-[#111] transition-colors"
+                    >
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-[#1a1a1a] border border-[#333] rounded-xl flex items-center justify-center">
+                                <Users className="w-4 h-4 text-[#888]" />
+                            </div>
+                            <span className="text-white font-semibold text-[15px]">Entities</span>
+                            <span className="text-[#666] text-[11px] font-bold px-2 py-0.5 bg-[#1a1a1a] border border-[#2a2a2a] rounded-md tracking-wide">
+                                BRANDS IN ANSWERS
+                            </span>
+                        </div>
+                        {entitiesOpen ? <ChevronUp className="w-4 h-4 text-[#555]" /> : <ChevronDown className="w-4 h-4 text-[#555]" />}
+                    </button>
+                    {entitiesOpen && (
+                        <div className="px-6 pb-6">
+                            {entities.length === 0 ? (
+                                <p className="text-[#555] text-[13px]">
+                                    No entity graph for this scan yet. Run a full visibility scan to populate detected brands.
+                                </p>
+                            ) : (
+                                <div className="space-y-2 max-h-[min(52vh,360px)] overflow-y-auto pr-1 custom-scrollbar">
+                                    {entities.map((e, i) => (
+                                        <div
+                                            key={`${e.name}-${i}`}
+                                            className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#262626] bg-[#111] px-4 py-3"
+                                        >
+                                            <div className="min-w-0">
+                                                <p className="text-white text-[13px] font-medium truncate">{e.name}</p>
+                                                {e.domain ? (
+                                                    <p className="text-[#666] text-[11px] truncate">{e.domain}</p>
+                                                ) : null}
+                                            </div>
+                                            <div className="flex flex-wrap items-center gap-2 shrink-0 text-[11px]">
+                                                {e.isTargetBrand ? (
+                                                    <span className="px-2 py-0.5 rounded-md bg-[#E92A15]/15 text-[#E92A15] font-semibold border border-[#E92A15]/25">
+                                                        You
+                                                    </span>
+                                                ) : null}
+                                                {e.isCompetitor ? (
+                                                    <span className="px-2 py-0.5 rounded-md bg-orange-500/10 text-orange-300 font-semibold border border-orange-500/25">
+                                                        Competitor
+                                                    </span>
+                                                ) : null}
+                                                <span className="text-[#a3a3a3] tabular-nums">{e.totalMentions ?? 0} mentions</span>
+                                                <span className="text-[#737373] tabular-nums">{e.queryCount ?? 0} queries</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+
+                {/* Competitive / entity gaps */}
+                <div className="bg-[#0B0B0B] border border-[#222] rounded-2xl overflow-hidden">
+                    <button
+                        type="button"
+                        onClick={() => setGapsOpen((o) => !o)}
+                        className="w-full flex items-center justify-between px-6 py-4 hover:bg-[#111] transition-colors"
+                    >
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-[#1a1a1a] border border-[#333] rounded-xl flex items-center justify-center">
+                                <AlertCircle className="w-4 h-4 text-amber-500/90" />
+                            </div>
+                            <span className="text-white font-semibold text-[15px]">Entity gaps</span>
+                            <span className="text-[#666] text-[11px] font-bold px-2 py-0.5 bg-[#1a1a1a] border border-[#2a2a2a] rounded-md tracking-wide">
+                                WHERE OTHERS LEAD
+                            </span>
+                        </div>
+                        {gapsOpen ? <ChevronUp className="w-4 h-4 text-[#555]" /> : <ChevronDown className="w-4 h-4 text-[#555]" />}
+                    </button>
+                    {gapsOpen && (
+                        <div className="px-6 pb-6">
+                            {gaps.length === 0 ? (
+                                <p className="text-[#555] text-[13px]">
+                                    No gap topics in this scan. Competitors may not have appeared more than you on tracked prompts.
+                                </p>
+                            ) : (
+                                <div className="space-y-2 max-h-[min(48vh,320px)] overflow-y-auto pr-1 custom-scrollbar">
+                                    {gaps.map((gap, i) => {
+                                        const gapHead = String(gap.contentTopic || gap.query || '').trim() || '—';
+                                        const gapPrev = promptPreview(gapHead);
+                                        return (
+                                            <div
+                                                key={`${gap.query || gap.contentTopic || i}-${gap.inferredFromCitations ? 'c' : 'g'}`}
+                                                className="p-3 rounded-xl border border-[#222] bg-[#111]"
+                                            >
+                                                <div className="flex items-start justify-between gap-2 mb-0.5">
+                                                    <p
+                                                        className={`text-[#eee] text-[13px] font-medium flex-1 min-w-0 ${gapPrev.truncated ? 'cursor-help' : ''}`}
+                                                        title={gapPrev.truncated ? gapPrev.full : undefined}
+                                                    >
+                                                        {gapPrev.display}
+                                                    </p>
+                                                    {gap.inferredFromCitations ? (
+                                                        <span className="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-[#888] border border-[#333] rounded px-1.5 py-0.5">
+                                                            Citations
+                                                        </span>
+                                                    ) : null}
+                                                </div>
+                                                {gap.contentAngle ? (
+                                                    <p className="text-[#777] text-[11px] mt-1">{gap.contentAngle}</p>
+                                                ) : null}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+
+                {/* AI insights */}
                 <div className="bg-[#0B0B0B] border border-[#222] rounded-2xl overflow-hidden">
                     <button
                         type="button"
@@ -61,9 +193,9 @@ export default function CompetitiveIntelPage({ user, onTabChange }) {
                             <div className="w-8 h-8 bg-[#1a1a1a] border border-[#333] rounded-xl flex items-center justify-center">
                                 <Sparkles className="w-4 h-4 text-[#888]" />
                             </div>
-                            <span className="text-white font-semibold text-[15px]">AI Analysis</span>
+                            <span className="text-white font-semibold text-[15px]">AI insights</span>
                             <span className="text-[#666] text-[11px] font-bold px-2 py-0.5 bg-[#1a1a1a] border border-[#2a2a2a] rounded-md tracking-wide">
-                                AI INSIGHTS
+                                STRATEGIC BRIEF
                             </span>
                         </div>
                         {aiPanelOpen ? <ChevronUp className="w-4 h-4 text-[#555]" /> : <ChevronDown className="w-4 h-4 text-[#555]" />}
@@ -126,20 +258,15 @@ export default function CompetitiveIntelPage({ user, onTabChange }) {
                                         </div>
                                     ))}
                                     <div className="col-span-full text-center py-2">
-                                        <p className="text-[#555] text-[12px]">Run a scan to generate AI-powered competitive insights</p>
+                                        <p className="text-[#555] text-[12px]">
+                                            Run a scan to generate AI insights for {brandName}.
+                                        </p>
                                     </div>
                                 </div>
                             )}
                         </div>
                     )}
                 </div>
-
-                {!hasScan && (
-                    <div className="flex flex-col items-center justify-center py-16 bg-[#0B0B0B] border border-[#222] rounded-2xl">
-                        <Activity className="w-10 h-10 text-[#333] mb-3" />
-                        <p className="text-[#555] text-[13px]">No scan data yet. Start an AI visibility scan to see insights here.</p>
-                    </div>
-                )}
             </div>
         </div>
     );
