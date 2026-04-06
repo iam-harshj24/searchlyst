@@ -1,7 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
     Terminal,
-    ChevronDown, ChevronUp, Link2, Check, MessageSquare, Copy, Search, AlertCircle,
+    ChevronDown, Link2, Check, MessageSquare, Copy, Search, AlertCircle,
+    ArrowLeft, ChevronRight,
 } from 'lucide-react';
 import { GeminiLogo, PerplexityLogo } from '../landing/AILogos';
 import { SentimentTriGauge } from '@/components/ui/SentimentTriGauge';
@@ -268,96 +269,307 @@ function EngineResponseCard({ engineKey, data }) {
     );
 }
 
-function ExpandedPromptBronze({ prompt, displayId, onCollapse }) {
-    const [copied, setCopied] = useState(false);
-    const tier = visibilityTier(prompt);
-    const total = totalCitationsPrompt(prompt);
-    const q = String(prompt.query || prompt.prompt || '—').trim() || '—';
+function formatDetailDate(iso) {
+    if (!iso) return '—';
+    try {
+        return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    } catch {
+        return '—';
+    }
+}
 
-    const copyPrompt = async () => {
-        if (!q || q === '—') return;
+function collectMentionLabels(prompt, brandName, domain) {
+    const out = [];
+    const seen = new Set();
+    const add = (s) => {
+        const t = String(s || '').trim();
+        if (!t || seen.has(t.toLowerCase())) return;
+        seen.add(t.toLowerCase());
+        out.push(t);
+    };
+    if (brandName) add(brandName);
+    const host = (domain || '').replace(/^https?:\/\//i, '').split('/')[0].replace(/^www\./i, '');
+    if (host) add(host);
+    for (const ek of ENGINE_ORDER) {
+        const cites = Array.isArray(prompt.engines?.[ek]?.citations) ? prompt.engines[ek].citations : [];
+        for (const c of cites) {
+            if (!isValidCitation(c)) continue;
+            const label = citationHostLabel(c);
+            add(label);
+        }
+    }
+    return out.slice(0, 32);
+}
+
+function firstBrandSnippet(prompt) {
+    for (const ek of ENGINE_ORDER) {
+        const sn = String(prompt.engines?.[ek]?.snippet || '').trim();
+        if (sn) return sn;
+    }
+    return '';
+}
+
+function buildAllResponsesPlain(prompt) {
+    const parts = [];
+    for (const ek of ENGINE_ORDER) {
+        const label = ENGINE_LABELS[ek] || ek;
+        const body = String(prompt.engines?.[ek]?.rawText || prompt.engines?.[ek]?.snippet || '').trim();
+        if (body) parts.push(`--- ${label} ---\n\n${body}`);
+    }
+    return parts.join('\n\n') || '—';
+}
+
+function PromptDetailModal({ prompt, displayId, user, scanScannedAt, onClose }) {
+    const [exportOpen, setExportOpen] = useState(false);
+    const [toast, setToast] = useState(null);
+    const exportRef = useRef(null);
+    const q = String(prompt.query || prompt.prompt || '—').trim() || '—';
+    const tier = visibilityTier(prompt);
+    const anyMentioned = ENGINE_ORDER.some((ek) => prompt.engines?.[ek]?.mentioned);
+    const brandName = user?.brandName || 'Your brand';
+    const domainShort = (user?.domain || '').replace(/^https?:\/\//i, '').split('/')[0].replace(/^www\./i, '') || 'your site';
+    const location = [user?.location, user?.country].filter(Boolean).join(', ') || '—';
+    const runDay = formatDetailDate(prompt.runDate || scanScannedAt);
+    const mentionLabels = collectMentionLabels(prompt, brandName, user?.domain);
+    const snippet = firstBrandSnippet(prompt);
+    const totalCites = totalCitationsPrompt(prompt);
+
+    const showToast = useCallback((msg) => {
+        setToast(msg);
+        window.setTimeout(() => setToast(null), 2200);
+    }, []);
+
+    useEffect(() => {
+        const onKey = (e) => {
+            if (e.key === 'Escape') onClose();
+        };
+        document.addEventListener('keydown', onKey);
+        document.body.style.overflow = 'hidden';
+        return () => {
+            document.removeEventListener('keydown', onKey);
+            document.body.style.overflow = '';
+        };
+    }, [onClose]);
+
+    useEffect(() => {
+        if (!exportOpen) return;
+        const onDoc = (e) => {
+            if (exportRef.current && !exportRef.current.contains(e.target)) setExportOpen(false);
+        };
+        document.addEventListener('mousedown', onDoc);
+        return () => document.removeEventListener('mousedown', onDoc);
+    }, [exportOpen]);
+
+    const copyPromptOnly = async () => {
         try {
             await navigator.clipboard.writeText(q);
-            setCopied(true);
-            window.setTimeout(() => setCopied(false), 2000);
-        } catch { /* ignore */ }
+            showToast('Prompt copied');
+            setExportOpen(false);
+        } catch {
+            showToast('Copy failed');
+        }
+    };
+
+    const copyAllResponses = async () => {
+        try {
+            await navigator.clipboard.writeText(buildAllResponsesPlain(prompt));
+            showToast('All responses copied');
+            setExportOpen(false);
+        } catch {
+            showToast('Copy failed');
+        }
+    };
+
+    const downloadJson = () => {
+        try {
+            const blob = new Blob([JSON.stringify({ displayId, query: q, prompt }, null, 2)], { type: 'application/json' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `prompt-${displayId}-${String(q).slice(0, 40).replace(/\s+/g, '-')}.json`;
+            a.click();
+            URL.revokeObjectURL(a.href);
+            showToast('JSON downloaded');
+            setExportOpen(false);
+        } catch {
+            showToast('Download failed');
+        }
     };
 
     return (
-        <div className="border-t border-[#1f1f1f] bg-[#030303]">
-            <div className="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-[#1f1f1f]">
-                <span className="text-[11px] font-mono text-[#666] w-9 shrink-0">{displayId}</span>
-                <div className="flex items-center gap-1 rounded-full border border-[#2a2a2a] bg-[#0f0f0f] px-2 py-1">
-                    {ENGINE_ORDER.map((ek) => {
-                        const row = prompt.engines?.[ek];
-                        return (
-                            <EngineIconBadge
-                                key={ek}
-                                engineKey={ek}
-                                hasResponse={engineRowHasResponse(row)}
-                                brandMentioned={!!row?.mentioned}
-                            />
-                        );
-                    })}
-                </div>
-                <VisibilityBadge tier={tier} />
-                <span className="inline-flex items-center gap-1 text-[13px] text-white font-medium tabular-nums">
-                    <Link2 className="w-3.5 h-3.5 text-[#888]" />
-                    {total}
-                </span>
-                <span className="text-[10px] text-[#555]">
-                    {enginesRespondedCount(prompt)}/3 engines responded
-                </span>
-                <button
-                    type="button"
-                    onClick={onCollapse}
-                    className="ml-auto p-1.5 rounded-lg text-[#888] hover:text-white hover:bg-[#1a1a1a] transition-colors"
-                    aria-label="Collapse row"
-                >
-                    <ChevronUp className="w-4 h-4" />
-                </button>
-            </div>
-            <div className="px-4 py-3 border-b border-[#1f1f1f]">
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#737373]">Full prompt</span>
+        <div
+            className="fixed inset-0 z-[100] flex items-start justify-center p-4 pt-6 sm:pt-10 bg-black/75 backdrop-blur-[2px]"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="prompt-detail-title"
+            onClick={onClose}
+        >
+            <div
+                className="relative w-full max-w-3xl max-h-[min(92vh,880px)] flex flex-col rounded-2xl border border-[#333] bg-[#0d0d0d] shadow-[0_24px_80px_rgba(0,0,0,0.65)] overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+            >
+                {toast && (
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 px-4 py-2 rounded-lg bg-[#1a1a1a] border border-[#444] text-[12px] text-white shadow-lg pointer-events-none">
+                        {toast}
+                    </div>
+                )}
+                <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-[#2a2a2a] bg-[#111] shrink-0">
                     <button
                         type="button"
-                        onClick={copyPrompt}
-                        disabled={q === '—'}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-[#2a2a2a] bg-[#141414] px-2.5 py-1 text-[11px] font-medium text-[#ccc] hover:border-[#E92A15]/40 hover:text-white transition-colors disabled:opacity-40 disabled:pointer-events-none"
+                        onClick={onClose}
+                        className="inline-flex items-center gap-2 text-[13px] font-medium text-[#ccc] hover:text-white transition-colors"
                     >
-                        {copied ? (
-                            <>
-                                <Check className="w-3.5 h-3.5 text-emerald-400" strokeWidth={2.5} />
-                                Copied
-                            </>
-                        ) : (
-                            <>
-                                <Copy className="w-3.5 h-3.5" strokeWidth={2} />
-                                Copy
-                            </>
-                        )}
+                        <ArrowLeft className="w-4 h-4" strokeWidth={2.25} aria-hidden />
+                        Back
                     </button>
+                    <div className="relative" ref={exportRef}>
+                        <button
+                            type="button"
+                            onClick={() => setExportOpen((o) => !o)}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-[#3f3f3f] bg-[#1a1a1a] px-3 py-1.5 text-[12px] font-semibold text-white hover:border-[#555] transition-colors"
+                        >
+                            Export
+                            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${exportOpen ? 'rotate-180' : ''}`} aria-hidden />
+                        </button>
+                        {exportOpen && (
+                            <div className="absolute right-0 top-full mt-1 py-1 min-w-[200px] rounded-xl border border-[#333] bg-[#141414] shadow-xl z-10">
+                                <button type="button" onClick={copyPromptOnly} className="w-full text-left px-3 py-2 text-[12px] text-[#e5e5e5] hover:bg-[#222]">
+                                    Copy prompt
+                                </button>
+                                <button type="button" onClick={copyAllResponses} className="w-full text-left px-3 py-2 text-[12px] text-[#e5e5e5] hover:bg-[#222]">
+                                    Copy all responses (plain)
+                                </button>
+                                <button type="button" onClick={downloadJson} className="w-full text-left px-3 py-2 text-[12px] text-[#e5e5e5] hover:bg-[#222]">
+                                    Download JSON
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 </div>
-                <div
-                    className="rounded-xl bg-[#0a0a0a] border border-[#262626] px-3.5 py-3 text-[13px] text-[#e5e5e5] leading-relaxed whitespace-pre-wrap break-words max-h-[min(45vh,360px)] overflow-y-auto custom-scrollbar"
-                    role="region"
-                    aria-label="Complete prompt text"
-                >
-                    {q}
+
+                <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 sm:px-6 py-5 space-y-6">
+                    <div>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#737373] mb-2">Prompt</p>
+                        <h2 id="prompt-detail-title" className="text-[17px] sm:text-[18px] font-semibold text-white leading-snug break-words">
+                            {q}
+                        </h2>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3 text-[12px] text-[#a3a3a3]">
+                        <div className="flex items-center gap-1.5 rounded-full border border-[#2a2a2a] bg-[#0a0a0a] px-2 py-1">
+                            {ENGINE_ORDER.map((ek) => {
+                                const row = prompt.engines?.[ek];
+                                return (
+                                    <EngineIconBadge
+                                        key={ek}
+                                        engineKey={ek}
+                                        hasResponse={engineRowHasResponse(row)}
+                                        brandMentioned={!!row?.mentioned}
+                                    />
+                                );
+                            })}
+                        </div>
+                        <span className="text-[#555]">·</span>
+                        <span>{runDay}</span>
+                        <span className="text-[#555]">·</span>
+                        <span>{location}</span>
+                        <span className="ml-auto">
+                            <VisibilityBadge tier={tier} />
+                        </span>
+                    </div>
+
+                    <div className="rounded-xl border border-[#2a2a2a] bg-[#101010] px-4 py-3">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#737373] mb-2">Visibility</p>
+                        <p className={`text-[14px] font-medium flex items-center gap-2 ${anyMentioned ? 'text-emerald-400' : 'text-[#888]'}`}>
+                            <Check className={`w-4 h-4 shrink-0 ${anyMentioned ? 'opacity-100' : 'opacity-30'}`} strokeWidth={2.5} aria-hidden />
+                            {anyMentioned
+                                ? `${domainShort} is mentioned in at least one AI response`
+                                : `${brandName} was not mentioned in stored responses for this prompt`}
+                        </p>
+                    </div>
+
+                    {mentionLabels.length > 0 && (
+                        <div>
+                            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#737373] mb-2">Mentions &amp; sources</p>
+                            <div className="flex flex-wrap gap-2">
+                                {mentionLabels.map((label) => (
+                                    <span
+                                        key={label}
+                                        className="text-[11px] px-2.5 py-1 rounded-lg bg-[#1a1a1a] border border-[#333] text-[#e0e0e0] max-w-full truncate"
+                                        title={label}
+                                    >
+                                        {label}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    <div>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#737373] mb-2">Search query</p>
+                        <span className="inline-block text-[12px] px-3 py-1.5 rounded-lg bg-[#1a1a1a] border border-[#333] text-[#ccc] max-w-full break-words">
+                            {q}
+                        </span>
+                    </div>
+
+                    {snippet && (
+                        <div>
+                            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#737373] mb-2">Mention snippet</p>
+                            <div className="rounded-xl bg-[#0a0a0a] border border-[#262626] px-3.5 py-3 text-[13px] text-[#c4c4c4] leading-relaxed whitespace-pre-wrap">
+                                {snippet}
+                            </div>
+                        </div>
+                    )}
+
+                    <div>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#737373] mb-3">Responses</p>
+                        <div className="grid grid-cols-1 gap-3">
+                            {ENGINE_ORDER.map((ek) => (
+                                <EngineResponseCard key={ek} engineKey={ek} data={prompt.engines?.[ek]} />
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="pb-2">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#737373] mb-2">
+                            Sources ({totalCites} citation{totalCites !== 1 ? 's' : ''} across engines)
+                        </p>
+                        <div className="flex flex-wrap gap-2 max-h-[140px] overflow-y-auto custom-scrollbar rounded-xl border border-[#262626] bg-[#0a0a0a] p-3">
+                            {ENGINE_ORDER.flatMap((ek) => {
+                                const cites = Array.isArray(prompt.engines?.[ek]?.citations) ? prompt.engines[ek].citations.filter(isValidCitation) : [];
+                                return cites.map((c, i) => {
+                                    const href = safeCitationHref(c.url) || (c.domain ? safeCitationHref(`https://${String(c.domain).replace(/^www\./, '')}`) : null);
+                                    const labelText = citationHostLabel(c);
+                                    if (!href) {
+                                        return (
+                                            <span key={`${ek}-${i}`} className="text-[10px] px-2 py-1 rounded-md bg-[#141414] border border-[#2a2a2a] text-[#737373]">
+                                                {labelText}
+                                            </span>
+                                        );
+                                    }
+                                    return (
+                                        <a
+                                            key={`${ek}-${i}`}
+                                            href={href}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="text-[10px] px-2 py-1 rounded-md bg-[#141414] border border-[#2a2a2a] text-[#ececec] hover:border-emerald-500/35"
+                                        >
+                                            {labelText}
+                                        </a>
+                                    );
+                                });
+                            })}
+                            {totalCites === 0 && <span className="text-[12px] text-[#555]">No linked sources in this scan.</span>}
+                        </div>
+                    </div>
                 </div>
-            </div>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 p-4">
-                {ENGINE_ORDER.map((ek) => (
-                    <EngineResponseCard key={ek} engineKey={ek} data={prompt.engines?.[ek]} />
-                ))}
             </div>
         </div>
     );
 }
 
 export default function PromptIntelPage({ user, scanManager }) {
-    const [expandedPromptKey, setExpandedPromptKey] = useState(null);
+    const [detailModal, setDetailModal] = useState(null);
 
     const scanData = useMemo(() => {
         try {
@@ -386,7 +598,16 @@ export default function PromptIntelPage({ user, scanManager }) {
     const totalEngineResponses = allPrompts.reduce((sum, p) => sum + enginesRespondedCount(p), 0);
 
     return (
-        <div className="w-full pb-12">
+        <div className="w-full pb-12 relative">
+            {detailModal ? (
+                <PromptDetailModal
+                    prompt={detailModal.prompt}
+                    displayId={detailModal.displayId}
+                    user={user}
+                    scanScannedAt={scanData?.scannedAt}
+                    onClose={() => setDetailModal(null)}
+                />
+            ) : null}
             <div className="h-[105px] flex items-end -mt-8 -mx-8 px-8 pb-3 border-b border-[#222] bg-[#000] sticky top-0 z-30">
                 <div className="flex items-center gap-4 pb-1">
                     <div className="w-11 h-11 bg-[#0a0505] rounded-xl flex items-center justify-center border border-[#E92A15]/40 shadow-[0_0_15px_rgba(233,42,21,0.15)]">
@@ -408,7 +629,7 @@ export default function PromptIntelPage({ user, scanManager }) {
                     <div className="px-5 py-4 border-b border-[#262626] bg-[#0a0a0a]">
                         <h3 className="text-white font-semibold text-[14px] tracking-tight">Prompt matrix</h3>
                         <p className="text-[#666] text-[11px] mt-1">
-                            {allPrompts.length} prompt{allPrompts.length !== 1 ? 's' : ''} from your latest stored scan. Expand a row for full text, sources, and citations.
+                            {allPrompts.length} prompt{allPrompts.length !== 1 ? 's' : ''} from your latest stored scan. Click a row to open full details, responses, and citations.
                             Source counts list only entries with a valid URL or domain. Blue = response received · Green = brand mentioned.
                         </p>
                     </div>
@@ -436,80 +657,65 @@ export default function PromptIntelPage({ user, scanManager }) {
                                         <th className="py-3 px-2 text-[10px] font-semibold text-[#737373] uppercase tracking-wider text-center whitespace-nowrap">
                                             Sources
                                         </th>
-                                        <th className="py-3 pr-4 pl-2 text-[10px] font-semibold text-[#737373] uppercase tracking-wider text-center w-16">
-                                            Expand
+                                        <th className="py-3 pr-4 pl-2 text-[10px] font-semibold text-[#737373] uppercase tracking-wider text-center w-20">
+                                            Details
                                         </th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {allPrompts.map((p, i) => {
                                         const rowKey = p.promptId || `${i}-${String(p.query || p.prompt || '').slice(0, 24)}`;
-                                        const open = expandedPromptKey === rowKey;
                                         const displayId = promptDisplayId(i);
                                         const qtext = String(p.query || p.prompt || '—');
+                                        const openDetail = () => setDetailModal({ prompt: p, displayId, rowKey });
                                         return (
-                                            <React.Fragment key={rowKey}>
-                                                <tr className="border-b border-[#1f1f1f] hover:bg-[#0a0a0a] transition-colors">
-                                                    <td className="py-3 pl-4 pr-2 align-middle text-[11px] font-mono text-[#737373]">
-                                                        {displayId}
-                                                    </td>
-                                                    <td className="py-3 px-3 align-middle max-w-[min(520px,52vw)]">
-                                                        <p className="text-[13px] text-[#e5e5e5] truncate" title={qtext}>
-                                                            {qtext}
-                                                        </p>
-                                                    </td>
-                                                    <td className="py-3 px-2 align-middle">
-                                                        <div className="flex items-center justify-center gap-1">
-                                                            {ENGINE_ORDER.map((ek) => {
-                                                                const row = p.engines?.[ek];
-                                                                return (
-                                                                    <EngineIconBadge
-                                                                        key={ek}
-                                                                        engineKey={ek}
-                                                                        hasResponse={engineRowHasResponse(row)}
-                                                                        brandMentioned={!!row?.mentioned}
-                                                                    />
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    </td>
-                                                    <td className="py-3 px-2 align-middle text-center">
-                                                        <VisibilityBadge tier={visibilityTier(p)} />
-                                                    </td>
-                                                    <td className="py-3 px-2 align-middle text-center">
-                                                        <span className="inline-flex items-center gap-1 text-[13px] text-white font-medium tabular-nums">
-                                                            <Link2 className="w-3.5 h-3.5 text-[#a3a3a3]" />
-                                                            {totalCitationsPrompt(p)}
-                                                        </span>
-                                                    </td>
-                                                    <td className="py-3 pr-4 pl-2 align-middle text-center">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setExpandedPromptKey(open ? null : rowKey)}
-                                                            className="p-2 rounded-lg text-[#737373] hover:text-white hover:bg-[#1a1a1a] transition-colors inline-flex"
-                                                            aria-expanded={open}
-                                                            aria-label={open ? 'Collapse' : 'Expand'}
-                                                        >
-                                                            {open ? (
-                                                                <ChevronUp className="w-4 h-4" />
-                                                            ) : (
-                                                                <ChevronDown className="w-4 h-4" />
-                                                            )}
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                                {open && (
-                                                    <tr className="bg-[#030303]">
-                                                        <td colSpan={6} className="p-0">
-                                                            <ExpandedPromptBronze
-                                                                prompt={p}
-                                                                displayId={displayId}
-                                                                onCollapse={() => setExpandedPromptKey(null)}
-                                                            />
-                                                        </td>
-                                                    </tr>
-                                                )}
-                                            </React.Fragment>
+                                            <tr
+                                                key={rowKey}
+                                                className="border-b border-[#1f1f1f] hover:bg-[#0a0a0a] transition-colors cursor-pointer"
+                                                onClick={openDetail}
+                                            >
+                                                <td className="py-3 pl-4 pr-2 align-middle text-[11px] font-mono text-[#737373]">
+                                                    {displayId}
+                                                </td>
+                                                <td className="py-3 px-3 align-middle max-w-[min(520px,52vw)]">
+                                                    <p className="text-[13px] text-[#e5e5e5] truncate" title={qtext}>
+                                                        {qtext}
+                                                    </p>
+                                                </td>
+                                                <td className="py-3 px-2 align-middle">
+                                                    <div className="flex items-center justify-center gap-1">
+                                                        {ENGINE_ORDER.map((ek) => {
+                                                            const row = p.engines?.[ek];
+                                                            return (
+                                                                <EngineIconBadge
+                                                                    key={ek}
+                                                                    engineKey={ek}
+                                                                    hasResponse={engineRowHasResponse(row)}
+                                                                    brandMentioned={!!row?.mentioned}
+                                                                />
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </td>
+                                                <td className="py-3 px-2 align-middle text-center">
+                                                    <VisibilityBadge tier={visibilityTier(p)} />
+                                                </td>
+                                                <td className="py-3 px-2 align-middle text-center">
+                                                    <span className="inline-flex items-center gap-1 text-[13px] text-white font-medium tabular-nums">
+                                                        <Link2 className="w-3.5 h-3.5 text-[#a3a3a3]" />
+                                                        {totalCitationsPrompt(p)}
+                                                    </span>
+                                                </td>
+                                                <td className="py-3 pr-4 pl-2 align-middle text-center">
+                                                    <span
+                                                        className="inline-flex items-center justify-center gap-1 text-[11px] font-semibold text-[#E92A15] pointer-events-none"
+                                                        aria-hidden
+                                                    >
+                                                        View
+                                                        <ChevronRight className="w-3.5 h-3.5" strokeWidth={2.5} />
+                                                    </span>
+                                                </td>
+                                            </tr>
                                         );
                                     })}
                                 </tbody>
