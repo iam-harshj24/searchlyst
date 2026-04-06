@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
     PenTool, Sparkles, FileText, Instagram, Linkedin, MessageCircle, Mail, 
-    Loader2, Copy, Check, ChevronRight, Settings2, CornerDownLeft, Circle, Library, Twitter
+    Loader2, Copy, Check, ChevronRight, Settings2, CornerDownLeft, Circle, Library, Twitter, Filter, X,
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { apiClient } from '@/api/apiClient';
@@ -172,6 +172,32 @@ const socialMediaPlatforms = [
     { id: 'reddit', name: 'Reddit / Quora', icon: MessageCircle, tag: 'Long-form', count: '400-700w' },
 ];
 
+const LIBRARY_PLATFORM_OPTIONS = [
+    { value: 'all', label: 'All platforms' },
+    ...contentSeoPlatforms.map((p) => ({ value: p.name, label: p.name })),
+    ...socialMediaPlatforms.map((p) => ({ value: p.name, label: p.name })),
+];
+
+const LIBRARY_DATE_PRESETS = [
+    { value: 'all', label: 'All dates' },
+    { value: '7d', label: 'Last 7 days' },
+    { value: '30d', label: 'Last 30 days' },
+    { value: 'ytd', label: 'Year to date' },
+    { value: 'custom', label: 'Custom range' },
+];
+
+function startOfDay(d) {
+    const x = new Date(d);
+    x.setHours(0, 0, 0, 0);
+    return x;
+}
+
+function endOfDay(d) {
+    const x = new Date(d);
+    x.setHours(23, 59, 59, 999);
+    return x;
+}
+
 export default function ContentStudioPage({ user }) {
     const [step, setStep] = useState(1); // 1: Topic, 2: Platforms, 3: Generate, 4: Review
     const [topic, setTopic] = useState('');
@@ -189,6 +215,10 @@ export default function ContentStudioPage({ user }) {
     const [loadingLibrary, setLoadingLibrary] = useState(true);
     const [exportDraft, setExportDraft] = useState('');
     const [libExportDraft, setLibExportDraft] = useState('');
+    const [libPlatformFilter, setLibPlatformFilter] = useState('all');
+    const [libDatePreset, setLibDatePreset] = useState('all');
+    const [libDateFrom, setLibDateFrom] = useState('');
+    const [libDateTo, setLibDateTo] = useState('');
 
     // Contextual Defaults
     const brandName = user?.brandName || 'Camana Homes';
@@ -231,6 +261,7 @@ export default function ContentStudioPage({ user }) {
                     platform: c.platform,
                     status: c.status,
                     date: c.date,
+                    createdAt: c.createdAt || null,
                     article: c.article,
                 })));
             } catch {
@@ -273,6 +304,53 @@ export default function ContentStudioPage({ user }) {
         setStep(1);
     }, []);
 
+    const filteredContentLibrary = useMemo(() => {
+        const now = new Date();
+        let fromB = null;
+        let toB = null;
+        if (libDatePreset === '7d') {
+            const f = new Date(now);
+            f.setDate(f.getDate() - 7);
+            fromB = startOfDay(f);
+            toB = endOfDay(now);
+        } else if (libDatePreset === '30d') {
+            const f = new Date(now);
+            f.setDate(f.getDate() - 30);
+            fromB = startOfDay(f);
+            toB = endOfDay(now);
+        } else if (libDatePreset === 'ytd') {
+            fromB = startOfDay(new Date(now.getFullYear(), 0, 1));
+            toB = endOfDay(now);
+        } else if (libDatePreset === 'custom') {
+            if (libDateFrom) fromB = startOfDay(new Date(`${libDateFrom}T12:00:00`));
+            if (libDateTo) toB = endOfDay(new Date(`${libDateTo}T12:00:00`));
+        }
+
+        return contentLibrary.filter((item) => {
+            if (libPlatformFilter !== 'all' && item.platform !== libPlatformFilter) return false;
+            const t = item.createdAt ? new Date(item.createdAt).getTime() : NaN;
+            const hasDate = Number.isFinite(t);
+            if (fromB || toB) {
+                if (!hasDate) return false;
+                if (fromB && t < fromB.getTime()) return false;
+                if (toB && t > toB.getTime()) return false;
+            }
+            return true;
+        });
+    }, [contentLibrary, libPlatformFilter, libDatePreset, libDateFrom, libDateTo]);
+
+    const libraryFiltersActive =
+        libPlatformFilter !== 'all' ||
+        libDatePreset !== 'all' ||
+        (libDatePreset === 'custom' && (libDateFrom || libDateTo));
+
+    const resetLibraryFilters = () => {
+        setLibPlatformFilter('all');
+        setLibDatePreset('all');
+        setLibDateFrom('');
+        setLibDateTo('');
+    };
+
     const togglePlatform = (id) => {
         setSelectedPlatforms(prev =>
             prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
@@ -306,7 +384,15 @@ export default function ContentStudioPage({ user }) {
                 if (response.success && response.article) {
                     const article = normalizeArticle(response.article, topic);
                     results[platformId] = article;
-                    newLibraryItems.push({ id: response.id || Date.now() + Math.random(), title: article.title || topic, platform: platformName, status: 'published', date: 'Just now', article });
+                    newLibraryItems.push({
+                        id: response.id || Date.now() + Math.random(),
+                        title: article.title || topic,
+                        platform: platformName,
+                        status: 'published',
+                        date: 'Just now',
+                        createdAt: new Date().toISOString(),
+                        article,
+                    });
                 } else {
                     throw new Error(`Generation failed for ${platformName}`);
                 }
@@ -436,9 +522,98 @@ export default function ContentStudioPage({ user }) {
                                 <p className="text-[#888] text-[14px]">No content generated yet in this project.</p>
                             </div>
                         ) : (
+                            <>
+                            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between rounded-2xl border border-[#2a2a2a] bg-[#111] px-4 py-4">
+                                <div className="flex items-center gap-2 text-[#aaa] text-[12px] font-semibold uppercase tracking-wider shrink-0">
+                                    <Filter className="w-4 h-4 text-[#E92A15]" aria-hidden />
+                                    Filter library
+                                </div>
+                                <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end flex-1 min-w-0">
+                                    <label className="flex flex-col gap-1.5 min-w-[160px]">
+                                        <span className="text-[10px] uppercase tracking-wider text-[#666] font-semibold">Platform</span>
+                                        <select
+                                            value={libPlatformFilter}
+                                            onChange={(e) => setLibPlatformFilter(e.target.value)}
+                                            className="bg-[#0B0B0B] border border-[#333] text-[#e5e5e5] text-[13px] rounded-lg px-3 py-2 focus:outline-none focus:border-[#E92A15]/50"
+                                        >
+                                            {LIBRARY_PLATFORM_OPTIONS.map((o) => (
+                                                <option key={o.value} value={o.value}>{o.label}</option>
+                                            ))}
+                                        </select>
+                                    </label>
+                                    <label className="flex flex-col gap-1.5 min-w-[160px]">
+                                        <span className="text-[10px] uppercase tracking-wider text-[#666] font-semibold">Date</span>
+                                        <select
+                                            value={libDatePreset}
+                                            onChange={(e) => {
+                                                setLibDatePreset(e.target.value);
+                                                if (e.target.value !== 'custom') {
+                                                    setLibDateFrom('');
+                                                    setLibDateTo('');
+                                                }
+                                            }}
+                                            className="bg-[#0B0B0B] border border-[#333] text-[#e5e5e5] text-[13px] rounded-lg px-3 py-2 focus:outline-none focus:border-[#E92A15]/50"
+                                        >
+                                            {LIBRARY_DATE_PRESETS.map((o) => (
+                                                <option key={o.value} value={o.value}>{o.label}</option>
+                                            ))}
+                                        </select>
+                                    </label>
+                                    {libDatePreset === 'custom' && (
+                                        <>
+                                            <label className="flex flex-col gap-1.5 min-w-[140px]">
+                                                <span className="text-[10px] uppercase tracking-wider text-[#666] font-semibold">From</span>
+                                                <input
+                                                    type="date"
+                                                    value={libDateFrom}
+                                                    onChange={(e) => setLibDateFrom(e.target.value)}
+                                                    className="bg-[#0B0B0B] border border-[#333] text-[#e5e5e5] text-[13px] rounded-lg px-3 py-2 focus:outline-none focus:border-[#E92A15]/50 [color-scheme:dark]"
+                                                />
+                                            </label>
+                                            <label className="flex flex-col gap-1.5 min-w-[140px]">
+                                                <span className="text-[10px] uppercase tracking-wider text-[#666] font-semibold">To</span>
+                                                <input
+                                                    type="date"
+                                                    value={libDateTo}
+                                                    onChange={(e) => setLibDateTo(e.target.value)}
+                                                    className="bg-[#0B0B0B] border border-[#333] text-[#e5e5e5] text-[13px] rounded-lg px-3 py-2 focus:outline-none focus:border-[#E92A15]/50 [color-scheme:dark]"
+                                                />
+                                            </label>
+                                        </>
+                                    )}
+                                    {libraryFiltersActive && (
+                                        <button
+                                            type="button"
+                                            onClick={resetLibraryFilters}
+                                            className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-[#444] text-[#ccc] text-[12px] font-medium hover:bg-[#1a1a1a] hover:text-white transition-colors self-end"
+                                        >
+                                            <X className="w-3.5 h-3.5" aria-hidden />
+                                            Clear filters
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                            {filteredContentLibrary.length === 0 ? (
+                                <div className="text-center py-16 border border-dashed border-[#333] rounded-3xl bg-[#0A0A0A]">
+                                    <p className="text-[#888] text-[14px] mb-3">No items match your filters.</p>
+                                    <button
+                                        type="button"
+                                        onClick={resetLibraryFilters}
+                                        className="text-[#E92A15] text-[13px] font-semibold hover:text-[#ff4433]"
+                                    >
+                                        Reset filters
+                                    </button>
+                                </div>
+                            ) : (
                             <div className="grid gap-3">
-                                {contentLibrary.map((item, i) => (
-                                    <button key={i} onClick={() => setSelectedLibraryItem(item)} className="w-full text-left bg-[#0B0B0B] border border-[#222] rounded-2xl p-5 flex items-center justify-between hover:border-[#444] hover:bg-[#111] transition-all group">
+                                <p className="text-[#666] text-[12px] -mb-1">
+                                    Showing <span className="text-[#aaa] font-medium tabular-nums">{filteredContentLibrary.length}</span>
+                                    {contentLibrary.length !== filteredContentLibrary.length ? (
+                                        <> of <span className="text-[#aaa] font-medium tabular-nums">{contentLibrary.length}</span></>
+                                    ) : null}
+                                </p>
+                                {filteredContentLibrary.map((item) => (
+                                    <button key={item.id} onClick={() => setSelectedLibraryItem(item)} className="w-full text-left bg-[#0B0B0B] border border-[#222] rounded-2xl p-5 flex items-center justify-between hover:border-[#444] hover:bg-[#111] transition-all group">
                                         <div className="flex items-center gap-5 min-w-0">
                                             <div className="w-12 h-12 bg-[#1A1A1A] border border-[#333] rounded-xl flex items-center justify-center shrink-0">
                                                 <FileText className="w-5 h-5 text-[#888]" />
@@ -456,6 +631,8 @@ export default function ContentStudioPage({ user }) {
                                     </button>
                                 ))}
                             </div>
+                            )}
+                            </>
                         )}
                     </div>
                 ) : (
