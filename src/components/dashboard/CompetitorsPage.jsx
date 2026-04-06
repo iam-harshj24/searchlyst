@@ -1,9 +1,10 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import {
     Users, Plus, Target, ChevronRight, X, MapPin, Building2,
-    Globe2, PenTool, Eye, LayoutGrid, Link2, BarChart3, TrendingUp,
+    Globe2, PenTool, Eye, LayoutGrid, Link2, BarChart3, TrendingUp, TrendingDown,
 } from 'lucide-react';
-import { SentimentTriGauge } from '@/components/ui/SentimentTriGauge';
+import { SentimentPercentDisplay } from '@/components/ui/SentimentTriGauge';
+import { promptPreview } from '@/lib/promptPreview';
 
 function getVisibilityData(domain, projectId) {
     try {
@@ -302,18 +303,63 @@ export default function CompetitorsPage({ user, onTabChange }) {
     }, [gaps, scanData, user?.brandName, user?.industry]);
 
     const [selectedCompetitor, setSelectedCompetitor] = useState(null);
+    const [addOpen, setAddOpen] = useState(false);
+    const [addName, setAddName] = useState('');
+    const [addDomain, setAddDomain] = useState('');
+    const [addError, setAddError] = useState('');
 
     const competitorProfile = useMemo(
         () => (selectedCompetitor ? buildCompetitorProfile(scanData, selectedCompetitor) : null),
         [scanData, selectedCompetitor],
     );
 
-    const addTracked = (name, domain) => {
-        const label = domain || name;
-        if (!label) return;
-        if (extraTracked.includes(label) || extraTracked.includes(name)) return;
-        persistExtra([...extraTracked, label]);
-    };
+    const submitAddCompetitor = useCallback(() => {
+        setAddError('');
+        const nameRaw = addName.trim();
+        const domRaw = addDomain.trim();
+        if (!nameRaw && !domRaw) {
+            setAddError('Enter a name or website.');
+            return;
+        }
+        const dNorm = normalizeDomain(domRaw);
+        const toStore = dNorm || nameRaw;
+        if (!toStore) {
+            setAddError('Enter a valid name or domain.');
+            return;
+        }
+
+        const normForCompare = dNorm || normalizeDomain(nameRaw) || nameRaw.toLowerCase();
+        const inExtra = extraTracked.some((x) => {
+            const s = String(typeof x === 'string' ? x : (x?.domain || x?.name || ''));
+            const xNorm = normalizeDomain(s);
+            return (
+                (dNorm && xNorm === dNorm) ||
+                (normForCompare && xNorm === normForCompare) ||
+                s.toLowerCase() === nameRaw.toLowerCase()
+            );
+        });
+        if (inExtra) {
+            setAddError('Already in your tracked list.');
+            return;
+        }
+
+        const inOnboarding = onboardingList.some(
+            (c) =>
+                namesLikelyMatch(c.name, nameRaw) ||
+                namesLikelyMatch(c.domain, nameRaw) ||
+                (domRaw && (namesLikelyMatch(c.name, domRaw) || namesLikelyMatch(c.domain, domRaw))) ||
+                (dNorm && normalizeDomain(c.domain || '') === dNorm),
+        );
+        if (inOnboarding) {
+            setAddError('Already listed in Brand Hub competitors.');
+            return;
+        }
+
+        persistExtra([...extraTracked, toStore]);
+        setAddName('');
+        setAddDomain('');
+        setAddOpen(false);
+    }, [addName, addDomain, extraTracked, onboardingList, persistExtra]);
 
     const removeExtra = (domainOrName) => {
         persistExtra(extraTracked.filter((x) => x !== domainOrName));
@@ -328,17 +374,78 @@ export default function CompetitorsPage({ user, onTabChange }) {
 
     return (
         <div className="w-full pb-12">
-            <div className="h-[93px] flex items-center justify-between -mt-8 -mx-8 px-8 border-b border-[#222] bg-[#000] sticky top-0 z-30">
-                <div className="flex items-center gap-4">
-                    <div className="w-11 h-11 bg-[#120404] rounded-xl flex items-center justify-center border border-[#E92A15]/40 shadow-[0_0_15px_rgba(233,42,21,0.15)]">
+            <div className="h-[93px] flex items-center justify-between gap-4 -mt-8 -mx-8 px-8 border-b border-[#222] bg-[#000] sticky top-0 z-30">
+                <div className="flex items-center gap-4 min-w-0">
+                    <div className="w-11 h-11 bg-[#120404] rounded-xl flex items-center justify-center border border-[#E92A15]/40 shadow-[0_0_15px_rgba(233,42,21,0.15)] shrink-0">
                         <Users className="w-5 h-5 text-[#E92A15]" />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                         <h1 className="text-[19px] font-semibold text-white tracking-tight">Competitors</h1>
-                        <p className="text-[#888] text-[13px] mt-0.5">
+                        <p className="text-[#888] text-[13px] mt-0.5 line-clamp-2 sm:line-clamp-none">
                             Track peers aligned to your industry and market — not just the most-cited sites
                         </p>
                     </div>
+                </div>
+                <div className="relative shrink-0">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setAddOpen((o) => !o);
+                            setAddError('');
+                        }}
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl border border-[#E92A15]/50 bg-[#120404] text-[#E92A15] text-[12px] font-semibold hover:bg-[#E92A15]/15 transition-colors"
+                    >
+                        <Plus className="w-4 h-4" />
+                        Add competitor
+                    </button>
+                    {addOpen ? (
+                        <div
+                            className="absolute right-0 top-[calc(100%+10px)] w-[min(calc(100vw-2rem),320px)] rounded-xl border border-[#2a2a2a] bg-[#111] shadow-[0_12px_40px_rgba(0,0,0,0.65)] p-4 z-50"
+                            role="dialog"
+                            aria-label="Add competitor"
+                        >
+                            <p className="text-[11px] text-[#888] mb-3 leading-relaxed">
+                                Track an extra peer here. It is saved for this project domain and appears under Tracked competitors.
+                            </p>
+                            <label className="block text-[10px] font-bold uppercase tracking-wider text-[#666] mb-1">Display name (optional)</label>
+                            <input
+                                type="text"
+                                value={addName}
+                                onChange={(e) => setAddName(e.target.value)}
+                                placeholder="e.g. Acme Inc"
+                                className="w-full mb-3 px-3 py-2 rounded-lg bg-[#0a0a0a] border border-[#333] text-white text-[13px] placeholder:text-[#555] focus:outline-none focus:border-[#E92A15]/50"
+                            />
+                            <label className="block text-[10px] font-bold uppercase tracking-wider text-[#666] mb-1">Website or domain</label>
+                            <input
+                                type="text"
+                                value={addDomain}
+                                onChange={(e) => setAddDomain(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && submitAddCompetitor()}
+                                placeholder="e.g. acme.com"
+                                className="w-full px-3 py-2 rounded-lg bg-[#0a0a0a] border border-[#333] text-white text-[13px] placeholder:text-[#555] focus:outline-none focus:border-[#E92A15]/50"
+                            />
+                            {addError ? <p className="text-[11px] text-red-400 mt-2">{addError}</p> : null}
+                            <div className="flex gap-2 mt-3">
+                                <button
+                                    type="button"
+                                    onClick={submitAddCompetitor}
+                                    className="flex-1 py-2 rounded-lg bg-[#E92A15] hover:bg-[#c82010] text-white text-[12px] font-semibold transition-colors"
+                                >
+                                    Add
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setAddOpen(false);
+                                        setAddError('');
+                                    }}
+                                    className="px-4 py-2 rounded-lg border border-[#333] text-[#ccc] text-[12px] font-semibold hover:bg-white/5 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    ) : null}
                 </div>
             </div>
 
@@ -386,14 +493,21 @@ export default function CompetitorsPage({ user, onTabChange }) {
                         </p>
                     ) : (
                         <div className="relative mt-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[420px] overflow-y-auto pr-1">
-                            {winTopicTiles.map((tile) => (
+                            {winTopicTiles.map((tile) => {
+                                const titleP = promptPreview(tile.title);
+                                return (
                                 <div
                                     key={tile.id}
                                     className="flex flex-col rounded-xl border border-[#E92A15]/25 bg-[#08080895] p-4 min-h-[140px]"
                                 >
                                     <div className="flex items-start gap-2 mb-2">
                                         <Target className="w-4 h-4 text-[#E92A15] shrink-0 mt-0.5" />
-                                        <p className="text-white text-[13px] font-semibold leading-snug">{tile.title}</p>
+                                        <p
+                                            className={`text-white text-[13px] font-semibold leading-snug ${titleP.truncated ? 'cursor-help' : ''}`}
+                                            title={titleP.truncated ? titleP.full : undefined}
+                                        >
+                                            {titleP.display}
+                                        </p>
                                     </div>
                                     {tile.subtitle ? (
                                         <p className="text-[#999] text-[11px] leading-relaxed flex-1 mb-2 line-clamp-4">{tile.subtitle}</p>
@@ -428,7 +542,8 @@ export default function CompetitorsPage({ user, onTabChange }) {
                                         </button>
                                     </div>
                                 </div>
-                            ))}
+                            );
+                            })}
                         </div>
                     )}
                 </div>
@@ -518,7 +633,7 @@ export default function CompetitorsPage({ user, onTabChange }) {
                                         <p className="text-[9px] text-[#666] uppercase font-bold tracking-wider mb-2">Sentiment</p>
                                         <div className="flex items-center min-h-[28px]">
                                             {competitorProfile?.sov?.sentiment != null ? (
-                                                <SentimentTriGauge value={Math.round(competitorProfile.sov.sentiment)} size="lg" />
+                                                <SentimentPercentDisplay value={Number(competitorProfile.sov.sentiment)} size="lg" align="start" />
                                             ) : (
                                                 <span className="text-[#555] text-sm">—</span>
                                             )}
@@ -531,10 +646,33 @@ export default function CompetitorsPage({ user, onTabChange }) {
                                         </p>
                                     </div>
                                     <div className="rounded-xl border border-[#222] bg-[#111] p-3">
-                                        <p className="text-[9px] text-[#666] uppercase font-bold tracking-wider mb-1">Coverage</p>
-                                        <p className="text-white text-[20px] font-bold tabular-nums">
-                                            {competitorProfile?.ind?.promptCoverage != null ? `${Math.round(competitorProfile.ind.promptCoverage)}%` : '—'}
-                                        </p>
+                                        <p className="text-[9px] text-[#666] uppercase font-bold tracking-wider mb-1">Effort trend</p>
+                                        {competitorProfile?.ind?.effortTrendNew ? (
+                                            <p className="text-sky-400 text-[13px] font-semibold">New vs last scan</p>
+                                        ) : competitorProfile?.ind?.effortTrendPct != null ? (
+                                            <div className="space-y-1">
+                                                <p
+                                                    className={`text-[16px] font-bold tabular-nums flex items-center gap-1 ${
+                                                        competitorProfile.ind.effortTrendPct > 0
+                                                            ? 'text-emerald-400'
+                                                            : competitorProfile.ind.effortTrendPct < 0
+                                                              ? 'text-red-400'
+                                                              : 'text-[#888]'
+                                                    }`}
+                                                >
+                                                    {competitorProfile.ind.effortTrendPct > 0 ? (
+                                                        <TrendingUp className="w-4 h-4 shrink-0" />
+                                                    ) : competitorProfile.ind.effortTrendPct < 0 ? (
+                                                        <TrendingDown className="w-4 h-4 shrink-0" />
+                                                    ) : null}
+                                                    {competitorProfile.ind.effortTrendPct > 0 ? 'Up ' : competitorProfile.ind.effortTrendPct < 0 ? 'Down ' : 'Flat '}
+                                                    {Math.abs(competitorProfile.ind.effortTrendPct)}%
+                                                </p>
+                                                <p className="text-[10px] font-medium text-[#555]">prompt coverage vs last scan</p>
+                                            </div>
+                                        ) : (
+                                            <p className="text-[#555] text-[11px]">Run a second scan to compare</p>
+                                        )}
                                     </div>
                                 </div>
                             )}
@@ -583,13 +721,21 @@ export default function CompetitorsPage({ user, onTabChange }) {
                                 </p>
                             ) : (
                                 <div className="space-y-2">
-                                    {competitorGapsForSelected.map((gap, i) => (
+                                    {competitorGapsForSelected.map((gap, i) => {
+                                        const gapHead = String(gap.contentTopic || gap.query || '').trim() || '—';
+                                        const gapPrev = promptPreview(gapHead);
+                                        return (
                                         <div
                                             key={`${gap.query || gap.contentTopic || i}-${gap.inferredFromCitations ? 'c' : 'g'}`}
                                             className="p-3 rounded-xl border border-[#222] bg-[#111]"
                                         >
                                             <div className="flex items-start justify-between gap-2 mb-0.5">
-                                                <p className="text-[#eee] text-[13px] font-medium flex-1">{gap.contentTopic || gap.query}</p>
+                                                <p
+                                                    className={`text-[#eee] text-[13px] font-medium flex-1 min-w-0 ${gapPrev.truncated ? 'cursor-help' : ''}`}
+                                                    title={gapPrev.truncated ? gapPrev.full : undefined}
+                                                >
+                                                    {gapPrev.display}
+                                                </p>
                                                 {gap.inferredFromCitations ? (
                                                     <span className="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-[#888] border border-[#333] rounded px-1.5 py-0.5">
                                                         Citations
@@ -598,7 +744,8 @@ export default function CompetitorsPage({ user, onTabChange }) {
                                             </div>
                                             {gap.contentAngle && <p className="text-[#777] text-[11px] mt-1">{gap.contentAngle}</p>}
                                         </div>
-                                    ))}
+                                    );
+                                    })}
                                 </div>
                             )}
                         </div>

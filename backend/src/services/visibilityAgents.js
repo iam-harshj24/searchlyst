@@ -15,7 +15,7 @@
 
 import { queryPerplexity, queryGemini, queryGoogleAI } from './infaticaService.js';
 import { generatePromptMatrixForPlatform, generateFallbackPrompts } from './promptIntelligence.js';
-import { parseResponse } from './responseParser.js';
+import { parseResponse, batchApplyGeminiSentimentByPrompt } from './responseParser.js';
 import {
     computeVisibilityScore,
     computeShareOfVoice,
@@ -251,6 +251,7 @@ export async function runAllAgentsInParallel(agentConfig, onAgentProgress, onEar
     const elapsed = ((Date.now() - scanStart) / 1000).toFixed(1);
 
     const mergedRuns = [...perplexityRuns, ...geminiRuns, ...googleRuns];
+    await batchApplyGeminiSentimentByPrompt(mergedRuns, brandName);
     const platformResults = buildPlatformResults(mergedRuns, prompts, brandName, competitors, domain);
 
     const stats = {};

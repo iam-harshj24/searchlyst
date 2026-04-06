@@ -520,14 +520,19 @@ export function computeCompetitorGap(allRunResults, brandName, competitors) {
 export function computeSentimentBreakdown(allRunResults) {
     const counts = { positive: 0, neutral: 0, negative: 0 };
     let total = 0;
+    let weightSum = 0;
 
     for (const run of allRunResults) {
         if (run.brandMentioned && run.brandEntity) {
             const bucket = getSentimentBucket(run.brandEntity.sentiment);
             counts[bucket] += 1;
             total++;
+            weightSum += getSentimentWeight(run.brandEntity.sentiment);
         }
     }
+
+    const sentimentIndex =
+        total > 0 ? Math.round(((weightSum / total + 1) / 2) * 1000) / 10 : null;
 
     return {
         detailed: counts,
@@ -540,6 +545,8 @@ export function computeSentimentBreakdown(allRunResults) {
                 neutral: counts.neutral,
                 negative: counts.negative,
             },
+            /** 0–100 weighted index: positive=+1, neutral=+0.25, negative=−1 → ((avg+1)/2)×100 */
+            sentimentIndex,
         },
         total,
     };
@@ -563,56 +570,139 @@ export function computeIndustryRanking(allRunResults, brandName, competitors, br
 
 /**
  * Prompt-coverage ranking — how many distinct prompts each brand appears in (AI visibility breadth).
- * Different from SOV, which weights raw mention volume.
+ * Sentiment per brand: one vote per prompt×engine run (dominant entity row per normalized name per run),
+ * weighted mean (+1 / +0.25 / −1) → sentimentIndex 0–100 with one decimal; exact pos/neu/neg counts included.
+ * @param {Array} previousRunResults optional prior scan runs — when set, sentimentTrendPct = current index − prior index (same brand key).
  */
-export function computeIndustryPresenceRanking(allRunResults, brandName) {
+export function computeIndustryPresenceRanking(allRunResults, brandName, previousRunResults = null) {
     const promptKeys = [...new Set(allRunResults.map(r => r.promptId ?? r.query))];
     const totalPrompts = Math.max(promptKeys.length, 1);
-    const entityMap = {};
+    /** @type {Map<string, { name: string, domain: string, prompts: Set, mentions: number, totalPosition: number, positionCount: number, sentimentSum: number, sentimentN: number, sentimentCounts: { positive: number, neutral: number, negative: number } }>} */
+    const byNorm = new Map();
+
+    function rowForEntity(entity) {
+        const displayName = String(entity.name || '').trim();
+        if (!displayName) return null;
+        const nk = normEntityKey(displayName);
+        if (!byNorm.has(nk)) {
+            byNorm.set(nk, {
+                name: displayName,
+                domain: (entity.domain || '').replace(/^www\./, ''),
+                prompts: new Set(),
+                mentions: 0,
+                totalPosition: 0,
+                positionCount: 0,
+                sentimentSum: 0,
+                sentimentN: 0,
+                sentimentCounts: { positive: 0, neutral: 0, negative: 0 },
+            });
+        }
+        return byNorm.get(nk);
+    }
 
     for (const run of allRunResults) {
         const pKey = run.promptId ?? run.query;
+        const runBest = new Map();
         for (const entity of run.entities || []) {
-            const name = entity.name;
-            if (!name) continue;
-            if (!entityMap[name]) {
-                entityMap[name] = {
-                    name,
-                    domain: (entity.domain || '').replace(/^www\./, ''),
-                    prompts: new Set(),
-                    mentions: 0,
-                    totalPosition: 0,
-                    positionCount: 0,
-                };
-            }
-            entityMap[name].prompts.add(pKey);
-            entityMap[name].mentions += entity.mentions || 1;
+            const nm = entity.name;
+            if (!nm) continue;
+            const nk = normEntityKey(nm);
+            const prev = runBest.get(nk);
+            const m = entity.mentions || 1;
+            if (!prev || m > (prev.mentions || 1)) runBest.set(nk, entity);
+        }
+        for (const entity of runBest.values()) {
+            const row = rowForEntity(entity);
+            if (!row) continue;
+            row.prompts.add(pKey);
+            row.mentions += entity.mentions || 1;
             if (entity.positionRank) {
-                entityMap[name].totalPosition += entity.positionRank;
-                entityMap[name].positionCount++;
+                row.totalPosition += entity.positionRank;
+                row.positionCount++;
             }
-            if (entity.domain && !entityMap[name].domain) {
-                entityMap[name].domain = entity.domain.replace(/^www\./, '');
+            if (entity.domain && !row.domain) {
+                row.domain = entity.domain.replace(/^www\./, '');
             }
+            row.sentimentSum += getSentimentWeight(entity.sentiment);
+            row.sentimentN += 1;
+            const b = getSentimentBucket(entity.sentiment);
+            row.sentimentCounts[b] += 1;
         }
     }
 
-    return Object.values(entityMap)
+    const rows = [...byNorm.values()]
         .filter(e => e.mentions > 0)
-        .map(e => ({
-            name: e.name,
-            domain: e.domain || '',
-            mentions: e.mentions,
-            avgPosition: e.positionCount > 0
-                ? (Math.round((e.totalPosition / e.positionCount) * 10) / 10).toFixed(1)
-                : '-',
-            promptCoverage: Math.round((e.prompts.size / totalPrompts) * 1000) / 10,
-            promptsReached: e.prompts.size,
-            totalPrompts,
-            isTargetBrand: e.name === brandName,
-        }))
+        .map(e => {
+            const sn = e.sentimentN;
+            const rawAvg = sn > 0 ? e.sentimentSum / sn : 0;
+            const sentimentIndex = sn > 0 ? Math.round(((rawAvg + 1) / 2) * 1000) / 10 : null;
+            const { positive: pc, neutral: nc, negative: ngc } = e.sentimentCounts;
+            const tot = pc + nc + ngc;
+            return {
+                name: e.name,
+                domain: e.domain || '',
+                mentions: e.mentions,
+                avgPosition: e.positionCount > 0
+                    ? (Math.round((e.totalPosition / e.positionCount) * 10) / 10).toFixed(1)
+                    : '-',
+                promptCoverage: Math.round((e.prompts.size / totalPrompts) * 1000) / 10,
+                promptsReached: e.prompts.size,
+                totalPrompts,
+                isTargetBrand: normEntityKey(e.name) === normEntityKey(brandName),
+                sentimentIndex,
+                sentimentN: sn,
+                sentimentCounts: { positive: pc, neutral: nc, negative: ngc },
+                sentimentPct:
+                    tot > 0
+                        ? {
+                              positive: Math.round((pc / tot) * 1000) / 10,
+                              neutral: Math.round((nc / tot) * 1000) / 10,
+                              negative: Math.round((ngc / tot) * 1000) / 10,
+                          }
+                        : { positive: 0, neutral: 0, negative: 0 },
+            };
+        })
         .sort((a, b) => b.promptCoverage - a.promptCoverage || b.mentions - a.mentions)
         .map((row, idx) => ({ rank: idx + 1, ...row }));
+
+    if (previousRunResults?.length) {
+        const prevRows = computeIndustryPresenceRanking(previousRunResults, brandName, null);
+        const prevMapIdx = new Map(prevRows.map((r) => [normEntityKey(r.name), r.sentimentIndex]));
+        const prevMapCov = new Map(prevRows.map((r) => [normEntityKey(r.name), r.promptCoverage]));
+        for (const r of rows) {
+            const key = normEntityKey(r.name);
+            const prevIdx = prevMapIdx.get(key);
+            if (r.sentimentIndex != null && prevIdx != null) {
+                r.sentimentTrendPct = Math.round((r.sentimentIndex - prevIdx) * 10) / 10;
+            } else {
+                r.sentimentTrendPct = null;
+            }
+
+            const prevCov = prevMapCov.has(key) ? Number(prevMapCov.get(key)) || 0 : 0;
+            const currCov = Number(r.promptCoverage) || 0;
+            if (prevCov > 0) {
+                r.effortTrendPct = Math.round(((currCov - prevCov) / prevCov) * 1000) / 10;
+                r.effortTrendNew = false;
+            } else if (prevCov === 0 && currCov > 0) {
+                r.effortTrendPct = null;
+                r.effortTrendNew = true;
+            } else if (prevCov > 0 && currCov === 0) {
+                r.effortTrendPct = -100;
+                r.effortTrendNew = false;
+            } else {
+                r.effortTrendPct = null;
+                r.effortTrendNew = false;
+            }
+        }
+    } else {
+        for (const r of rows) {
+            r.sentimentTrendPct = null;
+            r.effortTrendPct = null;
+            r.effortTrendNew = false;
+        }
+    }
+
+    return rows;
 }
 
 /** Rank all unique URLs across all runs by frequency. */

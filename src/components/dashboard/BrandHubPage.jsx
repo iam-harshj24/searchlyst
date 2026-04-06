@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { 
     UserCircle, Globe, Linkedin, Instagram, BookOpen, MessageCircle,
     Plus, CheckCircle, AlertCircle, Sparkles, PenTool, ChevronRight,
     Save, Loader2, Box, Building2, MapPin, Users, Target, RefreshCw, BarChart3, Link2,
-    Twitter, Youtube, MessageSquareQuote, Music2,
+    Twitter, Youtube, MessageSquareQuote, Music2, X,
 } from 'lucide-react';
 import { apiClient } from '../../api/apiClient.js';
 import { getDashboardUser, setDashboardUser, getBrandHubData, setBrandHubData } from '@/pages/Dashboard';
@@ -25,6 +25,122 @@ const styleTraits = [
     { label: 'Sentence Style', value: 'Mix of Short & Medium, Active Voice', confidence: 85 },
     { label: 'Personality', value: 'Thought Leader, Data-Driven', confidence: 78 },
 ];
+
+function parseCommaTags(str) {
+    if (str == null || typeof str !== 'string') return [];
+    return str.split(',').map((s) => s.trim()).filter(Boolean);
+}
+
+function serializeCommaTags(items) {
+    return items.join(', ');
+}
+
+/**
+ * One row of comma-separated values shown as removable capsules; still saves as a single comma-separated string.
+ */
+function CommaCapsuleField({ value, onChange, placeholder, icon: Icon, id }) {
+    const inputRef = useRef(null);
+    const [draft, setDraft] = useState('');
+    const tags = useMemo(() => parseCommaTags(value), [value]);
+
+    const commit = (next) => {
+        onChange(serializeCommaTags(next));
+    };
+
+    const pushUnique = (list, raw) => {
+        const t = raw.trim();
+        if (!t) return list;
+        if (list.some((x) => x.toLowerCase() === t.toLowerCase())) return list;
+        return [...list, t];
+    };
+
+    const addFromDraft = () => {
+        if (!draft.trim()) return;
+        commit(pushUnique(tags, draft));
+        setDraft('');
+    };
+
+    const onInputChange = (e) => {
+        const v = e.target.value;
+        if (v.includes(',')) {
+            const parts = v.split(',');
+            const completed = parts.slice(0, -1).map((p) => p.trim()).filter(Boolean);
+            const rest = parts[parts.length - 1] ?? '';
+            let next = [...tags];
+            for (const p of completed) {
+                next = pushUnique(next, p);
+            }
+            commit(next);
+            setDraft(rest);
+            return;
+        }
+        setDraft(v);
+    };
+
+    const onKeyDown = (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            addFromDraft();
+        } else if (e.key === 'Backspace' && draft === '' && tags.length > 0) {
+            e.preventDefault();
+            commit(tags.slice(0, -1));
+        }
+    };
+
+    const onBlur = () => {
+        if (draft.trim()) addFromDraft();
+    };
+
+    const removeAt = (index) => {
+        commit(tags.filter((_, i) => i !== index));
+    };
+
+    return (
+        <div className="relative">
+            <Icon className="w-[18px] h-[18px] text-[#666] shrink-0 absolute left-4 top-3.5 pointer-events-none z-[1]" aria-hidden />
+            <div
+                role="group"
+                className="min-h-[48px] w-full bg-[#111] border border-[#222] focus-within:border-[#E92A15]/50 focus-within:bg-[#1A1A1A] rounded-xl py-2 pl-12 pr-3 flex flex-wrap gap-2 items-center transition-all outline-none cursor-text"
+                onClick={() => inputRef.current?.focus()}
+            >
+                {tags.map((tag, i) => (
+                    <span
+                        key={`${tag}-${i}`}
+                        className="inline-flex items-center gap-1 max-w-full pl-2.5 pr-1 py-1 rounded-lg text-[13px] font-medium text-[#e5e5e5] bg-[#1a1a1a] border border-[#333] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+                        title={tag}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <span className="truncate max-w-[200px]">{tag}</span>
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                removeAt(i);
+                            }}
+                            className="p-0.5 rounded-md text-[#737373] hover:text-white hover:bg-[#2a2a2a] shrink-0"
+                            aria-label={`Remove ${tag}`}
+                        >
+                            <X className="w-3.5 h-3.5" strokeWidth={2.5} />
+                        </button>
+                    </span>
+                ))}
+                <input
+                    ref={inputRef}
+                    id={id}
+                    type="text"
+                    value={draft}
+                    onChange={onInputChange}
+                    onKeyDown={onKeyDown}
+                    onBlur={onBlur}
+                    placeholder={tags.length === 0 ? placeholder : 'Add another…'}
+                    className="flex-1 min-w-[140px] bg-transparent border-none outline-none text-white text-[14px] placeholder:text-[#555] py-1.5"
+                    autoComplete="off"
+                    onClick={(e) => e.stopPropagation()}
+                />
+            </div>
+        </div>
+    );
+}
 
 export default function BrandHubPage({ user: userProp, authUserId }) {
     const [user, setUser] = useState(null);
@@ -239,30 +355,30 @@ export default function BrandHubPage({ user: userProp, authUserId }) {
                     {/* Profile Fields Grid */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-6">
                         <div className="flex flex-col gap-2">
-                            <label className="text-[#666] text-[10px] font-bold uppercase tracking-[0.15em] ml-1">Industry</label>
-                            <div className="relative">
-                                <Building2 className="w-[18px] h-[18px] text-[#666] flex-shrink-0 absolute left-4 top-1/2 -translate-y-1/2" />
-                                <input 
-                                    value={profileData.industry}
-                                    onChange={(e) => setProfileData(prev => ({ ...prev, industry: e.target.value }))}
-                                    placeholder="Real Estate"
-                                    className="w-full bg-[#111] border border-[#222] focus:border-[#E92A15]/50 focus:bg-[#1A1A1A] outline-none text-white text-[14px] placeholder:text-[#555] rounded-xl py-3 pl-12 pr-4 transition-all"
-                                />
-                            </div>
+                            <label htmlFor="brandhub-industry" className="text-[#666] text-[10px] font-bold uppercase tracking-[0.15em] ml-1">Industry</label>
+                            <CommaCapsuleField
+                                id="brandhub-industry"
+                                icon={Building2}
+                                placeholder="e.g. SaaS, Real Estate"
+                                value={profileData.industry}
+                                onChange={(next) => setProfileData((prev) => ({ ...prev, industry: next }))}
+                            />
                         </div>
 
                         <div className="flex flex-col gap-2">
-                            <label className="text-[#666] text-[10px] font-bold uppercase tracking-[0.15em] ml-1">Target Audience</label>
-                            <div className="relative">
-                                <Target className="w-[18px] h-[18px] text-[#666] flex-shrink-0 absolute left-4 top-1/2 -translate-y-1/2" />
-                                <input 
-                                    value={profileData.target_audience}
-                                    onChange={(e) => setProfileData(prev => ({ ...prev, target_audience: e.target.value }))}
-                                    placeholder="e.g. Startup founders, CTOs, Marketers"
-                                    className="w-full bg-[#111] border border-[#222] focus:border-[#E92A15]/50 focus:bg-[#1A1A1A] outline-none text-white text-[14px] placeholder:text-[#555] rounded-xl py-3 pl-12 pr-4 transition-all"
-                                />
-                            </div>
+                            <label htmlFor="brandhub-audience" className="text-[#666] text-[10px] font-bold uppercase tracking-[0.15em] ml-1">Target Audience</label>
+                            <CommaCapsuleField
+                                id="brandhub-audience"
+                                icon={Target}
+                                placeholder="e.g. Startup founders, CTOs, SMB owners"
+                                value={profileData.target_audience}
+                                onChange={(next) => setProfileData((prev) => ({ ...prev, target_audience: next }))}
+                            />
                         </div>
+
+                        <p className="md:col-span-2 text-[10px] text-[#555] -mt-1 mb-0 ml-1 leading-relaxed">
+                            Type and use commas or Enter — each value becomes its own capsule. Case-insensitive duplicates are skipped.
+                        </p>
 
                         <div className="flex flex-col gap-2">
                             <label className="text-[#666] text-[10px] font-bold uppercase tracking-[0.15em] ml-1">Location</label>

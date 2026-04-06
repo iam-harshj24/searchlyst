@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
     Terminal,
-    ChevronDown, Link2, Check, MessageSquare, Copy, Search, AlertCircle,
+    ChevronDown, Link2, Check, MessageSquare, Copy, AlertCircle,
     ArrowLeft, ChevronRight,
 } from 'lucide-react';
-import { GeminiLogo, PerplexityLogo } from '../landing/AILogos';
-import { SentimentTriGauge } from '@/components/ui/SentimentTriGauge';
+import { ChatGPTLogo, GeminiLogo, PerplexityLogo } from '../landing/AILogos';
+import { SentimentPercentDisplay } from '@/components/ui/SentimentTriGauge';
+import { promptPreview } from '@/lib/promptPreview';
 
 function getVisibilityData(domain, projectId) {
     try {
@@ -55,7 +56,11 @@ function safeIsoDay(val) {
 }
 
 const ENGINE_ORDER = ['perplexity', 'gemini', 'googleAI'];
-const ENGINE_LABELS = { perplexity: 'Perplexity', gemini: 'Gemini', googleAI: 'Google Search' };
+const ENGINE_LABELS = { perplexity: 'Perplexity', gemini: 'Gemini', googleAI: 'ChatGPT' };
+/** Search / SERP-style answers (primary in the detail modal). */
+const ENGINE_ORDER_AI_SEARCH = ['perplexity', 'googleAI'];
+/** Chat LLM answers — selector + glimpse; expand for full text, URLs, and mentions. */
+const ENGINE_ORDER_LLM = ['gemini'];
 
 function engineRowHasResponse(e) {
     if (!e || typeof e !== 'object') return false;
@@ -158,9 +163,7 @@ function EngineIconBadge({ engineKey, hasResponse, brandMentioned }) {
         >
             {engineKey === 'perplexity' && <PerplexityLogo className={iconCls} />}
             {engineKey === 'gemini' && <GeminiLogo className={iconCls} />}
-            {engineKey === 'googleAI' && (
-                <Search className={`${iconCls} text-sky-300`} strokeWidth={2.25} aria-hidden />
-            )}
+            {engineKey === 'googleAI' && <ChatGPTLogo className={iconCls} />}
         </div>
     );
 }
@@ -213,7 +216,7 @@ function EngineResponseCard({ engineKey, data }) {
                     <Check className="w-3.5 h-3.5 shrink-0" strokeWidth={2.5} />
                     Brand Mentioned
                 </span>
-                <SentimentTriGauge label={sentimentRaw} size="sm" className="shrink-0" />
+                <SentimentPercentDisplay label={sentimentRaw} size="sm" className="shrink-0" align="end" />
             </div>
             <div className="px-3 py-2 flex-1 flex flex-col min-h-0">
                 <div className="flex items-center gap-1.5 text-[10px] font-bold text-[#5a5a5a] uppercase tracking-wider mb-1.5">
@@ -302,7 +305,7 @@ function collectMentionLabels(prompt, brandName, domain) {
 }
 
 function firstBrandSnippet(prompt) {
-    for (const ek of ENGINE_ORDER) {
+    for (const ek of [...ENGINE_ORDER_AI_SEARCH, ...ENGINE_ORDER_LLM]) {
         const sn = String(prompt.engines?.[ek]?.snippet || '').trim();
         if (sn) return sn;
     }
@@ -311,12 +314,176 @@ function firstBrandSnippet(prompt) {
 
 function buildAllResponsesPlain(prompt) {
     const parts = [];
-    for (const ek of ENGINE_ORDER) {
+    const order = [...ENGINE_ORDER_AI_SEARCH, ...ENGINE_ORDER_LLM];
+    for (const ek of order) {
         const label = ENGINE_LABELS[ek] || ek;
         const body = String(prompt.engines?.[ek]?.rawText || prompt.engines?.[ek]?.snippet || '').trim();
         if (body) parts.push(`--- ${label} ---\n\n${body}`);
     }
     return parts.join('\n\n') || '—';
+}
+
+function LlmResponsesSubsection({ prompt }) {
+    const [selected, setSelected] = useState(ENGINE_ORDER_LLM[0]);
+    const [expanded, setExpanded] = useState(false);
+
+    useEffect(() => {
+        setExpanded(false);
+        const firstWith = ENGINE_ORDER_LLM.find((k) => engineRowHasResponse(prompt.engines?.[k]));
+        setSelected(firstWith || ENGINE_ORDER_LLM[0]);
+    }, [prompt]);
+
+    const data = prompt.engines?.[selected];
+    const cites = Array.isArray(data?.citations) ? data.citations.filter(isValidCitation) : [];
+    const n = citationCountEngine(data);
+    let body = String(data?.rawText || data?.snippet || '').trim();
+    if (!body && n > 0) {
+        body = 'Sources were extracted but answer text was not stored. Re-scan to capture full text.';
+    }
+    const hasResp = engineRowHasResponse(data);
+    const mentionSnip = String(data?.snippet || '').trim();
+    const sentimentRaw = data?.sentiment && data.sentiment !== 'n/a' ? String(data.sentiment) : 'neutral';
+
+    return (
+        <div className="rounded-xl border border-[#2a2a2a] bg-[#0c0c0c] p-3 sm:p-4 space-y-3">
+            <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#5c5c5c] mb-2">LLM (chat)</p>
+                <div className="flex flex-wrap gap-2">
+                    {ENGINE_ORDER_LLM.map((ek) => {
+                        const row = prompt.engines?.[ek];
+                        const active = ek === selected;
+                        const ok = engineRowHasResponse(row);
+                        return (
+                            <button
+                                key={ek}
+                                type="button"
+                                onClick={() => {
+                                    setSelected(ek);
+                                    setExpanded(false);
+                                }}
+                                className={`inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left transition-colors ${
+                                    active
+                                        ? 'border-[#E92A15]/55 bg-[#1a0a08] shadow-[0_0_0_1px_rgba(233,42,21,0.12)]'
+                                        : 'border-[#333] bg-[#111] hover:border-[#444]'
+                                }`}
+                            >
+                                <EngineIconBadge
+                                    engineKey={ek}
+                                    hasResponse={ok}
+                                    brandMentioned={!!row?.mentioned}
+                                />
+                                <span className={`text-[12px] font-medium ${active ? 'text-white' : 'text-[#a3a3a3]'}`}>
+                                    {ENGINE_LABELS[ek] || ek}
+                                </span>
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+
+            <div className="rounded-lg border border-[#262626] bg-[#080808] px-3 py-2.5">
+                {!hasResp ? (
+                    <p className="text-[12px] text-[#666]">No stored response for this model.</p>
+                ) : (
+                    <>
+                        <p className="text-[10px] font-bold text-[#5a5a5a] uppercase tracking-wider mb-1.5">Glimpse</p>
+                        <div className="text-[12px] text-[#c4c4c4] leading-relaxed whitespace-pre-wrap line-clamp-3">
+                            {body || '—'}
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setExpanded((e) => !e)}
+                            className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-[#E92A15] hover:text-[#ff5c44]"
+                        >
+                            {expanded ? (
+                                <>
+                                    Collapse
+                                    <ChevronDown className="w-3.5 h-3.5 rotate-180" strokeWidth={2.25} aria-hidden />
+                                </>
+                            ) : (
+                                <>
+                                    Expand for full answer, URLs &amp; mentions
+                                    <ChevronDown className="w-3.5 h-3.5" strokeWidth={2.25} aria-hidden />
+                                </>
+                            )}
+                        </button>
+
+                        {expanded && (
+                            <div className="mt-4 pt-4 border-t border-[#262626] space-y-4">
+                                <div>
+                                    <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#737373] mb-1.5">Full response</p>
+                                    <div className="max-h-[min(52vh,320px)] overflow-y-auto rounded-lg bg-[#060606] border border-[#1c1c1c] px-2.5 py-2 text-[12px] text-[#c4c4c4] leading-relaxed whitespace-pre-wrap">
+                                        {body || '—'}
+                                    </div>
+                                </div>
+                                <div>
+                                    <div className="flex items-center justify-between mb-2 gap-2">
+                                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-[#5a5a5a] uppercase tracking-wider">
+                                            <Link2 className="w-3 h-3" />
+                                            URLs &amp; citations
+                                        </div>
+                                        <span className="text-[10px] font-bold text-emerald-400 tabular-nums">{n} cited</span>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1.5 max-h-[140px] overflow-y-auto custom-scrollbar">
+                                        {cites.length === 0 ? (
+                                            <span className="text-[10px] text-[#555]">None extracted for this model</span>
+                                        ) : (
+                                            cites.map((c, i) => {
+                                                const href = safeCitationHref(c.url) || (c.domain ? safeCitationHref(`https://${String(c.domain).replace(/^www\./, '')}`) : null);
+                                                const labelText = citationHostLabel(c);
+                                                if (!href) {
+                                                    return (
+                                                        <span
+                                                            key={i}
+                                                            className="text-[10px] px-2 py-1 rounded-md bg-[#141414] border border-[#2a2a2a] text-[#737373] max-w-full truncate inline-block"
+                                                            title="Source present but URL was not valid for linking"
+                                                        >
+                                                            {labelText}
+                                                        </span>
+                                                    );
+                                                }
+                                                return (
+                                                    <a
+                                                        key={i}
+                                                        href={href}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        className="text-[10px] px-2 py-1 rounded-md bg-[#141414] border border-[#2a2a2a] text-[#ececec] hover:border-emerald-500/35 max-w-full truncate inline-block"
+                                                    >
+                                                        {labelText}
+                                                    </a>
+                                                );
+                                            })
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="space-y-3">
+                                    <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#737373]">Mentions</p>
+                                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                                        <span
+                                            className={`flex items-center gap-1.5 text-[11px] font-semibold ${data?.mentioned ? 'text-emerald-400' : 'text-[#555]'}`}
+                                        >
+                                            <Check className="w-3.5 h-3.5 shrink-0" strokeWidth={2.5} />
+                                            Brand mentioned
+                                        </span>
+                                        <SentimentPercentDisplay label={sentimentRaw} size="sm" className="shrink-0" align="end" />
+                                    </div>
+                                    {mentionSnip && (
+                                        <div>
+                                            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#737373] mb-1.5">Mention snippet</p>
+                                            <div className="rounded-lg bg-[#060606] border border-[#1c1c1c] px-2.5 py-2 text-[12px] text-[#c4c4c4] leading-relaxed whitespace-pre-wrap">
+                                                {mentionSnip}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </>
+                )}
+            </div>
+        </div>
+    );
 }
 
 function PromptDetailModal({ prompt, displayId, user, scanScannedAt, onClose }) {
@@ -332,7 +499,6 @@ function PromptDetailModal({ prompt, displayId, user, scanScannedAt, onClose }) 
     const runDay = formatDetailDate(prompt.runDate || scanScannedAt);
     const mentionLabels = collectMentionLabels(prompt, brandName, user?.domain);
     const snippet = firstBrandSnippet(prompt);
-    const totalCites = totalCitationsPrompt(prompt);
 
     const showToast = useCallback((msg) => {
         setToast(msg);
@@ -455,8 +621,22 @@ function PromptDetailModal({ prompt, displayId, user, scanScannedAt, onClose }) 
                     </div>
 
                     <div className="flex flex-wrap items-center gap-3 text-[12px] text-[#a3a3a3]">
-                        <div className="flex items-center gap-1.5 rounded-full border border-[#2a2a2a] bg-[#0a0a0a] px-2 py-1">
-                            {ENGINE_ORDER.map((ek) => {
+                        <div className="flex flex-wrap items-center gap-1.5 rounded-full border border-[#2a2a2a] bg-[#0a0a0a] px-2 py-1">
+                            {ENGINE_ORDER_AI_SEARCH.map((ek) => {
+                                const row = prompt.engines?.[ek];
+                                return (
+                                    <EngineIconBadge
+                                        key={ek}
+                                        engineKey={ek}
+                                        hasResponse={engineRowHasResponse(row)}
+                                        brandMentioned={!!row?.mentioned}
+                                    />
+                                );
+                            })}
+                            <span className="text-[#333] px-0.5 select-none" aria-hidden>
+                                |
+                            </span>
+                            {ENGINE_ORDER_LLM.map((ek) => {
                                 const row = prompt.engines?.[ek];
                                 return (
                                     <EngineIconBadge
@@ -520,47 +700,21 @@ function PromptDetailModal({ prompt, displayId, user, scanScannedAt, onClose }) 
                         </div>
                     )}
 
-                    <div>
-                        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#737373] mb-3">Responses</p>
-                        <div className="grid grid-cols-1 gap-3">
-                            {ENGINE_ORDER.map((ek) => (
-                                <EngineResponseCard key={ek} engineKey={ek} data={prompt.engines?.[ek]} />
-                            ))}
+                    <div className="space-y-4">
+                        <div>
+                            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#737373] mb-2">
+                                AI search responses
+                            </p>
+                            <p className="text-[11px] text-[#666] mb-3">
+                                Answers from search-style engines (Perplexity, Google). Citations are listed on each card.
+                            </p>
+                            <div className="grid grid-cols-1 gap-3">
+                                {ENGINE_ORDER_AI_SEARCH.map((ek) => (
+                                    <EngineResponseCard key={ek} engineKey={ek} data={prompt.engines?.[ek]} />
+                                ))}
+                            </div>
                         </div>
-                    </div>
-
-                    <div className="pb-2">
-                        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#737373] mb-2">
-                            Sources ({totalCites} citation{totalCites !== 1 ? 's' : ''} across engines)
-                        </p>
-                        <div className="flex flex-wrap gap-2 max-h-[140px] overflow-y-auto custom-scrollbar rounded-xl border border-[#262626] bg-[#0a0a0a] p-3">
-                            {ENGINE_ORDER.flatMap((ek) => {
-                                const cites = Array.isArray(prompt.engines?.[ek]?.citations) ? prompt.engines[ek].citations.filter(isValidCitation) : [];
-                                return cites.map((c, i) => {
-                                    const href = safeCitationHref(c.url) || (c.domain ? safeCitationHref(`https://${String(c.domain).replace(/^www\./, '')}`) : null);
-                                    const labelText = citationHostLabel(c);
-                                    if (!href) {
-                                        return (
-                                            <span key={`${ek}-${i}`} className="text-[10px] px-2 py-1 rounded-md bg-[#141414] border border-[#2a2a2a] text-[#737373]">
-                                                {labelText}
-                                            </span>
-                                        );
-                                    }
-                                    return (
-                                        <a
-                                            key={`${ek}-${i}`}
-                                            href={href}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            className="text-[10px] px-2 py-1 rounded-md bg-[#141414] border border-[#2a2a2a] text-[#ececec] hover:border-emerald-500/35"
-                                        >
-                                            {labelText}
-                                        </a>
-                                    );
-                                });
-                            })}
-                            {totalCites === 0 && <span className="text-[12px] text-[#555]">No linked sources in this scan.</span>}
-                        </div>
+                        <LlmResponsesSubsection prompt={prompt} />
                     </div>
                 </div>
             </div>
@@ -617,7 +771,7 @@ export default function PromptIntelPage({ user, scanManager }) {
                         <h1 className="text-[19px] font-semibold text-white tracking-tight">Prompt Intelligence</h1>
                         <p className="text-[#666] text-[13px] mt-0.5">
                             {hasData
-                                ? `${allPrompts.length} prompts · ${totalEngineResponses} engine responses across Perplexity, Gemini & Google Search`
+                                ? `${allPrompts.length} prompts · ${totalEngineResponses} engine responses — search engines (Perplexity, Google) are primary in details; Gemini is under LLM`
                                 : 'Run a visibility scan to see per-prompt AI responses and citations'}
                         </p>
                     </div>
@@ -629,7 +783,7 @@ export default function PromptIntelPage({ user, scanManager }) {
                     <div className="px-5 py-4 border-b border-[#262626] bg-[#0a0a0a]">
                         <h3 className="text-white font-semibold text-[14px] tracking-tight">Prompt matrix</h3>
                         <p className="text-[#666] text-[11px] mt-1">
-                            {allPrompts.length} prompt{allPrompts.length !== 1 ? 's' : ''} from your latest stored scan. Click a row to open full details, responses, and citations.
+                            {allPrompts.length} prompt{allPrompts.length !== 1 ? 's' : ''} from your latest stored scan. Click a row for AI search responses first; LLM (Gemini) uses a compact selector with expand for URLs and mentions.
                             Source counts list only entries with a valid URL or domain. Blue = response received · Green = brand mentioned.
                         </p>
                     </div>
@@ -646,10 +800,23 @@ export default function PromptIntelPage({ user, scanManager }) {
                                         <th className="py-3 pl-4 pr-2 text-[10px] font-semibold text-[#737373] uppercase tracking-wider w-14">#</th>
                                         <th className="py-3 px-3 text-[10px] font-semibold text-[#737373] uppercase tracking-wider">Prompt</th>
                                         <th
-                                            className="py-3 px-2 text-[10px] font-semibold text-[#737373] uppercase tracking-wider text-center whitespace-nowrap"
-                                            title="Perplexity, Gemini, and Google Search — blue: answer or sources stored; green: brand mentioned"
+                                            className="py-3 px-2 text-[10px] font-semibold text-[#737373] uppercase tracking-wider text-center whitespace-nowrap align-bottom"
+                                            title="Perplexity, ChatGPT (search), Gemini — blue: answer or sources stored; green: brand mentioned"
                                         >
-                                            Engines
+                                            <div className="flex flex-col items-center gap-2">
+                                                <span>Engines</span>
+                                                <div className="flex items-center justify-center gap-1.5">
+                                                    <span className="w-7 h-7 rounded-md bg-[#141414] border border-[#2a2a2a] flex items-center justify-center" title="Perplexity">
+                                                        <PerplexityLogo className="w-[15px] h-[15px] object-contain" />
+                                                    </span>
+                                                    <span className="w-7 h-7 rounded-md bg-[#141414] border border-[#2a2a2a] flex items-center justify-center" title="ChatGPT">
+                                                        <ChatGPTLogo className="w-[15px] h-[15px] text-white" />
+                                                    </span>
+                                                    <span className="w-7 h-7 rounded-md bg-[#141414] border border-[#2a2a2a] flex items-center justify-center" title="Gemini">
+                                                        <GeminiLogo className="w-[15px] h-[15px] text-white" />
+                                                    </span>
+                                                </div>
+                                            </div>
                                         </th>
                                         <th className="py-3 px-2 text-[10px] font-semibold text-[#737373] uppercase tracking-wider text-center whitespace-nowrap">
                                             Visibility
@@ -667,6 +834,7 @@ export default function PromptIntelPage({ user, scanManager }) {
                                         const rowKey = p.promptId || `${i}-${String(p.query || p.prompt || '').slice(0, 24)}`;
                                         const displayId = promptDisplayId(i);
                                         const qtext = String(p.query || p.prompt || '—');
+                                        const qPrev = promptPreview(qtext);
                                         const openDetail = () => setDetailModal({ prompt: p, displayId, rowKey });
                                         return (
                                             <tr
@@ -678,8 +846,11 @@ export default function PromptIntelPage({ user, scanManager }) {
                                                     {displayId}
                                                 </td>
                                                 <td className="py-3 px-3 align-middle max-w-[min(520px,52vw)]">
-                                                    <p className="text-[13px] text-[#e5e5e5] truncate" title={qtext}>
-                                                        {qtext}
+                                                    <p
+                                                        className={`text-[13px] text-[#e5e5e5] truncate ${qPrev.truncated ? 'cursor-help' : ''}`}
+                                                        title={qPrev.truncated ? qPrev.full : undefined}
+                                                    >
+                                                        {qPrev.display}
                                                     </p>
                                                 </td>
                                                 <td className="py-3 px-2 align-middle">

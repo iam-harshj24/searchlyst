@@ -504,7 +504,7 @@ function DashboardInner() {
             case 'ai-visibility':
                 return <AIVisibilityPage user={contextUser} scanManager={scanManager} onTabChange={setActiveTab} />;
             case 'competitive-intel':
-                return <CompetitiveIntelPage user={contextUser} onTabChange={setActiveTab} />;
+                return <CompetitiveIntelPage user={contextUser} scanManager={scanManager} onTabChange={setActiveTab} />;
             case 'competitors':
                 return <CompetitorsPage user={contextUser} onTabChange={setActiveTab} />;
             case 'sentiment-geo':
