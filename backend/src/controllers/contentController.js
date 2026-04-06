@@ -34,6 +34,7 @@ export async function listContent(req, res) {
                 platform: c.platform,
                 status: c.status,
                 date: formatDate(c.created_at),
+                createdAt: c.created_at ? new Date(c.created_at).toISOString() : null,
                 article: article || { title: c.title, content: '' },
             };
         });
