@@ -257,6 +257,19 @@ export const apiClient = {
     }
   },
 
+  // Admin methods
+  admin: {
+    async getOverview() {
+      return apiClient.get('/admin/overview');
+    },
+    async getUsers() {
+      return apiClient.get('/admin/users');
+    },
+    async getContents() {
+      return apiClient.get('/admin/contents');
+    }
+  },
+
   // Project management methods
   projects: {
     async list() {

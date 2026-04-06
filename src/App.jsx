@@ -10,9 +10,16 @@ import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import AdminProtectedRoute from '@/components/AdminProtectedRoute';
-import AdminPanel from '@/pages/AdminPanel';
+import AdminOverview from '@/pages/admin/AdminOverview';
+import AdminUsers from '@/pages/admin/AdminUsers';
+import AdminBlogs from '@/pages/admin/AdminBlogs';
+import AdminWaitlist from '@/pages/admin/AdminWaitlist';
 import AdminLayout from '@/pages/admin/AdminLayout';
 import BulkUploadPage from '@/pages/admin/BulkUploadPage';
+import AdminContentAnalytics from '@/pages/admin/AdminContentAnalytics';
+import AdminDemographics from '@/pages/admin/AdminDemographics';
+import AdminTelemetry from '@/pages/admin/AdminTelemetry';
+import AdminAcquisition from '@/pages/admin/AdminAcquisition';
 import Dashboard from '@/pages/Dashboard';
 import Login from '@/pages/Login';
 
@@ -61,7 +68,6 @@ const AuthenticatedApp = () => {
       {/* Dashboard Route - Protected */}
       <Route path="/Dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       
-      {/* Admin Panel Routes - Admin only */}
       <Route
         path="/AdminPanel"
         element={
@@ -70,8 +76,17 @@ const AuthenticatedApp = () => {
           </AdminProtectedRoute>
         }
       >
-        <Route index element={<AdminPanel />} />
+        <Route index element={<AdminOverview />} />
+        <Route path="users" element={<AdminUsers />} />
+        <Route path="blogs" element={<AdminBlogs />} />
+        <Route path="waitlist" element={<AdminWaitlist />} />
         <Route path="bulk-upload" element={<BulkUploadPage />} />
+        
+        {/* Elite Analytics Routes */}
+        <Route path="content-intelligence" element={<AdminContentAnalytics />} />
+        <Route path="firmographics" element={<AdminDemographics />} />
+        <Route path="telemetry" element={<AdminTelemetry />} />
+        <Route path="acquisition" element={<AdminAcquisition />} />
       </Route>
       
       {/* Other Pages */}
