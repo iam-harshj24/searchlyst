@@ -6,7 +6,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { apiClient } from '@/api/apiClient';
 import ReactMarkdown from 'react-markdown';
-import { copyMarkdownToClipboard, copyPlainTextToClipboard, markdownToPlainClean, stripPasteMetaNoise } from '@/lib/copyRichMarkdown';
+import { copyMarkdownToClipboard, stripPasteMetaNoise } from '@/lib/copyRichMarkdown';
+
+/** Fix models that double-escape newlines inside JSON "content". */
+function normalizeBodyContent(str) {
+    if (typeof str !== 'string') return str;
+    return str.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n').replace(/\\t/g, '\t');
+}
 
 // Keep existing util functions
 function normalizeArticle(article, topic) {
@@ -28,7 +34,14 @@ function normalizeArticle(article, topic) {
             const parsed = JSON.parse(cleanStr);
             return normalizeArticle(parsed, topic);
         } catch {
-            return { title: topic, content: article, sources: [], faq: [], keyTakeaways: [], suggestedKeywords: [] };
+            return {
+                title: topic,
+                content: normalizeBodyContent(typeof article === 'string' ? article : ''),
+                sources: [],
+                faq: [],
+                keyTakeaways: [],
+                suggestedKeywords: [],
+            };
         }
     }
     
@@ -46,7 +59,7 @@ function normalizeArticle(article, topic) {
         title: article.title || topic,
         metaDescription: article.metaDescription,
         keyTakeaways: article.keyTakeaways || [],
-        content: article.content || '',
+        content: normalizeBodyContent(article.content || ''),
         faq: article.faq || [],
         sources: article.sources || [],
         suggestedKeywords: article.suggestedKeywords || [],
@@ -58,15 +71,6 @@ function normalizeArticle(article, topic) {
 
 function getArticleFromItem(item) {
     return item?.article || (item?.content ? { title: item.title, content: item.content, sources: item.sources || [], faq: item.faq || [], keyTakeaways: item.keyTakeaways || [], suggestedKeywords: item.suggestedKeywords || [], discoverabilityNotes: item.discoverabilityNotes || [], metaDescription: item.metaDescription } : null);
-}
-
-function platformKindFromTabId(tabId) {
-    return ['linkedin', 'twitter', 'instagram', 'reddit'].includes(tabId) ? 'social' : 'longform';
-}
-
-function platformKindFromName(name) {
-    const social = ['LinkedIn Post', 'X / Twitter Thread', 'Instagram Caption', 'Reddit / Quora'];
-    return social.includes(name) ? 'social' : 'longform';
 }
 
 /** Blog / newsletter: Markdown export for CMS + rich copy. */
@@ -104,34 +108,20 @@ function buildLongformMarkdownExport(article) {
     return lines.join('\n').trim();
 }
 
-/** Social: plain paste-ready body only (AEO/GEO data lives in JSON, not shown here). */
-function buildSocialPlainExport(article) {
+function buildExportDraftForArticle(article) {
     if (!article) return '';
-    let c = (article.content || '').trim();
-    if (/[*_`#]/.test(c)) c = markdownToPlainClean(c);
-    return stripPasteMetaNoise(c);
+    return buildLongformMarkdownExport(article);
 }
 
-function buildExportDraftForArticle(article, kind) {
-    if (!article) return '';
-    return kind === 'social' ? buildSocialPlainExport(article) : buildLongformMarkdownExport(article);
-}
-
-function ContentExportPanel({ value, onChange, variant }) {
+function ContentExportPanel({ value, onChange }) {
     const [tab, setTab] = useState('preview');
-    const isLongform = variant === 'longform';
 
     return (
         <div className="p-4 sm:p-6 space-y-4">
             <p className="text-[#888] text-[12px] leading-relaxed">
-                {isLongform ? (
-                    <>Preview shows formatted article. Switch to Markdown to edit. Copy uses rich formatting for Word / CMS where supported.</>
-                ) : (
-                    <>This is the exact text to paste into your social app — no markdown symbols. Edit if needed, then Copy.</>
-                )}
+                Preview shows formatted content. Switch to Markdown to edit. Copy uses rich formatting for Word / CMS and social schedulers that accept Markdown — same workflow for blog, email, LinkedIn, X, Instagram, and Reddit/Quora.
             </p>
-            {isLongform && (
-                <div className="flex gap-1 p-1 bg-[#111] border border-[#333] rounded-lg w-fit">
+            <div className="flex gap-1 p-1 bg-[#111] border border-[#333] rounded-lg w-fit">
                     <button
                         type="button"
                         onClick={() => setTab('preview')}
@@ -147,8 +137,7 @@ function ContentExportPanel({ value, onChange, variant }) {
                         Markdown
                     </button>
                 </div>
-            )}
-            {isLongform && tab === 'preview' ? (
+            {tab === 'preview' ? (
                 <div
                     className="min-h-[min(60vh,480px)] max-h-[min(70vh,560px)] overflow-y-auto rounded-xl border border-[#333] bg-[#0B0B0B] px-6 py-5 prose prose-invert max-w-none text-[#ccc] leading-relaxed text-[15px]
                     [&_h1]:text-[26px] [&_h1]:font-bold [&_h1]:text-white [&_h1]:mb-4
@@ -163,8 +152,8 @@ function ContentExportPanel({ value, onChange, variant }) {
                     value={value}
                     onChange={(e) => onChange(e.target.value)}
                     spellCheck
-                    className={`w-full min-h-[min(60vh,480px)] resize-y rounded-xl border border-[#333] bg-[#0B0B0B] px-4 py-3 text-[15px] leading-relaxed text-[#e5e5e5] placeholder:text-[#555] focus:border-[#555] focus:outline-none focus:ring-1 focus:ring-[#444] ${isLongform ? 'font-mono text-[13px]' : 'font-sans'}`}
-                    aria-label={isLongform ? 'Markdown source' : 'Post text'}
+                    className="w-full min-h-[min(60vh,480px)] resize-y rounded-xl border border-[#333] bg-[#0B0B0B] px-4 py-3 text-[13px] font-mono leading-relaxed text-[#e5e5e5] placeholder:text-[#555] focus:border-[#555] focus:outline-none focus:ring-1 focus:ring-[#444]"
+                    aria-label="Markdown source"
                 />
             )}
         </div>
@@ -255,8 +244,7 @@ export default function ContentStudioPage({ user }) {
 
     useEffect(() => {
         if (step === 4 && activeTab && generatedContent[activeTab]) {
-            const kind = platformKindFromTabId(activeTab);
-            setExportDraft(buildExportDraftForArticle(generatedContent[activeTab], kind));
+            setExportDraft(buildExportDraftForArticle(generatedContent[activeTab]));
         }
     }, [step, activeTab, generatedContent]);
 
@@ -264,8 +252,7 @@ export default function ContentStudioPage({ user }) {
         if (!selectedLibraryItem?.id) return;
         const art = getArticleFromItem(selectedLibraryItem);
         if (!art) return;
-        const kind = platformKindFromName(selectedLibraryItem.platform || '');
-        setLibExportDraft(buildExportDraftForArticle(art, kind));
+        setLibExportDraft(buildExportDraftForArticle(art));
     }, [selectedLibraryItem]);
 
     useEffect(() => {
@@ -340,10 +327,9 @@ export default function ContentStudioPage({ user }) {
         setStep(4); // Review State
     };
 
-    const handleCopy = async (text, id, mode) => {
+    const handleCopy = async (text, id) => {
         try {
-            if (mode === 'social') await copyPlainTextToClipboard(text);
-            else await copyMarkdownToClipboard(text);
+            await copyMarkdownToClipboard(text);
         } catch {
             try {
                 await navigator.clipboard.writeText(stripPasteMetaNoise((text || '').trim()));
@@ -404,7 +390,7 @@ export default function ContentStudioPage({ user }) {
                     </div>
                     <div>
                         <h1 className="text-[19px] font-semibold text-white tracking-tight">Content Studio</h1>
-                        <p className="text-[#888] text-[13px] mt-0.5">Blog &amp; email: formatted preview + Markdown. Social: plain paste-ready copy. AEO/GEO structured in the model. Brand Hub when you attach context.</p>
+                        <p className="text-[#888] text-[13px] mt-0.5">Every format — blog, email newsletter, LinkedIn, X, Instagram, Reddit/Quora — uses the same Preview + Markdown flow and CMS-style copy as the blog. AEO/GEO blocks in the model. Brand Hub when you attach context.</p>
                     </div>
                 </div>
                 <div className="flex items-center bg-[#111] border border-[#222] rounded-full p-1.5">
@@ -428,8 +414,8 @@ export default function ContentStudioPage({ user }) {
                                 <div className="p-5 border-b border-[#222] flex items-center justify-between bg-[#111]">
                                     <h3 className="text-white font-semibold text-[16px] truncate pr-4">{selectedLibraryItem.title}</h3>
                                     <div className="flex items-center gap-3 shrink-0">
-                                        <button onClick={() => handleCopy(libExportDraft, 'lib', platformKindFromName(selectedLibraryItem?.platform || '') === 'social' ? 'social' : 'longform')} className="px-4 py-2 text-[12px] font-medium text-white bg-[#1A1A1A] border border-[#333] hover:bg-[#222] rounded-xl transition-all">
-                                            {copied === 'lib' ? 'Copied!' : 'Copy'}
+                                        <button onClick={() => handleCopy(libExportDraft, 'lib')} className="px-4 py-2 text-[12px] font-medium text-white bg-[#1A1A1A] border border-[#333] hover:bg-[#222] rounded-xl transition-all">
+                                            {copied === 'lib' ? 'Copied!' : 'Copy for CMS'}
                                         </button>
                                         <button onClick={() => setSelectedLibraryItem(null)} className="px-4 py-2 text-[12px] font-medium text-white bg-[#E92A15] hover:bg-[#D12512] rounded-xl transition-all">
                                             Close
@@ -441,7 +427,6 @@ export default function ContentStudioPage({ user }) {
                                         key={selectedLibraryItem?.id}
                                         value={libExportDraft}
                                         onChange={setLibExportDraft}
-                                        variant={platformKindFromName(selectedLibraryItem?.platform || '') === 'social' ? 'social' : 'longform'}
                                     />
                                 </div>
                             </div>
@@ -753,7 +738,9 @@ export default function ContentStudioPage({ user }) {
                                     </div>
                                 </div>
                                 <h2 className="text-white font-bold text-[24px] mt-8 mb-2">Synthesizing Content...</h2>
-                                <p className="text-[#888] text-[15px] max-w-sm text-center leading-relaxed">Cross-referencing global AI engines and compiling inline citations optimized specifically for {selectedPlatforms[0]}.</p>
+                                <p className="text-[#888] text-[15px] max-w-sm text-center leading-relaxed">
+                                    Building Markdown-ready drafts for each selected format — same structure as blog (headings, FAQ block, discoverability notes) so Preview and Copy for CMS work everywhere.
+                                </p>
                             </div>
                         )}
 
@@ -820,9 +807,7 @@ export default function ContentStudioPage({ user }) {
                                                         <span className="text-white text-[14px] font-bold tracking-wide">{activeP?.name}</span>
                                                     </div>
                                                     <div className="w-1 h-1 rounded-full bg-[#444]"></div>
-                                                    <span className="text-[#888] text-[12px] font-medium">
-                                                        {platformKindFromTabId(activeTab) === 'social' ? 'Plain-text · paste-ready' : 'Markdown · CMS-ready'}
-                                                    </span>
+                                                    <span className="text-[#888] text-[12px] font-medium">Markdown · CMS-ready</span>
                                                     <div className="w-1 h-1 rounded-full bg-[#444]"></div>
                                                     <span className="text-[#888] text-[12px] font-medium">AEO / GEO</span>
                                                 </div>
@@ -830,8 +815,9 @@ export default function ContentStudioPage({ user }) {
                                                     <button onClick={handleGenerate} className="flex items-center gap-2 px-4 py-2 bg-transparent border border-[#333] hover:border-[#555] text-white rounded-lg text-[12px] font-semibold transition-all">
                                                         <Settings2 className="w-3.5 h-3.5" /> Regenerate
                                                     </button>
-                                                    <button onClick={() => handleCopy(exportDraft, activeTab, platformKindFromTabId(activeTab) === 'social' ? 'social' : 'longform')} className="flex items-center gap-2 px-4 py-2 bg-transparent border border-[#333] hover:border-[#555] text-white rounded-lg text-[12px] font-semibold transition-all">
-                                                        {copied === activeTab ? <Check className="w-3.5 h-3.5 text-[#00D26A]" /> : <Copy className="w-3.5 h-3.5" />} Copy
+                                                    <button onClick={() => handleCopy(exportDraft, activeTab)} className="flex items-center gap-2 px-4 py-2 bg-transparent border border-[#333] hover:border-[#555] text-white rounded-lg text-[12px] font-semibold transition-all">
+                                                        {copied === activeTab ? <Check className="w-3.5 h-3.5 text-[#00D26A]" /> : <Copy className="w-3.5 h-3.5" />}
+                                                        Copy for CMS
                                                     </button>
                                                     <button className="flex items-center gap-2 px-4 py-2 bg-[#E92A15] hover:bg-[#D12512] text-white rounded-lg text-[12px] font-semibold transition-all shadow-lg">
                                                         <Library className="w-3.5 h-3.5" /> Save to Library
@@ -843,7 +829,6 @@ export default function ContentStudioPage({ user }) {
                                                 key={activeTab}
                                                 value={exportDraft}
                                                 onChange={setExportDraft}
-                                                variant={platformKindFromTabId(activeTab) === 'social' ? 'social' : 'longform'}
                                             />
                                         </div>
                                     )

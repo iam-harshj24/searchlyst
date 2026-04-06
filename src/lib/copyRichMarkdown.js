@@ -44,6 +44,21 @@ export function stripPasteMetaNoise(plain) {
         .trim();
 }
 
+/**
+ * Final pass for social copy: remove internal citation brackets and tighten whitespace
+ * so pasted text matches what users expect in native apps.
+ */
+export function stripSocialPasteArtifacts(plain) {
+    let s = stripPasteMetaNoise(plain || '');
+    s = s.replace(/\s*\[Source:\s*[^\]\r\n]+\]/gi, '');
+    s = s.replace(/\n{3,}/g, '\n\n');
+    s = s
+        .split('\n')
+        .map((line) => line.replace(/[ \t]{2,}/g, ' ').trimEnd())
+        .join('\n');
+    return s.trim();
+}
+
 export function markdownToPlainClean(md) {
     const body = marked.parse(md || '', { async: false });
     const div = document.createElement('div');
@@ -82,6 +97,6 @@ export async function copyMarkdownToClipboard(markdown) {
 
 /** Social / plain-only paste (no HTML) — safest for LinkedIn, X, Instagram. */
 export async function copyPlainTextToClipboard(text) {
-    const t = stripPasteMetaNoise((text || '').trim());
+    const t = stripSocialPasteArtifacts((text || '').trim());
     await navigator.clipboard.writeText(t);
 }

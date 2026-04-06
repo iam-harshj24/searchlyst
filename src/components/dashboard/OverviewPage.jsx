@@ -445,9 +445,9 @@ export default function OverviewPage({ domains, activeProject, onAddDomain, onTa
                 </div>
             </div>
 
-            {/* Competitor Analysis — row-based grid (matches reference UI) */}
-            <div className="bg-[#000000] border border-[#262626] rounded-2xl overflow-hidden shadow-none">
-                <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-[#262626]">
+            {/* Competitor Analysis — full grayish panel */}
+            <div className="bg-[#161616] border border-[#333] rounded-2xl overflow-hidden shadow-none">
+                <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-[#2a2a2a] bg-[#181818]">
                     <h3 className="text-white text-[16px] font-semibold tracking-tight">Competitor Analysis</h3>
                     <button
                         type="button"
@@ -459,7 +459,7 @@ export default function OverviewPage({ domains, activeProject, onAddDomain, onTa
                     </button>
                 </div>
                 {projectList.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-12 gap-3 text-center px-5 border-t border-[#262626]">
+                    <div className="flex flex-col items-center justify-center py-12 gap-3 text-center px-5 border-t border-[#2a2a2a] bg-[#161616]">
                         <Folder className="w-10 h-10 text-[#444]" />
                         <p className="text-[#888] text-[13px] max-w-md">
                             Add a project to compare domains, visibility, open issues, and tracked competitors.
@@ -470,12 +470,11 @@ export default function OverviewPage({ domains, activeProject, onAddDomain, onTa
                         </button>
                     </div>
                 ) : (
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto bg-[#161616]">
                         <div
-                            className="min-w-[min(100%,720px)]"
+                            className="grid w-full min-w-0 bg-[#161616]"
                             style={{
-                                display: 'grid',
-                                gridTemplateColumns: `repeat(${projectList.length}, minmax(220px, 1fr))`,
+                                gridTemplateColumns: `repeat(${projectList.length}, minmax(0, 1fr))`,
                             }}
                         >
                             {projectList.map((p, colIdx) => {
@@ -490,78 +489,99 @@ export default function OverviewPage({ domains, activeProject, onAddDomain, onTa
                                 const visPct = projectVisibilityPercent(p);
                                 const issues = countAuditIssues(rawDomain || domainForLogo);
                                 const compN = countTrackedCompetitorsForProject(p, compsCount);
-                                const leftBorder = colIdx > 0 ? 'border-l border-[#1f1f1f]' : '';
+                                const leftBorder = colIdx > 0 ? 'border-l border-[#2a2a2a]' : '';
                                 const labelCls =
-                                    'text-[10px] uppercase tracking-[0.12em] text-[#888] font-semibold shrink-0';
-                                const rowInner = 'flex items-center justify-between gap-3 min-h-[52px] px-5 py-3.5';
+                                    'text-[10px] uppercase tracking-[0.14em] text-[#8a8a8a] font-semibold shrink-0';
+                                const rowInner =
+                                    'flex items-center justify-between gap-3 min-h-[48px] px-4 py-3 border-b border-[#2a2a2a] bg-[#1a1a1a]';
                                 const createdStr = formatProjectCreated(p);
 
                                 return (
-                                    <div key={pid ?? colIdx} className={`min-w-0 flex flex-col ${leftBorder}`}>
-                                        <div className="border-b border-[#1f1f1f] px-5 py-4">
-                                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-end sm:gap-4">
-                                                <div className="flex flex-col items-stretch sm:items-end gap-2 min-w-0 flex-1 w-full">
-                                                    <div className="flex items-start justify-end gap-2.5 w-full min-w-0">
-                                                        {domainForLogo ? (
-                                                            <CompetitorGridLogo domain={domainForLogo} />
-                                                        ) : null}
-                                                        <span
-                                                            className="text-white text-[15px] font-semibold leading-snug text-right break-all sm:max-w-[min(100%,14rem)]"
-                                                            title={domainDisplay}
-                                                        >
-                                                            {domainDisplay}
-                                                        </span>
-                                                    </div>
-                                                    {isActive ? (
-                                                        <span className="inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap self-end">
-                                                            <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.45)]" />
-                                                            <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wide">
-                                                                ACTIVE
-                                                            </span>
-                                                        </span>
-                                                    ) : null}
-                                                </div>
+                                    <div
+                                        key={pid ?? colIdx}
+                                        className={`min-w-0 flex flex-col bg-[#1a1a1a] ${leftBorder}`}
+                                    >
+                                        {/* DOMAIN label row — ACTIVE above domain name, top-right */}
+                                        <div className="flex items-start justify-between gap-2 px-4 pt-3.5 pb-2 border-b border-[#2a2a2a] min-h-[40px] bg-[#1a1a1a]">
+                                            <span className={labelCls}>Domain</span>
+                                            {isActive ? (
+                                                <span className="inline-flex items-center gap-1.5 shrink-0 translate-y-0.5">
+                                                    <span
+                                                        className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]"
+                                                        aria-hidden
+                                                    />
+                                                    <span className="text-[10px] font-bold text-white uppercase tracking-[0.08em]">
+                                                        Active
+                                                    </span>
+                                                </span>
+                                            ) : (
+                                                <span className="shrink-0 w-px" aria-hidden />
+                                            )}
+                                        </div>
+                                        {/* Favicon + domain — grey strip only for active column; equal column width, text truncates */}
+                                        <div
+                                            className={`border-b border-[#2a2a2a] px-4 py-3 min-h-[56px] flex items-center ${
+                                                isActive ? 'bg-[#252525]' : 'bg-[#1e1e1e]'
+                                            }`}
+                                        >
+                                            <div className="flex items-center gap-2.5 min-w-0 w-full">
+                                                {domainForLogo ? (
+                                                    <CompetitorGridLogo domain={domainForLogo} />
+                                                ) : null}
+                                                <span
+                                                    className="text-white text-[14px] font-semibold leading-snug truncate min-w-0 text-left"
+                                                    title={domainDisplay}
+                                                >
+                                                    {domainDisplay}
+                                                </span>
                                             </div>
                                         </div>
-                                        <div className={`border-b border-[#1f1f1f] ${rowInner}`}>
+                                        <div className={rowInner}>
                                             <span className={labelCls}>Visibility</span>
                                             <span
-                                                className={`text-[26px] font-bold tabular-nums leading-none tracking-tight ${visPct != null ? 'text-white' : 'text-[#888]'}`}
+                                                className={`text-[15px] font-bold tabular-nums leading-none tracking-tight ${visPct != null ? 'text-white' : 'text-[#525252]'}`}
                                             >
                                                 {visPct != null ? `${visPct}%` : '—'}
                                             </span>
                                         </div>
-                                        <div className={`border-b border-[#1f1f1f] ${rowInner}`}>
+                                        <div className={rowInner}>
                                             <span className={labelCls}>Open Issues</span>
-                                            <span className="text-white text-[13px] font-semibold tabular-nums flex items-center justify-end gap-2">
+                                            <span className="text-[13px] font-semibold tabular-nums flex items-center justify-end gap-2 min-w-0">
                                                 {issues != null && issues > 0 ? (
                                                     <>
                                                         <AlertTriangle
-                                                            className="w-4 h-4 text-amber-400 shrink-0"
+                                                            className="w-4 h-4 text-white shrink-0 opacity-90"
                                                             strokeWidth={2.25}
                                                             aria-hidden
                                                         />
-                                                        {issues}
+                                                        <span className="text-white">{issues}</span>
                                                     </>
                                                 ) : issues === 0 ? (
                                                     <span className="text-white font-semibold">0</span>
                                                 ) : (
-                                                    <span className="text-[#888]">—</span>
+                                                    <span className="text-[#525252]">—</span>
                                                 )}
                                             </span>
                                         </div>
-                                        <div className={`border-b border-[#1f1f1f] ${rowInner}`}>
+                                        <div className={rowInner}>
                                             <span className={labelCls}>Created</span>
                                             <span
-                                                className={`text-[13px] font-medium tabular-nums text-right ${createdStr === '—' ? 'text-[#888]' : 'text-white'}`}
+                                                className={`text-[13px] font-semibold tabular-nums text-right ${createdStr === '—' ? 'text-[#525252]' : 'text-white'}`}
                                             >
                                                 {createdStr}
                                             </span>
                                         </div>
-                                        <div className={rowInner}>
+                                        <div className={`${rowInner} border-b-0`}>
                                             <span className={labelCls}>Competitors</span>
-                                            <span className="text-white text-[13px] font-medium tabular-nums">
-                                                {compN} tracked
+                                            <span className="text-[13px] font-semibold tabular-nums text-right whitespace-nowrap">
+                                                <span className="text-white">{compN}</span>
+                                                <span
+                                                    className={
+                                                        isActive ? 'text-white' : 'text-[#c24133] font-semibold'
+                                                    }
+                                                >
+                                                    {' '}tracked
+                                                </span>
                                             </span>
                                         </div>
                                     </div>
