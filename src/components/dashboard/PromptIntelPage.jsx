@@ -7,17 +7,7 @@ import {
 import { ChatGPTLogo, GeminiLogo, PerplexityLogo } from '../landing/AILogos';
 import { SentimentPercentDisplay } from '@/components/ui/SentimentTriGauge';
 import { promptPreview } from '@/lib/promptPreview';
-
-function getVisibilityData(domain, projectId) {
-    try {
-        const key = `searchlyst_visibility_${domain || 'default'}_${projectId ?? 'default'}`;
-        let saved = localStorage.getItem(key);
-        if (!saved && (projectId == null || projectId === 'default')) {
-            saved = localStorage.getItem(`searchlyst_visibility_${domain || 'default'}`);
-        }
-        return saved ? JSON.parse(saved) : null;
-    } catch { return null; }
-}
+import { readVisibilityCache } from '@/lib/visibilityStorageKeys';
 
 function mergeVisibilityScan(live, cached) {
     const liveOk = live && Array.isArray(live.prompts) && live.prompts.length > 0;
@@ -728,13 +718,13 @@ export default function PromptIntelPage({ user, scanManager }) {
     const scanData = useMemo(() => {
         try {
             const live = scanManager?.scanResult || null;
-            const cached = getVisibilityData(user?.domain, user?.projectId);
+            const cached = readVisibilityCache(user?.authUserId, user?.domain, user?.projectId);
             return mergeVisibilityScan(live, cached);
         } catch (err) {
             console.error('[PromptIntel] mergeVisibilityScan error:', err);
             return null;
         }
-    }, [scanManager?.scanResult, user?.domain, user?.projectId]);
+    }, [scanManager?.scanResult, user?.authUserId, user?.domain, user?.projectId]);
 
     const promptsData = useMemo(() => {
         try {

@@ -84,7 +84,7 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem('user', JSON.stringify(response.user));
         setUser(response.user);
         setIsAuthenticated(true);
-        return { success: true };
+        return { success: true, user: response.user };
       }
     } catch (error) {
       console.error('Anonymous login failed:', error);
@@ -186,18 +186,24 @@ export const AuthProvider = ({ children }) => {
   // ── Logout ────────────────────────────────────────────────────────────────
   const logout = () => {
     apiClient.auth.logout();
-    // Clear scan cache; keep onboarding/profile keys so returning users don't re-onboard
     const keysToRemove = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (
         key?.startsWith('searchlyst_visibility_') ||
-        key?.startsWith('searchlyst_active_scan_')
+        key?.startsWith('searchlyst_active_scan_') ||
+        key?.startsWith('searchlyst_audit_') ||
+        key?.startsWith('searchlyst_active_audit_') ||
+        key?.startsWith('searchlyst_actions_state_') ||
+        key?.startsWith('searchlyst_added_competitors_') ||
+        key === 'searchlyst_projects' ||
+        key?.startsWith('searchlyst_projects_')
       ) {
         keysToRemove.push(key);
       }
     }
     keysToRemove.forEach((k) => localStorage.removeItem(k));
+    try { sessionStorage.clear(); } catch { /* private mode */ }
     setUser(null);
     setIsAuthenticated(false);
     navigate('/Login');

@@ -12,19 +12,7 @@ import {
 } from 'recharts';
 import { apiClient } from '@/api/apiClient';
 import { promptPreview } from '@/lib/promptPreview';
-
-function getVisibilityData(domain, projectId) {
-    try {
-        const key = `searchlyst_visibility_${domain || 'default'}_${projectId ?? 'default'}`;
-        let saved = localStorage.getItem(key);
-        if (!saved && (projectId == null || projectId === 'default')) {
-            saved = localStorage.getItem(`searchlyst_visibility_${domain || 'default'}`);
-        }
-        return saved ? JSON.parse(saved) : null;
-    } catch {
-        return null;
-    }
-}
+import { readVisibilityCache } from '@/lib/visibilityStorageKeys';
 
 function Skeleton({ className = '' }) {
     return <div className={`animate-pulse bg-[#1a1a1a] rounded ${className}`} />;
@@ -220,24 +208,31 @@ export default function CompetitiveIntelPage({ user, scanManager, onTabChange })
     const domain = user?.domain || '';
     const liveResult = scanManager?.scanResult;
 
+    // Clear stale state when identity changes
+    useEffect(() => {
+        setScanHistory([]);
+    }, [user?.authUserId, domain, user?.projectId]);
+
     const scanData = useMemo(() => {
         const live = liveResult;
         if (live && (live.prompts?.length || live.entityGraph?.length || live.intelligence || live.competitorGaps?.length)) {
             return live;
         }
-        return getVisibilityData(domain, user?.projectId);
-    }, [liveResult, domain, user?.projectId]);
+        return readVisibilityCache(user?.authUserId, domain, user?.projectId);
+    }, [liveResult, domain, user?.projectId, user?.authUserId]);
 
     useEffect(() => {
+        let cancelled = false;
         if (!domain) return;
         const days = historyDays > 0 ? historyDays : 365;
         apiClient.visibility
             .getScanHistory(user?.projectId, domain, { days, limit: 120 })
             .then((res) => {
-                if (res?.history) setScanHistory(res.history);
+                if (!cancelled && res?.history) setScanHistory(res.history);
             })
             .catch(() => {});
-    }, [domain, user?.projectId, historyDays, liveResult?.scannedAt]);
+        return () => { cancelled = true; };
+    }, [user?.authUserId, domain, user?.projectId, historyDays, liveResult?.scannedAt]);
 
     const intelligence = scanData?.intelligence || null;
     const entities = Array.isArray(scanData?.entityGraph) ? scanData.entityGraph : [];
@@ -283,9 +278,9 @@ export default function CompetitiveIntelPage({ user, scanManager, onTabChange })
                             const I = t.i;
                             const isActive = subTab === t.k;
                             return (
-                                <button
+                    <button
                                     key={t.k}
-                                    type="button"
+                        type="button"
                                     onClick={() => setSubTab(t.k)}
                                     className={`flex items-center gap-2 pb-4 text-sm font-black transition-all relative ${
                                         isActive ? 'text-white' : 'text-[#333] hover:text-[#555]'
@@ -310,12 +305,14 @@ export default function CompetitiveIntelPage({ user, scanManager, onTabChange })
                                     <div className="flex flex-wrap items-center gap-2">
                                         <span className="text-white font-semibold text-[15px]">Mention trends</span>
                                         <span className="text-[#666] text-[11px] font-bold px-2 py-0.5 bg-[#1a1a1a] border border-[#2a2a2a] rounded-md tracking-wide">
-                                            YOU VS COMPETITORS
+                                            SOV MENTION COUNTS
                                         </span>
                                     </div>
                                     <p className="text-[#666] text-[12px] mt-1 max-w-2xl">
-                                        Total brand mentions per completed scan (from share-of-voice), so you can see how you and
-                                        tracked competitors move together over time.
+                                        Each line uses only the <span className="text-[#888]">mentions</span> integer from
+                                        share-of-voice (your brand + tracked competitors) for that scan — not SOV %, visibility
+                                        score, sentiment, or citations. One point per completed scan so you compare raw mention
+                                        totals over time.
                                     </p>
                                 </div>
                                 <label className="flex items-center gap-2 shrink-0">
@@ -454,68 +451,68 @@ export default function CompetitiveIntelPage({ user, scanManager, onTabChange })
                                 STRATEGIC BRIEF
                             </span>
                         </div>
-                        {intelligence ? (
-                            (() => {
-                                const cards = [];
-                                if (intelligence.overallAssessment) {
-                                    cards.push({
-                                        type: 'ASSESSMENT',
-                                        tagColor: 'text-[#888] bg-[#1a1a1a] border border-[#2a2a2a]',
-                                        text: intelligence.overallAssessment,
-                                    });
-                                }
-                                (intelligence.strengthAreas || []).forEach((s) =>
-                                    cards.push({
-                                        type: 'STRENGTH',
-                                        tagColor: 'text-[#22c55e] bg-[#0a1a0a] border border-[#22c55e]/30',
-                                        text: s,
-                                    }),
-                                );
-                                (intelligence.weaknessAreas || []).forEach((s) =>
-                                    cards.push({
-                                        type: 'RISK',
-                                        tagColor: 'text-[#f59e0b] bg-[#1a1200] border border-[#f59e0b]/30',
-                                        text: s,
-                                    }),
-                                );
-                                (intelligence.topOpportunities || []).forEach((s) =>
-                                    cards.push({
-                                        type: 'OPPORTUNITY',
-                                        tagColor: 'text-[#22c55e] bg-[#0a1a0a] border border-[#22c55e]/30',
-                                        text: s,
-                                    }),
-                                );
-                                return (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {cards.map((c, i) => (
-                                            <div key={i} className="rounded-xl p-4 border border-[#2a2a2a] bg-[#111]">
-                                                <span
-                                                    className={`inline-block text-[10px] font-bold uppercase tracking-[0.12em] px-2 py-0.5 rounded mb-3 ${c.tagColor}`}
-                                                >
-                                                    {c.type}
-                                                </span>
-                                                <p className="text-[#aaa] text-[13px] leading-relaxed">{c.text}</p>
-                                            </div>
-                                        ))}
-                                    </div>
-                                );
-                            })()
-                        ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {[1, 2, 3, 4].map((i) => (
-                                    <div key={i} className="rounded-xl p-4 border border-[#1a1a1a] bg-[#111]">
-                                        <Skeleton className="w-24 h-5 mb-3" />
-                                        <Skeleton className="w-full h-4 mb-2" />
-                                        <Skeleton className="w-3/4 h-4" />
-                                    </div>
-                                ))}
-                                <div className="col-span-full text-center py-2">
+                            {intelligence ? (
+                                (() => {
+                                    const cards = [];
+                                    if (intelligence.overallAssessment) {
+                                        cards.push({
+                                            type: 'ASSESSMENT',
+                                            tagColor: 'text-[#888] bg-[#1a1a1a] border border-[#2a2a2a]',
+                                            text: intelligence.overallAssessment,
+                                        });
+                                    }
+                                    (intelligence.strengthAreas || []).forEach((s) =>
+                                        cards.push({
+                                            type: 'STRENGTH',
+                                            tagColor: 'text-[#22c55e] bg-[#0a1a0a] border border-[#22c55e]/30',
+                                            text: s,
+                                        }),
+                                    );
+                                    (intelligence.weaknessAreas || []).forEach((s) =>
+                                        cards.push({
+                                            type: 'RISK',
+                                            tagColor: 'text-[#f59e0b] bg-[#1a1200] border border-[#f59e0b]/30',
+                                            text: s,
+                                        }),
+                                    );
+                                    (intelligence.topOpportunities || []).forEach((s) =>
+                                        cards.push({
+                                            type: 'OPPORTUNITY',
+                                            tagColor: 'text-[#22c55e] bg-[#0a1a0a] border border-[#22c55e]/30',
+                                            text: s,
+                                        }),
+                                    );
+                                    return (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {cards.map((c, i) => (
+                                                <div key={i} className="rounded-xl p-4 border border-[#2a2a2a] bg-[#111]">
+                                                    <span
+                                                        className={`inline-block text-[10px] font-bold uppercase tracking-[0.12em] px-2 py-0.5 rounded mb-3 ${c.tagColor}`}
+                                                    >
+                                                        {c.type}
+                                                    </span>
+                                                    <p className="text-[#aaa] text-[13px] leading-relaxed">{c.text}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    );
+                                })()
+                            ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {[1, 2, 3, 4].map((i) => (
+                                        <div key={i} className="rounded-xl p-4 border border-[#1a1a1a] bg-[#111]">
+                                            <Skeleton className="w-24 h-5 mb-3" />
+                                            <Skeleton className="w-full h-4 mb-2" />
+                                            <Skeleton className="w-3/4 h-4" />
+                                        </div>
+                                    ))}
+                                    <div className="col-span-full text-center py-2">
                                     <p className="text-[#555] text-[12px]">
                                         Run a scan to generate AI insights for {brandName}.
                                     </p>
                                 </div>
-                            </div>
-                        )}
+                        </div>
+                    )}
                     </div>
                 )}
             </div>

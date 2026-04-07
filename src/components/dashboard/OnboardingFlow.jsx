@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { apiClient } from '@/api/apiClient';
 import { setDashboardUser } from '@/pages/Dashboard';
 import { useAuth } from '@/lib/AuthContext';
+import { activeScanStorageKey, projectsFallbackStorageKey } from '@/lib/visibilityStorageKeys';
 
 const companySizes = [
     { id: '1-10', label: '1-10', icon: '👤' },
@@ -75,7 +76,7 @@ const stepMeta = [
 ];
 
 export default function OnboardingFlow({ userId, onComplete, mode = 'firstTime' }) {
-    const { signInAnonymously, isAuthenticated } = useAuth();
+    const { signInAnonymously, isAuthenticated, user: authUser } = useAuth();
     const isAddProject = mode === 'addProject';
     const [step, setStep] = useState(1);
     const [testimonialIndex, setTestimonialIndex] = useState(0);
@@ -212,12 +213,21 @@ export default function OnboardingFlow({ userId, onComplete, mode = 'firstTime' 
             createdAt: new Date().toISOString()
         };
 
-        if (!isAuthenticated && !userId) {
-            await signInAnonymously();
+        let resolvedUserId = userId ?? authUser?.id;
+        if (!isAuthenticated && resolvedUserId == null) {
+            const anon = await signInAnonymously();
+            if (anon?.user?.id != null) resolvedUserId = anon.user.id;
         }
 
         const triggerAutoScan = async (ud) => {
             try {
+                let uid = resolvedUserId ?? userId ?? authUser?.id;
+                if (uid == null) {
+                    try {
+                        const raw = localStorage.getItem('user');
+                        if (raw) uid = JSON.parse(raw)?.id;
+                    } catch { /* ignore */ }
+                }
                 const comps = (ud.competitors || []).map(c => typeof c === 'string' ? { name: c, domain: c } : c);
                 const res = await apiClient.visibility.startScan({
                     brandName: ud.brandName || '', domain: ud.domain || '', industry: ud.industry || '',
@@ -226,7 +236,8 @@ export default function OnboardingFlow({ userId, onComplete, mode = 'firstTime' 
                     projectId: ud.projectId || undefined,
                 });
                 if (res.scanId) {
-                    localStorage.setItem(`searchlyst_active_scan_${ud.domain}`, JSON.stringify({
+                    const key = activeScanStorageKey(uid, ud.domain, ud.projectId);
+                    localStorage.setItem(key, JSON.stringify({
                         scanId: res.scanId, startedAt: new Date().toISOString(),
                     }));
                 }
@@ -270,7 +281,8 @@ export default function OnboardingFlow({ userId, onComplete, mode = 'firstTime' 
         setDashboardUser(userId, userData);
 
         const projects = [{ id: 'project-1', name: brandName, domain: userData.domain, ...userData }];
-        localStorage.setItem('searchlyst_projects', JSON.stringify(projects));
+        const projectsKey = projectsFallbackStorageKey(resolvedUserId ?? userId ?? authUser?.id);
+        localStorage.setItem(projectsKey, JSON.stringify(projects));
         setGenerating(false);
         onComplete(userData.role || 'founder');
     };

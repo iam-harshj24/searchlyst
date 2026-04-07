@@ -18,6 +18,7 @@ import { Tooltip as UiTooltip, TooltipContent, TooltipProvider, TooltipTrigger }
 import { buildVisibilityTrendDaily, buildVisibilityTrendWeekly } from '@/lib/visibilityTrend';
 import { promptPreview } from '@/lib/promptPreview';
 import { classifyDomainContentType, classifyCitationRow } from '@/lib/urlContentType';
+import { storageUserIdSegment } from '@/lib/visibilityStorageKeys';
 import {
     EntityMentionsBarTooltip,
     EntityBarYAxisTick,
@@ -40,9 +41,10 @@ const SOV_BAR_COLORS = [
 
 const VIS_CACHE_VER = 'v1';
 
-function visibilityCacheKey(kind, projectId, domain, scannedAt) {
+function visibilityCacheKey(kind, authUserId, projectId, domain, scannedAt) {
     const d = (domain || '').toLowerCase();
-    return `aiVis:${VIS_CACHE_VER}:${kind}:${projectId || 'np'}:${d}:${scannedAt || ''}`;
+    const uid = storageUserIdSegment(authUserId);
+    return `aiVis:${VIS_CACHE_VER}:${kind}:${uid}:${projectId || 'np'}:${d}:${scannedAt || ''}`;
 }
 
 function readVisibilitySessionCache(key) {
@@ -465,16 +467,31 @@ export default function AIVisibilityPage({ user, scanManager, onTabChange }) {
     const brandName = user?.brandName || 'Your Brand';
     const domain = user?.domain || '';
 
+    // Clear all local state when identity changes
     useEffect(() => {
+        setScanHistory([]);
+        setCitationBrief(null);
+        setCitationBriefLoading(false);
+        setCitationBriefErr(null);
+        setUrlInsightByUrl({});
+        setUrlInsightsLoading(false);
+        setUrlInsightsErr(null);
+        setUrlPage(0);
+        setSourcesBrandOnly(false);
+    }, [user?.authUserId, domain, user?.projectId]);
+
+    useEffect(() => {
+        let cancelled = false;
         if (!domain) return;
         const days = timeRangeDays > 0 ? timeRangeDays : 365;
         apiClient.visibility
             .getScanHistory(user?.projectId, domain, { days, limit: 120 })
             .then((res) => {
-                if (res?.history) setScanHistory(res.history);
+                if (!cancelled && res?.history) setScanHistory(res.history);
             })
             .catch(() => {});
-    }, [domain, user?.projectId, result, timeRangeDays]);
+        return () => { cancelled = true; };
+    }, [user?.authUserId, domain, user?.projectId, result, timeRangeDays]);
 
     const trendHistory =
         scanHistory?.length > 0
@@ -512,8 +529,8 @@ export default function AIVisibilityPage({ user, scanManager, onTabChange }) {
             setUrlInsightByUrl({});
             return;
         }
-        const kInsights = visibilityCacheKey('urlInsights', pid, domain, at);
-        const kBrief = visibilityCacheKey('citationBrief', pid, domain, at);
+        const kInsights = visibilityCacheKey('urlInsights', user?.authUserId, pid, domain, at);
+        const kBrief = visibilityCacheKey('citationBrief', user?.authUserId, pid, domain, at);
         const cachedInsights = readVisibilitySessionCache(kInsights);
         const cachedBrief = readVisibilitySessionCache(kBrief);
         setUrlInsightByUrl(cachedInsights && typeof cachedInsights === 'object' ? cachedInsights : {});
@@ -768,7 +785,7 @@ export default function AIVisibilityPage({ user, scanManager, onTabChange }) {
 
         const persistUrlInsights = (nextMap) => {
             writeVisibilitySessionCache(
-                visibilityCacheKey('urlInsights', user?.projectId, domain, r.scannedAt),
+                visibilityCacheKey('urlInsights', user?.authUserId, user?.projectId, domain, r.scannedAt),
                 nextMap,
             );
         };
@@ -1475,7 +1492,7 @@ export default function AIVisibilityPage({ user, scanManager, onTabChange }) {
                                                 if (res?.success && res.brief) {
                                                     setCitationBrief(res);
                                                     writeVisibilitySessionCache(
-                                                        visibilityCacheKey('citationBrief', user?.projectId, domain, r?.scannedAt),
+                                                        visibilityCacheKey('citationBrief', user?.authUserId, user?.projectId, domain, r?.scannedAt),
                                                         res,
                                                     );
                                                 } else setCitationBriefErr(res?.message || 'Could not generate brief.');

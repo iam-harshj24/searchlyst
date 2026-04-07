@@ -18,6 +18,14 @@ import EmptyProjectState from '@/components/dashboard/EmptyProjectState';
 import { ThemeProvider } from '@/lib/ThemeContext';
 import { apiClient } from '@/api/apiClient';
 import { useAuth } from '@/lib/AuthContext';
+import {
+    visibilityResultStorageKey,
+    activeScanStorageKey,
+    auditResultStorageKey,
+    activeAuditStorageKey,
+    storageUserIdSegment,
+    projectsFallbackStorageKey,
+} from '@/lib/visibilityStorageKeys';
 
 const STORAGE_KEYS = {
     USER: 'searchlyst_user',
@@ -73,11 +81,14 @@ function useScanManager(user) {
     const [scanError, setScanError] = useState(null);
     const [loadingFromBackend, setLoadingFromBackend] = useState(true);
     const pollRef = useRef(null);
+    const pollGenerationRef = useRef(0);
+    const identityRef = useRef('');
 
+    const authUserId = user?.authUserId ?? null;
     const domain = user?.domain || '';
     const projectId = user?.projectId;
-    const storageKey = `searchlyst_visibility_${domain || 'default'}_${projectId ?? 'default'}`;
-    const activeScanKey = `searchlyst_active_scan_${domain}_${projectId ?? 'default'}`;
+    const storageKey = visibilityResultStorageKey(authUserId, domain, projectId);
+    const activeScanKey = activeScanStorageKey(authUserId, domain, projectId);
 
     // Stop polling
     const stopPolling = useCallback(() => {
@@ -88,8 +99,10 @@ function useScanManager(user) {
     const startPolling = useCallback((id) => {
         stopPolling();
         pollRef.current = setInterval(async () => {
+            const gen = pollGenerationRef.current;
             try {
                 const res = await apiClient.visibility.getScanStatus(id);
+                if (gen !== pollGenerationRef.current) return;
                 if (res.phase) setScanPhase(res.phase);
                 if (res.phaseDetail) setScanPhaseDetail(res.phaseDetail);
                 if (res.progress) setScanProgress(res.progress);
@@ -109,6 +122,7 @@ function useScanManager(user) {
                     stopPolling();
                     try {
                         const fallback = await apiClient.visibility.getLatestScan(projectId, domain);
+                        if (gen !== pollGenerationRef.current) return;
                         if (fallback?.scan?.result) {
                             setScanResult(fallback.scan.result);
                             if (fallback.scan?.id) setScanId(fallback.scan.id);
@@ -121,13 +135,34 @@ function useScanManager(user) {
                 }
             } catch { }
         }, 3000);
-    }, [stopPolling, storageKey, activeScanKey]);
+    }, [stopPolling, storageKey, activeScanKey, projectId, domain]);
 
     // Cleanup on unmount
     useEffect(() => () => stopPolling(), [stopPolling]);
 
-    // On mount: load from localStorage, then backend if empty
+    // Switching account or project: stop any in-flight poll and clear UI state so another user's scan never bleeds in
     useEffect(() => {
+        pollGenerationRef.current += 1;
+        identityRef.current = `${authUserId}|${domain}|${projectId}`;
+        stopPolling();
+        setScanId(null);
+        setScanResult(null);
+        setScanStatus('idle');
+        setScanError(null);
+        setScanPhase('');
+        setScanPhaseDetail('');
+        setScanProgress({ completed: 0, total: 0 });
+        setCompletedPrompts(0);
+        setTotalPrompts(0);
+        setLoadingFromBackend(!!domain);
+    }, [authUserId, domain, projectId, stopPolling]);
+
+    // Load cache / resume scan for this account + project only
+    useEffect(() => {
+        const gen = pollGenerationRef.current;
+        const identity = `${authUserId}|${domain}|${projectId}`;
+        const stale = () => gen !== pollGenerationRef.current || identity !== identityRef.current;
+
         if (!domain) {
             setLoadingFromBackend(false);
             return;
@@ -136,15 +171,18 @@ function useScanManager(user) {
 
         const loadFromStorage = () => {
             let saved = localStorage.getItem(storageKey);
-            if (!saved && (projectId == null || projectId === 'default')) {
-                const legacyKey = `searchlyst_visibility_${domain || 'default'}`;
-                saved = localStorage.getItem(legacyKey);
+            if (!saved && storageUserIdSegment(authUserId) === 'anon') {
+                const legacyA = `searchlyst_visibility_${domain || 'default'}_${projectId ?? 'default'}`;
+                saved = localStorage.getItem(legacyA);
+                if (!saved && (projectId == null || projectId === 'default')) {
+                    saved = localStorage.getItem(`searchlyst_visibility_${domain || 'default'}`);
+                }
                 if (saved) localStorage.setItem(storageKey, saved);
             }
             if (saved) {
                 try {
                     const parsed = JSON.parse(saved);
-                    if (parsed) {
+                    if (parsed && !stale()) {
                         setScanResult(parsed);
                         setScanStatus('completed');
                         setLoadingFromBackend(false);
@@ -158,7 +196,7 @@ function useScanManager(user) {
         const loadFromActiveScan = () => {
             try {
                 const active = JSON.parse(localStorage.getItem(activeScanKey));
-                if (active?.scanId) {
+                if (active?.scanId && !stale()) {
                     setScanId(active.scanId);
                     setScanStatus('scanning');
                     setScanPhase('initializing');
@@ -178,6 +216,7 @@ function useScanManager(user) {
         (async () => {
             try {
                 const res = await apiClient.visibility.getLatestScan(projectId, domain);
+                if (stale()) return;
                 if (res?.scan?.result) {
                     setScanResult(res.scan.result);
                     if (res.scan?.id) setScanId(res.scan.id);
@@ -186,10 +225,10 @@ function useScanManager(user) {
                 }
             } catch { }
             finally {
-                setLoadingFromBackend(false);
+                if (!stale()) setLoadingFromBackend(false);
             }
         })();
-    }, [domain, projectId, storageKey, activeScanKey, startPolling]);
+    }, [authUserId, domain, projectId, storageKey, activeScanKey, startPolling]);
 
     // Start a new scan
     const startScan = useCallback(async () => {
@@ -208,6 +247,7 @@ function useScanManager(user) {
             setScanResult(null);
             localStorage.removeItem(storageKey);
             localStorage.removeItem(`searchlyst_visibility_${user?.domain || 'default'}`);
+            localStorage.removeItem(`searchlyst_visibility_${user?.domain || 'default'}_${user?.projectId ?? 'default'}`);
             setScanId(res.scanId);
             localStorage.setItem(activeScanKey, JSON.stringify({ scanId: res.scanId, startedAt: new Date().toISOString() }));
             startPolling(res.scanId);
@@ -233,20 +273,25 @@ function useAuditManager(user, activeProject) {
     const [error, setError] = useState(null);
     const [history, setHistory] = useState([]);
     const pollRef = useRef(null);
+    const pollGenerationRef = useRef(0);
+    const identityRef = useRef('');
 
+    const authUserId = user?.authUserId ?? null;
     const domain = user?.domain || '';
     const projectId = user?.projectId ?? activeProject?.id;
-    const storageKey = `searchlyst_audit_${domain || 'default'}`;
-    const activeAuditKey = `searchlyst_active_audit_${domain}_${projectId ?? 'default'}`;
+    const storageKey = auditResultStorageKey(authUserId, domain, projectId);
+    const activeAuditKey = activeAuditStorageKey(authUserId, domain, projectId);
 
     const stopPolling = useCallback(() => {
         if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
     }, []);
 
     const loadHistory = useCallback(async () => {
+        const snap = identityRef.current;
         try {
             const url = domain ? `https://${domain}` : '';
             const h = await apiClient.audit.getHistory({ url, projectId });
+            if (snap !== identityRef.current) return;
             setHistory(h || []);
         } catch { /* silent */ }
     }, [domain, projectId]);
@@ -254,8 +299,10 @@ function useAuditManager(user, activeProject) {
     const pollStatus = useCallback((id) => {
         stopPolling();
         pollRef.current = setInterval(async () => {
+            const gen = pollGenerationRef.current;
             try {
                 const res = await apiClient.audit.getStatus(id);
+                if (gen !== pollGenerationRef.current) return;
                 if (res.progress) setProgress(res.progress);
                 if (res.status === 'completed') {
                     setStatus('completed');
@@ -309,12 +356,28 @@ function useAuditManager(user, activeProject) {
     useEffect(() => () => stopPolling(), [stopPolling]);
 
     useEffect(() => {
+        pollGenerationRef.current += 1;
+        identityRef.current = `${authUserId}|${domain}|${projectId}`;
+        stopPolling();
+        setAuditId(null);
+        setStatus('idle');
+        setResult(null);
+        setError(null);
+        setProgress({ completed: 0, total: 0 });
+        setHistory([]);
+    }, [authUserId, domain, projectId, stopPolling]);
+
+    useEffect(() => {
+        const gen = pollGenerationRef.current;
+        const identity = `${authUserId}|${domain}|${projectId}`;
+        const stale = () => gen !== pollGenerationRef.current || identity !== identityRef.current;
+
         if (!domain) return;
 
         // Resume active audit if one is in progress
         try {
             const active = JSON.parse(localStorage.getItem(activeAuditKey));
-            if (active?.auditId) {
+            if (active?.auditId && !stale()) {
                 setAuditId(active.auditId);
                 setStatus('crawling');
                 pollStatus(active.auditId);
@@ -324,24 +387,30 @@ function useAuditManager(user, activeProject) {
         } catch { /* silent */ }
 
         // Load from localStorage cache
-        const saved = localStorage.getItem(storageKey);
+        let saved = localStorage.getItem(storageKey);
+        if (!saved && storageUserIdSegment(authUserId) === 'anon') {
+            const legacy = `searchlyst_audit_${domain || 'default'}`;
+            saved = localStorage.getItem(legacy);
+            if (saved) localStorage.setItem(storageKey, saved);
+        }
         if (saved) {
             try {
                 const parsed = JSON.parse(saved);
-                if (parsed) { setResult(parsed); setStatus('completed'); }
+                if (parsed && !stale()) { setResult(parsed); setStatus('completed'); }
             } catch { /* ignore */ }
         } else {
             const url = domain ? `https://${domain}` : '';
             if (url) {
                 apiClient.audit.getLatest({ url, projectId })
                     .then(r => {
+                        if (stale()) return;
                         if (r) { setResult(r); setStatus('completed'); localStorage.setItem(storageKey, JSON.stringify(r)); }
                     })
                     .catch(() => {});
             }
         }
-        loadHistory();
-    }, [domain, projectId, storageKey, activeAuditKey, pollStatus, loadHistory]);
+        if (!stale()) loadHistory();
+    }, [authUserId, domain, projectId, storageKey, activeAuditKey, pollStatus, loadHistory]);
 
     return {
         auditId, status, progress, result, error, history,
@@ -361,11 +430,12 @@ function DashboardInner() {
     const [showAddProjectOnboarding, setShowAddProjectOnboarding] = useState(false);
     const [userRole, setUserRole] = useState('founder');
 
-    // Scan manager — use activeProject when selected for project-scoped scans
-    const scanUser = activeProject
+    // Scan manager — use activeProject when selected; authUserId scopes all localStorage + polling to this login
+    const scanUserBase = activeProject
         ? { ...user, ...activeProject, domain: activeProject.url || activeProject.domain, brandName: activeProject.name || activeProject.brandName, projectId: activeProject.id }
         : user;
-    const contextUser = activeProject ? scanUser : user;
+    const scanUser = { ...scanUserBase, authUserId: authUser?.id ?? null };
+    const contextUser = scanUser;
     const scanManager = useScanManager(scanUser);
     const auditManager = useAuditManager(scanUser, activeProject);
 
@@ -391,17 +461,24 @@ function DashboardInner() {
         return [];
     };
 
+    const prevAuthIdRef = useRef(authUser?.id);
     useEffect(() => {
+        // Clear stale state IMMEDIATELY so child components don't see old project data during async load
+        if (prevAuthIdRef.current !== authUser?.id) {
+            setUser(null);
+            setActiveProject(null);
+            setProjects([]);
+            prevAuthIdRef.current = authUser?.id;
+        }
         const loadInitialData = async () => {
             const userData = getDashboardUser(authUser?.id);
             const loadedProjects = await fetchProjects();
             
-            // Check localStorage for any previously completed onboarding as a fallback
-            // This handles the case where API is unavailable or token is being set up
             const localOnboarded = userData?.onboarded === true;
+            const projectsKey = projectsFallbackStorageKey(authUser?.id);
             const localHasProjects = (() => {
                 try {
-                    const saved = localStorage.getItem('searchlyst_projects');
+                    const saved = localStorage.getItem(projectsKey);
                     const parsed = saved ? JSON.parse(saved) : [];
                     return Array.isArray(parsed) && parsed.length > 0;
                 } catch { return false; }
@@ -426,9 +503,9 @@ function DashboardInner() {
             if (loadedProjects.length > 0) {
                 setActiveProject(loadedProjects[0]);
             } else if (localHasProjects) {
-                // Hydrate from localStorage projects as fallback
                 try {
-                    const saved = JSON.parse(localStorage.getItem('searchlyst_projects'));
+                    const raw = localStorage.getItem(projectsKey);
+                    const saved = raw ? JSON.parse(raw) : [];
                     if (saved?.length > 0) setActiveProject(saved[0]);
                 } catch {}
             }
@@ -543,7 +620,7 @@ function DashboardInner() {
                 auditActive={auditManager.status === 'crawling' || auditManager.status === 'analyzing'}
             />
             <div className="flex-1 min-h-0 overflow-auto bg-[#000000]">
-                <div className="p-8 page-transition">
+                <div key={`${authUser?.id || 'anon'}_${activeProject?.id || 'np'}`} className="p-8 page-transition">
                     {renderContent()}
                 </div>
             </div>

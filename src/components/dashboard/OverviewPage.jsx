@@ -7,6 +7,7 @@ import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianG
 import { apiClient } from '../../api/apiClient.js';
 import { buildVisibilityTrendDaily, buildVisibilityTrendWeekly } from '@/lib/visibilityTrend';
 import { SingleBrandTooltipShell } from '@/components/charts/BrandChartUi';
+import { readVisibilityCache, auditResultStorageKey, storageUserIdSegment } from '@/lib/visibilityStorageKeys';
 
 const getDomainColor = (domain) => {
     const colors = [
@@ -79,27 +80,19 @@ const DomainLogo = ({ domain, sizeClass = "w-8 h-8", roundedClass = "rounded-lg"
     );
 };
 
-function getVisibilityData(domain, projectId) {
+function getAuditData(authUserId, domain, projectId) {
     try {
-        const key = `searchlyst_visibility_${domain || 'default'}_${projectId ?? 'default'}`;
+        const key = auditResultStorageKey(authUserId, domain, projectId);
         let saved = localStorage.getItem(key);
-        if (!saved && (projectId == null || projectId === 'default')) {
-            saved = localStorage.getItem(`searchlyst_visibility_${domain || 'default'}`);
+        if (!saved && storageUserIdSegment(authUserId) === 'anon') {
+            saved = localStorage.getItem(`searchlyst_audit_${domain || 'default'}`);
         }
         return saved ? JSON.parse(saved) : null;
     } catch { return null; }
 }
 
-function getAuditData(domain) {
-    try {
-        const key = `searchlyst_audit_${domain || 'default'}`;
-        const saved = localStorage.getItem(key);
-        return saved ? JSON.parse(saved) : null;
-    } catch { return null; }
-}
-
-function countAuditIssues(domain) {
-    const audit = getAuditData(domain);
+function countAuditIssues(authUserId, projectId, domain) {
+    const audit = getAuditData(authUserId, domain, projectId);
     if (!audit?.categories) return null;
     let n = 0;
     for (const cat of Object.values(audit.categories)) {
@@ -108,13 +101,13 @@ function countAuditIssues(domain) {
     return n;
 }
 
-function projectVisibilityPercent(p) {
+function projectVisibilityPercent(p, authUserId) {
     if (p.lastVisibilityScore != null && !Number.isNaN(Number(p.lastVisibilityScore))) {
         return Math.round(Number(p.lastVisibilityScore));
     }
     const d = p.url || p.domain;
     if (!d) return null;
-    const vid = getVisibilityData(d, p.id);
+    const vid = readVisibilityCache(authUserId, d, p.id);
     const o = vid?.score?.overall;
     if (o == null) return null;
     return o <= 10 ? Math.round(o * 10) : Math.round(o);
@@ -141,8 +134,8 @@ function normalizeHost(s) {
 
 export default function OverviewPage({ domains, activeProject, onAddDomain, onTabChange, userRole, user, scanManager, projects }) {
     const scanResult = scanManager?.scanResult;
-    const visData = scanResult || getVisibilityData(user?.domain, user?.projectId);
-    const auditData = getAuditData(user?.domain);
+    const visData = scanResult || readVisibilityCache(user?.authUserId, user?.domain, user?.projectId);
+    const auditData = getAuditData(user?.authUserId, user?.domain, user?.projectId);
     const visScore = visData?.score?.overall ?? null;
     const auditScore = auditData?.scores?.overall ?? null;
 
@@ -151,31 +144,39 @@ export default function OverviewPage({ domains, activeProject, onAddDomain, onTa
     const [overviewTrendRange, setOverviewTrendRange] = useState(7);
     const [overviewTrendGranularity, setOverviewTrendGranularity] = useState('daily');
 
+    // Reset local state when user identity changes
     useEffect(() => {
-        let mounted = true;
+        setDashboardMetrics(null);
+        setOverviewScanHistory([]);
+    }, [user?.authUserId, user?.domain, user?.projectId]);
+
+    useEffect(() => {
+        let cancelled = false;
         const fetchMetrics = async () => {
-            if (!user?.id) return;
+            if (!activeProject?.id) return;
             try {
                 const metrics = await apiClient.projects.getMetrics(activeProject?.id);
-                if (mounted) setDashboardMetrics(metrics);
+                if (!cancelled) setDashboardMetrics(metrics);
             } catch (error) {
                 console.error('Failed to fetch metrics:', error);
             }
         };
         fetchMetrics();
-        return () => { mounted = false; };
-    }, [user?.id, activeProject?.id]);
+        return () => { cancelled = true; };
+    }, [user?.authUserId, activeProject?.id]);
 
     useEffect(() => {
+        let cancelled = false;
         if (!user?.domain) return;
         const days = overviewTrendRange > 0 ? Math.max(overviewTrendRange, 30) : 365;
         apiClient.visibility
             .getScanHistory(user?.projectId, user.domain, { days, limit: 120 })
             .then((res) => {
-                if (Array.isArray(res?.history)) setOverviewScanHistory(res.history);
+                if (!cancelled && Array.isArray(res?.history)) setOverviewScanHistory(res.history);
             })
-            .catch(() => setOverviewScanHistory([]));
-    }, [user?.domain, user?.projectId, overviewTrendRange]);
+            .catch(() => { if (!cancelled) setOverviewScanHistory([]); });
+        return () => { cancelled = true; };
+    }, [user?.authUserId, user?.domain, user?.projectId, overviewTrendRange]);
 
     const visibilityTrend = React.useMemo(() => {
         const fromApi = overviewScanHistory.length > 0
@@ -213,7 +214,15 @@ export default function OverviewPage({ domains, activeProject, onAddDomain, onTa
 
     const userCompetitors = user?.competitors || [];
     const localAdded = (() => {
-        try { return JSON.parse(localStorage.getItem(`searchlyst_added_competitors_${user?.domain || 'default'}`) || '[]'); } catch { return []; }
+        try {
+            const uid = storageUserIdSegment(user?.authUserId);
+            const k = `searchlyst_added_competitors_${uid}_${user?.domain || 'default'}`;
+            let raw = localStorage.getItem(k);
+            if (!raw && uid === 'anon') {
+                raw = localStorage.getItem(`searchlyst_added_competitors_${user?.domain || 'default'}`);
+            }
+            return JSON.parse(raw || '[]');
+        } catch { return []; }
     })();
     const allCompetitors = [
         ...userCompetitors.map(c => typeof c === 'string' ? { domain: c } : c),
@@ -493,8 +502,8 @@ export default function OverviewPage({ domains, activeProject, onAddDomain, onTa
                                     activeProject?.id != null
                                         ? pid === activeProject.id
                                         : normalizeHost(domainForLogo) === activeHostNorm && activeHostNorm !== '';
-                                const visPct = projectVisibilityPercent(p);
-                                const issues = countAuditIssues(rawDomain || domainForLogo);
+                                const visPct = projectVisibilityPercent(p, user?.authUserId);
+                                const issues = countAuditIssues(user?.authUserId, pid, rawDomain || domainForLogo);
                                 const compN = countTrackedCompetitorsForProject(p, compsCount);
                                 const leftBorder = colIdx > 0 ? 'border-l border-[#2a2a2a]' : '';
                                 const labelCls =

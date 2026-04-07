@@ -8,6 +8,7 @@ import {
     FileText, Lightbulb,
     Sparkles, BarChart3
 } from 'lucide-react';
+import { auditResultStorageKey, readVisibilityCache, storageUserIdSegment } from '@/lib/visibilityStorageKeys';
 
 const CATEGORY_META = {
     seo: { label: 'SEO', icon: Search, color: '#60a5fa' },
@@ -59,10 +60,13 @@ const INSIGHT_PRIORITY_MAP = {
 
 const FILTER_TABS = ['All', 'Critical', 'High', 'Medium', 'Low'];
 
-function readAuditActions(domain) {
+function readAuditActions(authUserId, domain, projectId) {
     try {
-        const key = `searchlyst_audit_${domain || 'default'}`;
-        const raw = localStorage.getItem(key);
+        const key = auditResultStorageKey(authUserId, domain, projectId);
+        let raw = localStorage.getItem(key);
+        if (!raw && storageUserIdSegment(authUserId) === 'anon') {
+            raw = localStorage.getItem(`searchlyst_audit_${domain || 'default'}`);
+        }
         if (!raw) return null;
         const result = JSON.parse(raw);
         if (!result?.categories) return null;
@@ -89,17 +93,6 @@ function readAuditActions(domain) {
         const order = { critical: 0, high: 1, medium: 2, low: 3 };
         actions.sort((a, b) => (order[a.priority] ?? 4) - (order[b.priority] ?? 4));
         return { actions, auditedAt: result.auditedAt || null, domain };
-    } catch { return null; }
-}
-
-function getVisibilityData(domain, projectId) {
-    try {
-        const key = `searchlyst_visibility_${domain || 'default'}_${projectId ?? 'default'}`;
-        let saved = localStorage.getItem(key);
-        if (!saved && (projectId == null || projectId === 'default')) {
-            saved = localStorage.getItem(`searchlyst_visibility_${domain || 'default'}`);
-        }
-        return saved ? JSON.parse(saved) : null;
     } catch { return null; }
 }
 
@@ -344,7 +337,7 @@ export default function ActionsPage({ user, onTabChange }) {
     const [activeFilter, setActiveFilter] = useState('All');
     const [showDone, setShowDone] = useState(false);
 
-    const stateKey = `searchlyst_actions_state_${user?.domain || 'default'}`;
+    const stateKey = `searchlyst_actions_state_${storageUserIdSegment(user?.authUserId)}_${user?.domain || 'default'}`;
 
     const [doneIds, setDoneIds] = useState(() => {
         try {
@@ -361,6 +354,17 @@ export default function ActionsPage({ user, onTabChange }) {
 
     useEffect(() => {
         try {
+            const saved = JSON.parse(localStorage.getItem(stateKey) || '{}');
+            setDoneIds(new Set(saved.done || []));
+            setDismissedIds(new Set(saved.dismissed || []));
+        } catch {
+            setDoneIds(new Set());
+            setDismissedIds(new Set());
+        }
+    }, [stateKey]);
+
+    useEffect(() => {
+        try {
             localStorage.setItem(stateKey, JSON.stringify({
                 done: [...doneIds],
                 dismissed: [...dismissedIds],
@@ -368,10 +372,13 @@ export default function ActionsPage({ user, onTabChange }) {
         } catch { }
     }, [doneIds, dismissedIds, stateKey]);
 
-    const auditData = useMemo(() => readAuditActions(user?.domain), [user?.domain]);
+    const auditData = useMemo(
+        () => readAuditActions(user?.authUserId, user?.domain, user?.projectId),
+        [user?.authUserId, user?.domain, user?.projectId],
+    );
     const visData = useMemo(
-        () => getVisibilityData(user?.domain, user?.projectId),
-        [user?.domain, user?.projectId]
+        () => readVisibilityCache(user?.authUserId, user?.domain, user?.projectId),
+        [user?.authUserId, user?.domain, user?.projectId],
     );
 
     const insightActions = useMemo(() => buildInsightActions(visData), [visData]);

@@ -1,26 +1,15 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
     Users, Plus, Target, ChevronRight, X, MapPin, Building2,
     Globe2, PenTool, Eye, LayoutGrid, Link2, BarChart3, TrendingUp, TrendingDown,
 } from 'lucide-react';
 import { SentimentPercentDisplay } from '@/components/ui/SentimentTriGauge';
 import { promptPreview } from '@/lib/promptPreview';
+import { readVisibilityCache, storageUserIdSegment } from '@/lib/visibilityStorageKeys';
 
-function getVisibilityData(domain, projectId) {
-    try {
-        const key = `searchlyst_visibility_${domain || 'default'}_${projectId ?? 'default'}`;
-        let saved = localStorage.getItem(key);
-        if (!saved && (projectId == null || projectId === 'default')) {
-            saved = localStorage.getItem(`searchlyst_visibility_${domain || 'default'}`);
-        }
-        return saved ? JSON.parse(saved) : null;
-    } catch {
-        return null;
-    }
-}
-
-function competitorsStorageKey(domain) {
-    return `searchlyst_added_competitors_${domain || 'default'}`;
+function competitorsStorageKey(authUserId, domain) {
+    const uid = storageUserIdSegment(authUserId);
+    return `searchlyst_added_competitors_${uid}_${domain || 'default'}`;
 }
 
 /** Domains that are poor "competitor" targets when inferred from citations alone */
@@ -196,10 +185,13 @@ function BrandAvatar({ name }) {
 }
 
 export default function CompetitorsPage({ user, onTabChange }) {
-    const scanData = useMemo(() => getVisibilityData(user?.domain, user?.projectId), [user?.domain, user?.projectId]);
+    const scanData = useMemo(
+        () => readVisibilityCache(user?.authUserId, user?.domain, user?.projectId),
+        [user?.authUserId, user?.domain, user?.projectId],
+    );
     const gaps = Array.isArray(scanData?.competitorGaps) ? scanData.competitorGaps : [];
 
-    const storageKey = competitorsStorageKey(user?.domain);
+    const storageKey = competitorsStorageKey(user?.authUserId, user?.domain);
 
     const [extraTracked, setExtraTracked] = useState(() => {
         try {
@@ -218,6 +210,18 @@ export default function CompetitorsPage({ user, onTabChange }) {
         },
         [storageKey],
     );
+
+    useEffect(() => {
+        try {
+            let raw = localStorage.getItem(storageKey);
+            if (!raw && storageUserIdSegment(user?.authUserId) === 'anon') {
+                raw = localStorage.getItem(`searchlyst_added_competitors_${user?.domain || 'default'}`);
+            }
+            setExtraTracked(JSON.parse(raw || '[]'));
+        } catch {
+            setExtraTracked([]);
+        }
+    }, [storageKey, user?.authUserId, user?.domain]);
 
     const onboardingList = useMemo(() => {
         const raw = user?.competitors || [];
