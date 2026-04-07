@@ -182,54 +182,64 @@ function extractAIAnswerFromRenderedPage(html, engine) {
  * Perplexity embeds numbers in text like "According to X [1][2]..."
  * and optionally provides a "Sources:" or "References:" section at the end.
  */
-function extractSourcesFromAIText(text) {
-    const sources = [];
+function pushUniqueSource(sources, seenUrls, url, title = '') {
+    if (!url || typeof url !== 'string') return;
+    let u = url.trim().replace(/[.,;:!?]+$/, '');
+    if (u.startsWith('//')) u = `https:${u}`;
+    if (!/^https?:\/\//i.test(u)) return;
+    try {
+        const canon = new URL(u).href;
+        if (seenUrls.has(canon)) return;
+        seenUrls.add(canon);
+        const domain = new URL(canon).hostname.replace(/^www\./, '');
+        sources.push({ url: canon, domain, title: String(title || '').trim().slice(0, 500) });
+    } catch { /* ignore */ }
+}
 
-    // Pattern 1: "Sources:" / "References:" section at end of text
-    // e.g. "Sources:\n1. https://example.com - Title\n2. https://..."
+/**
+ * Parse citations embedded in model text (Perplexity [1][2], footnotes, Sources blocks, markdown links).
+ * Merges cleanly with Infatica JSON `sources` when both are present.
+ */
+function extractSourcesFromAIText(text) {
+    if (!text || typeof text !== 'string') return [];
+    const sources = [];
+    const seenUrls = new Set();
+
+    // Pattern 1: "Sources:" / "References:" block (often at end; allow trailing content)
     const sourcesSectionMatch = text.match(
-        /(?:sources?|references?|citations?)\s*:?\s*\n([\s\S]{0,3000})$/i
-    );
+        /(?:^|\n)\s*(?:sources?|references?|citations?)\s*:?\s*\n([\s\S]{0,4000})(?=\n\n[^\n]*:|\n#{1,3}\s|$)/i
+    ) || text.match(/(?:sources?|references?|citations?)\s*:?\s*\n([\s\S]{0,4000})$/i);
     if (sourcesSectionMatch) {
         const section = sourcesSectionMatch[1];
-        // Match numbered URL lines: "1. https://... - Title" or "1. [Title](url)"
         const urlLines = section.matchAll(
             /^\s*\d+[\.\)]\s*(?:\[([^\]]+)\]\()?(\bhttps?:\/\/[^\s\)\]]+)[\)\]]?(?:\s*[-–]\s*(.+))?/gm
         );
         for (const m of urlLines) {
-            const url = m[2];
-            const title = m[1] || m[3] || '';
-            try {
-                const domain = new URL(url).hostname.replace('www.', '');
-                sources.push({ url: url.trim(), domain, title: title.trim() });
-            } catch {}
+            pushUniqueSource(sources, seenUrls, m[2], m[1] || m[3] || '');
+        }
+        const plainNumbered = section.matchAll(/^\s*\d+[\.\)]\s+(https?:\/\/\S+)/gm);
+        for (const m of plainNumbered) {
+            pushUniqueSource(sources, seenUrls, m[1], '');
         }
     }
 
-    // Pattern 2: Markdown-style links [title](url) anywhere in text
-    const mdLinks = text.matchAll(/\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/g);
-    for (const m of mdLinks) {
-        const url = m[2].replace(/[.,;:!?]+$/, '');
-        const title = m[1];
-        try {
-            const domain = new URL(url).hostname.replace('www.', '');
-            if (!sources.find(s => s.url === url)) {
-                sources.push({ url, domain, title });
-            }
-        } catch {}
+    // Pattern 2: Footnotes like [1] https://... or [12] https://...
+    const footnoteUrls = text.matchAll(/\[\d+\]\s*(https?:\/\/[^\s\]\)]+)/g);
+    for (const m of footnoteUrls) {
+        pushUniqueSource(sources, seenUrls, m[1], '');
     }
 
-    // Pattern 3: Bare URLs in the text
-    if (sources.length === 0) {
+    // Pattern 3: Markdown links [title](url)
+    const mdLinks = text.matchAll(/\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/g);
+    for (const m of mdLinks) {
+        pushUniqueSource(sources, seenUrls, m[2], m[1]);
+    }
+
+    // Pattern 4: Bare URLs (only as filler when we still have few citations — avoids noise)
+    if (sources.length < 8) {
         const urlMatches = text.matchAll(/\bhttps?:\/\/[^\s,\]\)\'"<>]{5,}/g);
         for (const m of urlMatches) {
-            const url = m[0].replace(/[.,;:!?]+$/, '');
-            try {
-                const domain = new URL(url).hostname.replace('www.', '');
-                if (!sources.find(s => s.url === url)) {
-                    sources.push({ url, domain, title: '' });
-                }
-            } catch {}
+            pushUniqueSource(sources, seenUrls, m[0], '');
         }
     }
 
@@ -371,7 +381,7 @@ function buildRunData(text, sources, brandName, domain, competitors, engine) {
     const citations = sources.slice(0, 15).map((s, idx) => ({
         url: s.url,
         domain: s.domain,
-        title: s.title || '',
+        title: s.title || s.text || '',
         citationPosition: idx + 1,
         category: categorizeDomain(s.domain, domainClean, competitorDomains),
         isTargetBrand: domainClean ? s.domain.includes(domainClean.split('.')[0]) : false,
@@ -416,11 +426,21 @@ export function parseResponse(infaticaResult, brandName, domain, competitors, en
     if (text && text.trim().length > 0) {
         const structuredSources = sources.length > 0 ? [...sources] : [];
         const textSources = extractSourcesFromAIText(text);
-        const seenUrls = new Set(structuredSources.map(s => s.url));
+        const seenUrls = new Set(structuredSources.map((s) => {
+            try {
+                return new URL(s.url).href;
+            } catch {
+                return s.url;
+            }
+        }));
         for (const ts of textSources) {
-            if (ts.url && !seenUrls.has(ts.url)) {
+            let key = ts.url;
+            try {
+                key = new URL(ts.url).href;
+            } catch { /* keep */ }
+            if (ts.url && !seenUrls.has(key)) {
                 structuredSources.push(ts);
-                seenUrls.add(ts.url);
+                seenUrls.add(key);
             }
         }
         console.log(`[Parser/${engine}] TEXT path: ${text.length}ch, ${structuredSources.length} sources`);
@@ -434,7 +454,25 @@ export function parseResponse(infaticaResult, brandName, domain, competitors, en
             const stripped = stripHtmlToPlain(html, 12_000);
             if (stripped.length >= 80) {
                 console.log(`[Parser/${engine}] fastParse empty → using stripHtmlToPlain (${stripped.length}ch)`);
-                const fallback = buildRunData(stripped, sources, brandName, domain, competitors, engine);
+                const merged = [...sources];
+                const seen = new Set(merged.map((s) => {
+                    try {
+                        return new URL(s.url).href;
+                    } catch {
+                        return s.url;
+                    }
+                }));
+                for (const ts of extractSourcesFromAIText(stripped)) {
+                    let key = ts.url;
+                    try {
+                        key = new URL(ts.url).href;
+                    } catch { /* keep */ }
+                    if (!seen.has(key)) {
+                        merged.push(ts);
+                        seen.add(key);
+                    }
+                }
+                const fallback = buildRunData(stripped, merged, brandName, domain, competitors, engine);
                 fallback.citations = result.citations.length > 0 ? result.citations : fallback.citations;
                 return fallback;
             }
@@ -469,12 +507,34 @@ export function fastParse(html, brandName, domain, competitors, engine, extraSou
     const competitorDomains = competitors.map(c => typeof c === 'string' ? c : c.domain || '').filter(Boolean);
 
     const linkSources = links.map(l => ({ url: l.url, domain: l.domain, title: l.text }));
-    const seenUrls = new Set(linkSources.map(s => s.url));
-    for (const es of extraSources) {
-        if (es.url && !seenUrls.has(es.url)) {
-            linkSources.push(es);
-            seenUrls.add(es.url);
+    const seenUrls = new Set();
+    for (const s of linkSources) {
+        try {
+            seenUrls.add(new URL(s.url).href);
+        } catch {
+            seenUrls.add(s.url);
         }
+    }
+    const mergeExtra = (arr) => {
+        for (const es of arr) {
+            if (!es?.url) continue;
+            let key = es.url;
+            try {
+                key = new URL(es.url).href;
+            } catch { /* keep */ }
+            if (!seenUrls.has(key)) {
+                linkSources.push({
+                    url: es.url,
+                    domain: es.domain || '',
+                    title: es.title || es.text || '',
+                });
+                seenUrls.add(key);
+            }
+        }
+    };
+    mergeExtra(extraSources);
+    if (text) {
+        mergeExtra(extractSourcesFromAIText(text));
     }
 
     if (!text) {

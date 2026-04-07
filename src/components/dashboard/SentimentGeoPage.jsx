@@ -473,15 +473,21 @@ export default function SentimentGeoPage({ user, scanManager }) {
     const scanResult = scanManager?.scanResult || null;
 
     useEffect(() => {
+        setScanHistory([]);
+    }, [user?.authUserId, domain, user?.projectId]);
+
+    useEffect(() => {
+        let cancelled = false;
         if (!domain) return;
         const days = 365;
         apiClient.visibility
             .getScanHistory(user?.projectId, domain, { days, limit: 120 })
             .then((res) => {
-                if (res?.history) setScanHistory(res.history);
+                if (!cancelled && res?.history) setScanHistory(res.history);
             })
             .catch(() => {});
-    }, [domain, user?.projectId, scanResult?.scannedAt]);
+        return () => { cancelled = true; };
+    }, [user?.authUserId, domain, user?.projectId, scanResult?.scannedAt]);
 
     const geoSnapshotTrends = useMemo(() => {
         const h = Array.isArray(scanHistory) ? scanHistory : [];

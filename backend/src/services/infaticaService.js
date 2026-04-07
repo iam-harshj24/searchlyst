@@ -105,6 +105,128 @@ async function infaticaFetch(url, opts, label, cfg) {
 
 const SKIP_JSON_TEXT_KEYS = new Set(['apikey', 'token', 'authorization', 'password', 'secret', 'trace', 'traceid', 'request_id', 'requestid']);
 
+/** Normalize URL strings from Infatica / model JSON (protocol-relative, trim). */
+function normalizeSourceUrl(raw) {
+    if (raw == null || typeof raw !== 'string') return '';
+    let u = raw.trim().replace(/\s+/g, '');
+    if (!u) return '';
+    if (u.startsWith('//')) u = `https:${u}`;
+    if (!/^https?:\/\//i.test(u)) return '';
+    try {
+        const parsed = new URL(u);
+        if (!parsed.hostname) return '';
+        return parsed.href;
+    } catch {
+        return '';
+    }
+}
+
+/** Pull a citation/source URL from a string or object (Infatica and scrapers vary widely). */
+function urlFromSourceEntry(entry) {
+    if (typeof entry === 'string') return normalizeSourceUrl(entry);
+    if (!entry || typeof entry !== 'object') return '';
+    const direct =
+        entry.url ??
+        entry.href ??
+        entry.link ??
+        entry.uri ??
+        entry.document_url ??
+        entry.page_url ??
+        entry.canonical_url;
+    if (typeof direct === 'string') {
+        const n = normalizeSourceUrl(direct);
+        if (n) return n;
+    }
+    const src = entry.source;
+    if (typeof src === 'string' && /^https?:\/\//i.test(src.trim())) {
+        return normalizeSourceUrl(src);
+    }
+    if (entry.metadata && typeof entry.metadata === 'object' && typeof entry.metadata.url === 'string') {
+        return normalizeSourceUrl(entry.metadata.url);
+    }
+    return '';
+}
+
+function titleFromSourceEntry(entry) {
+    if (!entry || typeof entry !== 'object') return '';
+    const t = entry.title ?? entry.name ?? entry.snippet ?? entry.description ?? entry.text_headline ?? '';
+    return typeof t === 'string' ? t.trim().slice(0, 500) : '';
+}
+
+const SOURCE_ARRAY_KEYS = [
+    'sources', 'citations', 'references', 'links', 'search_results', 'searchResults',
+    'web_results', 'organic', 'organic_results', 'organicResults', 'items', 'documents',
+    'chunks', 'footnotes', 'source_list', 'urls', 'results',
+];
+
+/**
+ * Collect unique { url, domain, title } from Infatica JSON (top-level and common nests).
+ * Handles array citations, string URLs, and citation maps { "1": { url } }.
+ */
+function collectSourcesFromJson(obj) {
+    const out = [];
+    const seen = new Set();
+
+    const pushUrl = (url, title = '') => {
+        const u = normalizeSourceUrl(typeof url === 'string' ? url : '');
+        if (!u || seen.has(u)) return;
+        let domain = '';
+        try {
+            domain = new URL(u).hostname.replace(/^www\./, '');
+        } catch {
+            return;
+        }
+        seen.add(u);
+        out.push({ url: u, domain, title: String(title || '').slice(0, 500) });
+    };
+
+    const drainArray = (arr) => {
+        if (!Array.isArray(arr)) return;
+        for (const item of arr) {
+            if (typeof item === 'string') {
+                pushUrl(item, '');
+                continue;
+            }
+            const u = urlFromSourceEntry(item);
+            if (u) pushUrl(u, titleFromSourceEntry(item));
+        }
+    };
+
+    const drainCitationRecord = (rec) => {
+        if (!rec || typeof rec !== 'object') return;
+        if (Array.isArray(rec)) {
+            drainArray(rec);
+            return;
+        }
+        for (const v of Object.values(rec)) {
+            if (typeof v === 'string') pushUrl(v, '');
+            else if (v && typeof v === 'object') {
+                const u = urlFromSourceEntry(v);
+                if (u) pushUrl(u, titleFromSourceEntry(v));
+            }
+        }
+    };
+
+    const scan = (node) => {
+        if (!node || typeof node !== 'object') return;
+        for (const key of SOURCE_ARRAY_KEYS) {
+            if (!Array.isArray(node[key])) continue;
+            drainArray(node[key]);
+        }
+        const cit = node.citations;
+        if (cit && typeof cit === 'object' && !Array.isArray(cit)) {
+            drainCitationRecord(cit);
+        }
+    };
+
+    scan(obj);
+    if (obj?.data && typeof obj.data === 'object' && !Array.isArray(obj.data)) {
+        scan(obj.data);
+    }
+
+    return out;
+}
+
 function longestJsonTextBlob(node, depth, minLen) {
     if (depth <= 0 || node == null) return '';
     if (typeof node === 'string') {
@@ -137,7 +259,22 @@ function extractResponse(res, label) {
         try { json = JSON.parse(raw); } catch { /* not JSON */ }
 
         if (json && typeof json === 'object') {
-            if (json.data && typeof json.data === 'object') json = { ...json, ...json.data };
+            if (json.data && typeof json.data === 'object' && !Array.isArray(json.data)) {
+                json = { ...json, ...json.data };
+            }
+
+            const pickNestedAnswer = (a) => {
+                if (!a || typeof a !== 'object') return '';
+                return (
+                    (typeof a.text === 'string' ? a.text : null) ??
+                    (typeof a.markdown === 'string' ? a.markdown : null) ??
+                    (typeof a.md === 'string' ? a.md : null) ??
+                    (typeof a.content === 'string' ? a.content : null) ??
+                    (typeof a.message === 'string' ? a.message : null) ??
+                    (typeof a.body === 'string' ? a.body : null) ??
+                    ''
+                );
+            };
 
             const text =
                 (typeof json.answer === 'string' ? json.answer : null) ??
@@ -151,22 +288,10 @@ function extractResponse(res, label) {
                 (typeof json.message === 'string' ? json.message : null) ??
                 (typeof json.body === 'string' ? json.body : null) ??
                 (typeof json.generated_text === 'string' ? json.generated_text : null) ??
-                (typeof json.full_text === 'string' ? json.full_text : null);
+                (typeof json.full_text === 'string' ? json.full_text : null) ??
+                (json.answer && typeof json.answer === 'object' ? pickNestedAnswer(json.answer) : null);
 
-            const sources = [];
-            for (const key of ['sources', 'citations', 'references', 'links', 'search_results', 'searchResults']) {
-                if (Array.isArray(json[key])) {
-                    for (const s of json[key]) {
-                        const url = typeof s === 'string' ? s : (s?.url ?? s?.href ?? s?.link ?? s?.uri ?? '');
-                        if (!url) continue;
-                        let domain = '';
-                        try { domain = new URL(url).hostname.replace(/^www\./, ''); } catch {}
-                        if (url && !sources.some(x => x.url === url)) {
-                            sources.push({ url, domain, title: (typeof s === 'object' ? (s.title || s.name || '') : '') });
-                        }
-                    }
-                }
-            }
+            const sources = collectSourcesFromJson(json);
 
             if (text && text.trim()) {
                 console.log(`    ✓ [${label}] text ${text.length}ch, ${sources.length} sources`);
