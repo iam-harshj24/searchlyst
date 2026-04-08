@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     LayoutGrid, Sparkles, Globe, Building2, Users, MapPin, Eye, Activity,
-    Shield, FileText, ChevronRight, Clock, Folder, Bell, Plus, AlertTriangle,
+    Shield, FileText, ChevronRight, Clock, Folder, Bell, Plus, AlertTriangle, Trash2,
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid } from 'recharts';
 import { apiClient } from '../../api/apiClient.js';
@@ -132,7 +132,22 @@ function normalizeHost(s) {
     return String(s).replace(/^https?:\/\//i, '').split('/')[0].replace(/^www\./i, '').toLowerCase();
 }
 
-export default function OverviewPage({ domains, activeProject, onAddDomain, onTabChange, userRole, user, scanManager, projects }) {
+export default function OverviewPage({ domains, activeProject, onAddDomain, onRemoveProject, onTabChange, userRole, user, scanManager, projects }) {
+    const [removeDomainOpen, setRemoveDomainOpen] = useState(false);
+    const [removeDomainBusy, setRemoveDomainBusy] = useState(false);
+    const domainDisplay = (activeProject?.url || activeProject?.domain || '').replace(/^https?:\/\//i, '').split('/')[0] || 'this domain';
+
+    const handleConfirmRemoveDomain = async () => {
+        if (!activeProject || !onRemoveProject) return;
+        setRemoveDomainBusy(true);
+        try {
+            const ok = await onRemoveProject(activeProject);
+            if (ok) setRemoveDomainOpen(false);
+        } finally {
+            setRemoveDomainBusy(false);
+        }
+    };
+
     const scanResult = scanManager?.scanResult;
     const visData = scanResult || readVisibilityCache(user?.authUserId, user?.domain, user?.projectId);
     const auditData = getAuditData(user?.authUserId, user?.domain, user?.projectId);
@@ -607,6 +622,62 @@ export default function OverviewPage({ domains, activeProject, onAddDomain, onTa
                     </div>
                 )}
             </div>
+
+            {activeProject && onRemoveProject && (
+                <div className="bg-[#140808] border border-red-900/40 rounded-2xl p-5 mt-8">
+                    <h3 className="text-red-200/90 text-[11px] font-bold uppercase tracking-[0.12em] mb-2">Domain</h3>
+                    <p className="text-[#a3a3a3] text-[13px] leading-relaxed max-w-xl mb-4">
+                        Remove <span className="text-[#e5e5e5]">{domainDisplay}</span> from your workspace. Visibility scans,
+                        audits, and cached data for this domain will be deleted. Your Searchlyst account and other projects
+                        stay as they are.
+                    </p>
+                    <button
+                        type="button"
+                        onClick={() => setRemoveDomainOpen(true)}
+                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-red-800/60 bg-red-950/40 text-red-200 text-[13px] font-medium hover:bg-red-950/70 hover:border-red-700/80 transition-colors"
+                    >
+                        <Trash2 className="w-4 h-4 shrink-0" aria-hidden />
+                        Remove this domain
+                    </button>
+                </div>
+            )}
+
+            {removeDomainOpen && (
+                <div
+                    className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="remove-domain-title"
+                >
+                    <div className="w-full max-w-md rounded-2xl border border-[#333] bg-[#111] shadow-xl p-6">
+                        <h2 id="remove-domain-title" className="text-white text-[17px] font-semibold mb-2">
+                            Remove this domain?
+                        </h2>
+                        <p className="text-[#a3a3a3] text-[13px] leading-relaxed mb-6">
+                            <span className="text-[#e5e5e5]">{domainDisplay}</span> and its project data will be removed from
+                            Searchlyst. This does not delete your login or other domains you track.
+                        </p>
+                        <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
+                            <button
+                                type="button"
+                                disabled={removeDomainBusy}
+                                onClick={() => setRemoveDomainOpen(false)}
+                                className="px-4 py-2.5 rounded-xl border border-[#333] text-[#ccc] text-[13px] font-medium hover:bg-[#1a1a1a] disabled:opacity-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                disabled={removeDomainBusy}
+                                onClick={handleConfirmRemoveDomain}
+                                className="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-[13px] font-semibold disabled:opacity-50"
+                            >
+                                {removeDomainBusy ? 'Removing…' : 'Yes, remove domain'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
         </div>
     );

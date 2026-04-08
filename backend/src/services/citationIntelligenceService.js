@@ -194,6 +194,7 @@ export async function generateCitationIntelligenceBrief(params) {
             .slice(0, 4)
             .map((c) => (typeof c === 'string' ? c : c.name))
             .filter(Boolean),
+        enginesAffected: Array.isArray(g.enginesAffected) ? g.enginesAffected : [],
     }));
 
     const payload = {

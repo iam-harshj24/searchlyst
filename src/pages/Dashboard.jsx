@@ -25,6 +25,10 @@ import {
     activeAuditStorageKey,
     storageUserIdSegment,
     projectsFallbackStorageKey,
+    removeLocalStorageForProject,
+    removeProjectFromFallbackList,
+    readLastVisibilityScanId,
+    writeLastVisibilityScanId,
 } from '@/lib/visibilityStorageKeys';
 
 const STORAGE_KEYS = {
@@ -90,16 +94,30 @@ function useScanManager(user) {
     const storageKey = visibilityResultStorageKey(authUserId, domain, projectId);
     const activeScanKey = activeScanStorageKey(authUserId, domain, projectId);
 
+    const pollDepsRef = useRef({ projectId, domain, storageKey, activeScanKey, authUserId });
+    useEffect(() => {
+        pollDepsRef.current = { projectId, domain, storageKey, activeScanKey, authUserId };
+    }, [projectId, domain, storageKey, activeScanKey, authUserId]);
+
+    const scanIdRef = useRef(null);
+    const scanStatusRef = useRef('idle');
+    useEffect(() => {
+        scanIdRef.current = scanId;
+    }, [scanId]);
+    useEffect(() => {
+        scanStatusRef.current = scanStatus;
+    }, [scanStatus]);
+
     // Stop polling
     const stopPolling = useCallback(() => {
         if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
     }, []);
 
-    // Poll for scan status
-    const startPolling = useCallback((id) => {
-        stopPolling();
-        pollRef.current = setInterval(async () => {
+    /** Single status fetch — used by interval, immediate tick, and tab-focus catch-up (background tabs throttle timers). */
+    const pollScanOnce = useCallback(
+        async (id) => {
             const gen = pollGenerationRef.current;
+            const { projectId: pid, domain: dom, storageKey: sk, activeScanKey: ask, authUserId: uid } = pollDepsRef.current;
             try {
                 const res = await apiClient.visibility.getScanStatus(id);
                 if (gen !== pollGenerationRef.current) return;
@@ -112,30 +130,63 @@ function useScanManager(user) {
                 if (res.status === 'completed') {
                     setScanStatus('completed');
                     if (res.result) {
-                        localStorage.setItem(storageKey, JSON.stringify(res.result));
+                        localStorage.setItem(sk, JSON.stringify(res.result));
+                        writeLastVisibilityScanId(uid, dom, pid, id);
                     }
-                    localStorage.removeItem(activeScanKey);
+                    localStorage.removeItem(ask);
                     stopPolling();
                 } else if (res.status === 'failed') {
                     setScanError(res.error);
-                    localStorage.removeItem(activeScanKey);
+                    localStorage.removeItem(ask);
                     stopPolling();
                     try {
-                        const fallback = await apiClient.visibility.getLatestScan(projectId, domain);
+                        const fallback = await apiClient.visibility.getLatestScan(pid, dom);
                         if (gen !== pollGenerationRef.current) return;
                         if (fallback?.scan?.result) {
                             setScanResult(fallback.scan.result);
-                            if (fallback.scan?.id) setScanId(fallback.scan.id);
-                            localStorage.setItem(storageKey, JSON.stringify(fallback.scan.result));
+                            if (fallback.scan?.id) {
+                                setScanId(fallback.scan.id);
+                                writeLastVisibilityScanId(uid, dom, pid, fallback.scan.id);
+                            }
+                            localStorage.setItem(sk, JSON.stringify(fallback.scan.result));
                             setScanStatus('completed');
                             return;
                         }
                     } catch { /* no fallback available */ }
                     setScanStatus('failed');
                 }
-            } catch { }
-        }, 3000);
-    }, [stopPolling, storageKey, activeScanKey, projectId, domain]);
+            } catch { /* network hiccup — next poll or focus retry */ }
+        },
+        [stopPolling],
+    );
+
+    // Poll for scan status (runs on server; tab switches do not stop it — only throttles JS timers in background)
+    const startPolling = useCallback(
+        (id) => {
+            stopPolling();
+            void pollScanOnce(id);
+            pollRef.current = setInterval(() => {
+                void pollScanOnce(id);
+            }, 3000);
+        },
+        [stopPolling, pollScanOnce],
+    );
+
+    // When the user returns to this tab, poll once immediately so we catch completed scans if the interval was throttled
+    useEffect(() => {
+        const onVisibleOrFocus = () => {
+            if (document.visibilityState !== 'visible') return;
+            const id = scanIdRef.current;
+            if (!id || scanStatusRef.current !== 'scanning') return;
+            void pollScanOnce(id);
+        };
+        document.addEventListener('visibilitychange', onVisibleOrFocus);
+        window.addEventListener('focus', onVisibleOrFocus);
+        return () => {
+            document.removeEventListener('visibilitychange', onVisibleOrFocus);
+            window.removeEventListener('focus', onVisibleOrFocus);
+        };
+    }, [pollScanOnce]);
 
     // Cleanup on unmount
     useEffect(() => () => stopPolling(), [stopPolling]);
@@ -185,6 +236,8 @@ function useScanManager(user) {
                     if (parsed && !stale()) {
                         setScanResult(parsed);
                         setScanStatus('completed');
+                        const sid = readLastVisibilityScanId(authUserId, domain, projectId);
+                        if (sid) setScanId(sid);
                         setLoadingFromBackend(false);
                         return true;
                     }
@@ -219,7 +272,10 @@ function useScanManager(user) {
                 if (stale()) return;
                 if (res?.scan?.result) {
                     setScanResult(res.scan.result);
-                    if (res.scan?.id) setScanId(res.scan.id);
+                    if (res.scan?.id) {
+                        setScanId(res.scan.id);
+                        writeLastVisibilityScanId(authUserId, domain, projectId, res.scan.id);
+                    }
                     setScanStatus('completed');
                     localStorage.setItem(storageKey, JSON.stringify(res.scan.result));
                 }
@@ -230,35 +286,66 @@ function useScanManager(user) {
         })();
     }, [authUserId, domain, projectId, storageKey, activeScanKey, startPolling]);
 
-    // Start a new scan
+    // Start a new scan — clears ALL cached data first to ensure fresh start
     const startScan = useCallback(async () => {
         if (!user?.domain) return;
+        
+        // Clear ALL cached visibility data before starting new scan
+        // This ensures trends/calculations only use database data
+        removeLocalStorageForProject(authUserId, user.domain, user.projectId);
+        setScanResult(null);
         setScanStatus('scanning'); setScanError(null);
         setScanPhase('initializing'); setScanPhaseDetail('Starting...');
         setScanProgress({ completed: 0, total: 0 }); setCompletedPrompts(0); setTotalPrompts(0);
+        
         try {
             const comps = (user?.competitors || []).map(c => typeof c === 'string' ? { name: c, domain: c } : c);
+            const tl = Array.isArray(user?.trackingLocations)
+                ? user.trackingLocations.map((x) => String(x || '').trim()).filter(Boolean).slice(0, 3)
+                : [];
+            const locBlob = `${(user?.location || '').toLowerCase()} ${tl.join(' ')}`.toLowerCase();
+            const inferredCountry =
+                /\bindia\b|\bbangalore\b|\bmumbai\b|\bdelhi\b/.test(locBlob) ? 'IN'
+                : /\buk\b|\blondon\b|\bunited kingdom\b/.test(locBlob) ? 'GB'
+                : /\busa\b|\bus\b|\bunited states\b|\bnyc\b/.test(locBlob) ? 'US'
+                : '';
             const res = await apiClient.visibility.startScan({
                 brandName: user?.brandName || '', domain: user?.domain || '', industry: user?.industry || '',
                 competitors: comps, location: user?.location || '', language: user?.language || 'English',
-                country: user?.location?.toLowerCase().includes('india') ? 'IN' : '',
+                country: inferredCountry,
+                trackingLocations: tl,
                 projectId: user?.projectId || undefined,
             });
-            setScanResult(null);
-            localStorage.removeItem(storageKey);
-            localStorage.removeItem(`searchlyst_visibility_${user?.domain || 'default'}`);
-            localStorage.removeItem(`searchlyst_visibility_${user?.domain || 'default'}_${user?.projectId ?? 'default'}`);
             setScanId(res.scanId);
             localStorage.setItem(activeScanKey, JSON.stringify({ scanId: res.scanId, startedAt: new Date().toISOString() }));
             startPolling(res.scanId);
         } catch (err) { setScanStatus('failed'); setScanError(err.message); }
-    }, [user, storageKey, activeScanKey, startPolling]);
+    }, [user, authUserId, activeScanKey, startPolling]);
+
+    const applyScanResult = useCallback(
+        (result, scanIdOverride) => {
+            if (!result || typeof result !== 'object') return;
+            setScanResult(result);
+            setScanStatus('completed');
+            if (scanIdOverride && typeof scanIdOverride === 'string') {
+                setScanId(scanIdOverride);
+                writeLastVisibilityScanId(authUserId, domain, projectId, scanIdOverride);
+            }
+            try {
+                localStorage.setItem(storageKey, JSON.stringify(result));
+            } catch {
+                /* ignore quota */
+            }
+        },
+        [storageKey, authUserId, domain, projectId],
+    );
 
     return {
         scanId, scanStatus, scanResult, scanPhase, scanPhaseDetail,
         scanProgress, completedPrompts, totalPrompts, scanError,
         loadingFromBackend,
         startScan, stopPolling,
+        applyScanResult,
     };
 }
 
@@ -521,6 +608,81 @@ function DashboardInner() {
         setActiveTab('overview');
     };
 
+    /** Remove the active domain/project from the workspace (DB + local caches). Account stays signed in. */
+    const handleRemoveProject = async (project) => {
+        if (!project) return false;
+        const pid = project.id;
+        const domain = project.url || project.domain || '';
+
+        removeLocalStorageForProject(authUser?.id, domain, pid);
+        removeProjectFromFallbackList(authUser?.id, project);
+
+        const canApiDelete = Number(pid) > 0 && authUser?.id != null && Number(authUser.id) > 0;
+        if (canApiDelete) {
+            try {
+                await apiClient.projects.delete(pid);
+            } catch (e) {
+                import('sonner').then(({ toast }) =>
+                    toast.error(e.message || 'Could not remove this domain from the server'),
+                );
+                return false;
+            }
+        }
+
+        const loaded = await fetchProjects();
+        removeProjectFromFallbackList(authUser?.id, project);
+
+        let fallbackMapped = [];
+        if (loaded.length === 0) {
+            try {
+                const key = projectsFallbackStorageKey(authUser?.id);
+                const saved = JSON.parse(localStorage.getItem(key) || '[]');
+                if (Array.isArray(saved) && saved.length > 0) {
+                    fallbackMapped = saved.map((p) => ({
+                        ...p,
+                        name: p.brandName || p.name,
+                        url: p.domain || p.url,
+                    }));
+                    setProjects(fallbackMapped);
+                }
+            } catch { /* ignore */ }
+        }
+
+        const pool = loaded.length > 0 ? loaded : fallbackMapped;
+        const next = pool[0] || null;
+
+        if (next) {
+            setActiveProject(next);
+            const merged = {
+                brandName: next.name || next.brandName,
+                domain: next.url || next.domain,
+                industry: next.industry,
+                competitors: next.competitors,
+                role_type: userRole,
+                projectId: next.id,
+            };
+            setUser((prev) => ({ ...prev, ...merged }));
+            const existing = getDashboardUser(authUser?.id);
+            setDashboardUser(authUser?.id, { ...existing, ...merged });
+        } else {
+            setActiveProject(null);
+            const existing = getDashboardUser(authUser?.id);
+            if (existing) {
+                setDashboardUser(authUser?.id, {
+                    ...existing,
+                    brandName: undefined,
+                    domain: undefined,
+                    industry: undefined,
+                    competitors: undefined,
+                });
+            }
+            setUser(existing ? { ...existing, brandName: undefined, domain: undefined, industry: undefined, competitors: undefined, projectId: undefined } : null);
+        }
+
+        import('sonner').then(({ toast }) => toast.success('This domain has been removed from your workspace.'));
+        return true;
+    };
+
     const handleAddProjectComplete = async (role) => {
         setShowAddProjectOnboarding(false);
         const loadedProjects = await fetchProjects();
@@ -573,7 +735,7 @@ function DashboardInner() {
 
         switch (activeTab) {
             case 'overview':
-                return <OverviewPage domains={projects} projects={projects} activeProject={activeProject} onAddDomain={() => setShowAddProjectOnboarding(true)} onTabChange={setActiveTab} userRole={userRole} user={contextUser} scanManager={scanManager} />;
+                return <OverviewPage domains={projects} projects={projects} activeProject={activeProject} onAddDomain={() => setShowAddProjectOnboarding(true)} onRemoveProject={handleRemoveProject} onTabChange={setActiveTab} userRole={userRole} user={contextUser} scanManager={scanManager} />;
             case 'topic-discovery':
                 return <TopicDiscoveryPage onTabChange={setActiveTab} user={contextUser} />;
             case 'content-studio':
@@ -583,17 +745,24 @@ function DashboardInner() {
             case 'competitive-intel':
                 return <CompetitiveIntelPage user={contextUser} scanManager={scanManager} onTabChange={setActiveTab} />;
             case 'competitors':
-                return <CompetitorsPage user={contextUser} onTabChange={setActiveTab} />;
+                return <CompetitorsPage user={contextUser} scanManager={scanManager} onTabChange={setActiveTab} />;
             case 'sentiment-geo':
                 return <SentimentGeoPage user={contextUser} scanManager={scanManager} />;
             case 'audit-health':
                 return <AuditHealthPage user={contextUser} activeProject={activeProject} auditManager={auditManager} />;
             case 'prompt-intel':
-                return <PromptIntelPage user={contextUser} scanManager={scanManager} />;
+                return (
+                    <PromptIntelPage
+                        user={contextUser}
+                        scanManager={scanManager}
+                        scanId={scanManager.scanId}
+                        applyScanResult={scanManager.applyScanResult}
+                    />
+                );
             case 'actions':
                 return <ActionsPage user={contextUser} onTabChange={setActiveTab} />;
             default:
-                return <OverviewPage domains={projects} projects={projects} activeProject={activeProject} onAddDomain={() => setShowAddProjectOnboarding(true)} onTabChange={setActiveTab} userRole={userRole} user={contextUser} scanManager={scanManager} />;
+                return <OverviewPage domains={projects} projects={projects} activeProject={activeProject} onAddDomain={() => setShowAddProjectOnboarding(true)} onRemoveProject={handleRemoveProject} onTabChange={setActiveTab} userRole={userRole} user={contextUser} scanManager={scanManager} />;
         }
     };
 

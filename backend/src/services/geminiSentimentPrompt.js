@@ -5,7 +5,7 @@
 
 import { SENTIMENT_FACTOR_WEIGHTS } from './multiFactorSentiment.js';
 
-const ENGINE_KEYS = ['perplexity', 'gemini', 'googleAI'];
+const ENGINE_KEYS = ['perplexity', 'gemini', 'chatgpt', 'googleAI'];
 
 /**
  * @param {string} brandName
@@ -50,11 +50,12 @@ OUTPUT — reply with ONLY valid JSON (no markdown), exactly this shape:
       "toxicity": 92,
       "rationale": "One short sentence citing what in the text drove the scores."
     },
+    "chatgpt": null,
     "googleAI": null
   }
 }
 
-Engine keys must be exactly: "perplexity", "gemini", "googleAI".
+Engine keys must be exactly: "perplexity", "gemini", "chatgpt", "googleAI".
 
 EXCERPTS
 ${excerptBlocksMarkdown}`;

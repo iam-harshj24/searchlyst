@@ -1,3 +1,6 @@
+import { createHash } from 'crypto';
+import { attachGeoBriefsToGaps } from './geoPlaybook.js';
+
 /**
  * Scoring Engine — AI Visibility & Share of Voice
  *
@@ -57,11 +60,17 @@ export function computeVisibilityScore(allRunResults, brandName) {
     const sovScore = totalMentionCount > 0 ? (brandMentionCount / totalMentionCount) * 100 : 0;
 
     // 3. Position Score — avg reciprocal rank, scaled by MAX_RECIPROCAL_RANK (rank 1 → 100)
+    //    positionRank 1 = mentioned first → reciprocal 1.0 → score 100
+    //    positionRank 2 = mentioned second → reciprocal 0.5 → score 50
+    //    positionRank 3 → reciprocal 0.33 → score 33, etc.
     let positionWeightedSum = 0;
     let positionCount = 0;
     for (const run of allRunResults) {
-        if (run.brandMentioned && run.brandEntity?.positionRank) {
-            positionWeightedSum += 1 / run.brandEntity.positionRank;
+        if (!run.brandMentioned) continue;
+        // Defensive: ensure positionRank is a positive number (handles string, null, 0, negative)
+        const posRank = Number(run.brandEntity?.positionRank);
+        if (posRank > 0 && Number.isFinite(posRank)) {
+            positionWeightedSum += 1 / posRank;
             positionCount++;
         }
     }
@@ -180,8 +189,10 @@ export function computeShareOfVoice(allRunResults, brandName, competitors, brand
                 row.domain = String(entity.domain).replace(/^www\./, '');
             }
             row.mentions += entity.mentions || 1;
-            if (entity.positionRank) {
-                row.totalPosition += entity.positionRank;
+            // Defensive: ensure positionRank is a positive number
+            const posRank = Number(entity.positionRank);
+            if (posRank > 0 && Number.isFinite(posRank)) {
+                row.totalPosition += posRank;
                 row.positionCount++;
             }
             // Competitor sentiment: one vote per run from dominant entity row (see loop below).
@@ -345,9 +356,11 @@ export function computeQueryTracking(allRunResults, brandName) {
             };
         }
 
+        // Defensive: ensure positionRank is stored as a positive number
+        const posRank = Number(run.brandEntity?.positionRank);
         byQuery[key].engines[run.engine] = {
             mentioned: run.brandMentioned,
-            positionRank: run.brandEntity?.positionRank || null,
+            positionRank: (posRank > 0 && Number.isFinite(posRank)) ? posRank : null,
             sentiment: run.brandEntity?.sentiment || 'n/a',
             citations: run.citations?.length || 0,
             brandCited: run.citationStats?.brandCited || false,
@@ -359,7 +372,10 @@ export function computeQueryTracking(allRunResults, brandName) {
         const mentionedCount = engineList.filter(e => e.mentioned).length;
         const totalEngines = engineList.length;
 
-        const positions = engineList.filter(e => e.positionRank).map(e => e.positionRank);
+        // Filter and convert positions to ensure valid numbers
+        const positions = engineList
+            .map(e => Number(e.positionRank))
+            .filter(n => n > 0 && Number.isFinite(n));
         const avgPosition = positions.length > 0
             ? (positions.reduce((a, b) => a + b, 0) / positions.length).toFixed(1)
             : 'N/A';
@@ -441,17 +457,101 @@ export function computeSourceDomains(allRunResults) {
     };
 }
 
+function mergeCompetitorAgg(map, name, domainHint) {
+    if (!name) return;
+    const dom = String(domainHint || '')
+        .replace(/^www\./, '')
+        .split('/')[0]
+        .toLowerCase();
+    const prev = map[name];
+    if (!prev) {
+        map[name] = { count: 1, domain: dom || '' };
+    } else if (typeof prev === 'number') {
+        map[name] = { count: prev + 1, domain: dom || '' };
+    } else {
+        map[name] = {
+            count: prev.count + 1,
+            domain: prev.domain || dom || '',
+        };
+    }
+}
+
+function citationHost(d) {
+    return String(d || '')
+        .replace(/^https?:\/\//, '')
+        .replace(/^www\./, '')
+        .split('/')[0]
+        .toLowerCase();
+}
+
+/**
+ * Top competitor-flagged citations on a single run (for GEO “their URL” signals).
+ */
+function topCompetitorCitationsForRun(run) {
+    const urlMap = new Map();
+    for (const c of run.citations || []) {
+        if (!c?.isCompetitor || c.isTargetBrand) continue;
+        const url = String(c.url || '').trim();
+        if (!url) continue;
+        const prev = urlMap.get(url) || {
+            count: 0,
+            title: c.title || '',
+            domain: c.domain || '',
+            names: new Set(),
+        };
+        prev.count += 1;
+        if (c.title && !prev.title) prev.title = c.title;
+        if (c.domain && !prev.domain) prev.domain = c.domain;
+        urlMap.set(url, prev);
+    }
+    const compEntities = (run.entities || []).filter((e) => e.isCompetitor && !e.isTargetBrand);
+    for (const v of urlMap.values()) {
+        const host = citationHost(v.domain);
+        for (const e of compEntities) {
+            const eh = citationHost(e.domain);
+            if (eh && host && (host === eh || host.endsWith(`.${eh}`))) {
+                v.names.add(e.name);
+            }
+        }
+    }
+    return [...urlMap.entries()]
+        .map(([url, v]) => ({
+            url,
+            title: v.title,
+            domain: v.domain,
+            count: v.count,
+            matchedCompetitorName: v.names.size ? [...v.names][0] : null,
+        }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5);
+}
+
+function gapIdStable(promptKey, competitorNames) {
+    const tail = [...competitorNames].sort().join('|').slice(0, 200);
+    return createHash('sha256')
+        .update(`${String(promptKey)}::${tail}`)
+        .digest('hex')
+        .slice(0, 16);
+}
+
+/**
+ * Competitor gaps: prompts where the brand is never mentioned but at least one competitor is.
+ * Enriched with per-engine mention + citation signals and a template GEO brief for content teams.
+ */
 export function computeCompetitorGap(allRunResults, brandName, competitors) {
     const byQuery = {};
     for (const run of allRunResults) {
         const key = run.promptId ?? run.query;
+        const engine = run.engine || 'unknown';
         if (!byQuery[key]) {
             byQuery[key] = {
+                promptId: run.promptId ?? null,
                 query: run.query,
                 category: run.category || null,
                 intent: run.intent || null,
                 brandMentioned: false,
                 competitors: {},
+                perEngine: {},
             };
         }
 
@@ -459,46 +559,119 @@ export function computeCompetitorGap(allRunResults, brandName, competitors) {
         if (!byQuery[key].category && run.category) byQuery[key].category = run.category;
         if (!byQuery[key].intent && run.intent) byQuery[key].intent = run.intent;
 
-        for (const entity of (run.entities || [])) {
+        if (!byQuery[key].perEngine[engine]) {
+            byQuery[key].perEngine[engine] = {
+                brandMentioned: false,
+                competitors: {},
+                topCompetitorCitations: [],
+            };
+        }
+        const pe = byQuery[key].perEngine[engine];
+        if (run.brandMentioned) pe.brandMentioned = true;
+
+        for (const entity of run.entities || []) {
             if (entity.isCompetitor && !entity.isTargetBrand) {
                 const n = entity.name;
                 if (!n) continue;
-                const prev = byQuery[key].competitors[n];
-                const dom = (entity.domain || '').replace(/^www\./, '').split('/')[0].toLowerCase();
-                if (!prev) {
-                    byQuery[key].competitors[n] = { count: 1, domain: dom || '' };
-                } else if (typeof prev === 'number') {
-                    byQuery[key].competitors[n] = { count: prev + 1, domain: dom || '' };
-                } else {
-                    byQuery[key].competitors[n] = {
-                        count: prev.count + 1,
-                        domain: (prev.domain || dom || ''),
-                    };
-                }
+                mergeCompetitorAgg(byQuery[key].competitors, n, entity.domain);
+                mergeCompetitorAgg(pe.competitors, n, entity.domain);
             }
+        }
+
+        const cites = topCompetitorCitationsForRun(run);
+        if (cites.length) {
+            const merged = new Map();
+            for (const x of pe.topCompetitorCitations || []) merged.set(x.url, { ...x });
+            for (const x of cites) {
+                const prev = merged.get(x.url);
+                if (!prev) merged.set(x.url, { ...x });
+                else merged.set(x.url, { ...prev, count: prev.count + x.count });
+            }
+            pe.topCompetitorCitations = [...merged.values()].sort((a, b) => b.count - a.count).slice(0, 5);
         }
     }
 
+    const brandCitedSet = new Set();
+    for (const r of allRunResults) {
+        const pk = r.promptId ?? r.query;
+        if ((r.citations || []).some((c) => c.isTargetBrand)) {
+            brandCitedSet.add(`${String(pk)}@@@${r.engine || 'unknown'}`);
+        }
+    }
+
+    const waveOrder = ['gemini', 'perplexity', 'googleAI', 'chatgpt'];
+    const sortEngines = (a, b) => {
+        const ia = waveOrder.indexOf(a);
+        const ib = waveOrder.indexOf(b);
+        if (ia === -1 && ib === -1) return String(a).localeCompare(String(b));
+        if (ia === -1) return 1;
+        if (ib === -1) return -1;
+        return ia - ib;
+    };
+
     const gaps = Object.values(byQuery)
-        .filter(q => !q.brandMentioned && Object.keys(q.competitors).length > 0)
+        .filter((q) => !q.brandMentioned && Object.keys(q.competitors).length > 0)
         .map((q) => {
+            const pkey = q.promptId ?? q.query;
             const sorted = Object.entries(q.competitors)
                 .map(([name, val]) => {
                     if (typeof val === 'number') return { name, count: val, domain: '' };
                     return { name, count: val.count, domain: val.domain || '' };
                 })
                 .sort((a, b) => b.count - a.count);
-            const topNames = sorted.slice(0, 3).map(c => c.name).filter(Boolean);
+            const topNames = sorted.slice(0, 3).map((c) => c.name).filter(Boolean);
             const catLabel = humanizeCategory(q.category);
             const shortQuery = q.query.length > 140 ? `${q.query.slice(0, 137)}…` : q.query;
             const topicHead = catLabel || 'AI answer visibility';
             const contentTopic = `${topicHead}: ${shortQuery}`;
             const leadComp = topNames[0] || 'competitors';
             const also = topNames.length > 1 ? ` (also ${topNames.slice(1).join(', ')})` : '';
-            const contentAngle =
-                `Create definitive, quotable content that answers this intent so ChatGPT, Gemini, and Perplexity can cite your brand alongside ${leadComp}${also}.`;
+
+            const byEngine = {};
+            const enginesLost = [];
+            for (const [eng, row] of Object.entries(q.perEngine || {})) {
+                const compSorted = Object.entries(row.competitors || {})
+                    .map(([name, val]) => {
+                        if (typeof val === 'number') return { name, count: val, domain: '' };
+                        return { name, count: val.count, domain: val.domain || '' };
+                    })
+                    .sort((a, b) => b.count - a.count);
+                const brandCited = brandCitedSet.has(`${String(pkey)}@@@${eng}`);
+                const hasCompetitorSignal =
+                    compSorted.length > 0 || (row.topCompetitorCitations || []).length > 0;
+                const mentionGap = hasCompetitorSignal && !row.brandMentioned;
+                if (mentionGap && eng !== 'unknown') enginesLost.push(eng);
+
+                byEngine[eng] = {
+                    brandMentioned: row.brandMentioned,
+                    mentionGap,
+                    brandCited,
+                    competitorsPresent: compSorted,
+                    topCompetitorCitations: row.topCompetitorCitations || [],
+                };
+            }
+
+            const enginesAffected = [...new Set(enginesLost)].sort(sortEngines);
+
+            const leadEngineHint =
+                enginesAffected.find((e) => waveOrder.includes(e)) ||
+                enginesAffected[0] ||
+                'perplexity';
+            const platformLabel =
+                {
+                    gemini: 'Gemini',
+                    perplexity: 'Perplexity',
+                    googleAI: 'Google AI Overview',
+                    chatgpt: 'ChatGPT',
+                }[leadEngineHint] || 'AI platforms';
+
+            const contentAngle = `Out-structure ${leadComp}${also} on ${platformLabel} first: direct-answer lede, platform-appropriate schema, and proof (stats or comparison) so models can cite ${brandName || 'your brand'} alongside them.`;
+
+            const gapId = gapIdStable(pkey, sorted.map((c) => c.name));
 
             return {
+                gapId,
+                promptId: q.promptId,
                 query: q.query,
                 category: q.category,
                 intent: q.intent,
@@ -506,11 +679,13 @@ export function computeCompetitorGap(allRunResults, brandName, competitors) {
                 contentAngle,
                 competitorsPresent: sorted,
                 opportunity: 'high',
+                enginesAffected,
+                byEngine,
             };
         })
         .sort((a, b) => b.competitorsPresent.length - a.competitorsPresent.length);
 
-    return gaps;
+    return attachGeoBriefsToGaps(gaps, brandName);
 }
 
 /**
@@ -616,8 +791,10 @@ export function computeIndustryPresenceRanking(allRunResults, brandName, previou
             if (!row) continue;
             row.prompts.add(pKey);
             row.mentions += entity.mentions || 1;
-            if (entity.positionRank) {
-                row.totalPosition += entity.positionRank;
+            // Defensive: ensure positionRank is a positive number
+            const posRank = Number(entity.positionRank);
+            if (posRank > 0 && Number.isFinite(posRank)) {
+                row.totalPosition += posRank;
                 row.positionCount++;
             }
             if (entity.domain && !row.domain) {

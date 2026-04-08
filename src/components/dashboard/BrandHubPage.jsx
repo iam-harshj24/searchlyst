@@ -142,6 +142,111 @@ function CommaCapsuleField({ value, onChange, placeholder, icon: Icon, id }) {
     );
 }
 
+/** Up to 3 distinct market / region labels for AI visibility scans (stacked-style prompts). */
+function TrackingMarketsField({ value, onChange, id }) {
+    const inputRef = useRef(null);
+    const [draft, setDraft] = useState('');
+    const tags = Array.isArray(value) ? value.slice(0, 3) : [];
+
+    const commit = (next) => onChange(next.slice(0, 3));
+
+    const pushUnique = (list, raw) => {
+        const t = raw.trim();
+        if (!t || list.length >= 3) return list;
+        if (list.some((x) => x.toLowerCase() === t.toLowerCase())) return list;
+        return [...list, t];
+    };
+
+    const addFromDraft = () => {
+        if (!draft.trim() || tags.length >= 3) return;
+        commit(pushUnique(tags, draft));
+        setDraft('');
+    };
+
+    const onInputChange = (e) => {
+        const v = e.target.value;
+        if (v.includes(',')) {
+            const parts = v.split(',');
+            const completed = parts.slice(0, -1).map((p) => p.trim()).filter(Boolean);
+            const rest = parts[parts.length - 1] ?? '';
+            let next = [...tags];
+            for (const p of completed) {
+                if (next.length >= 3) break;
+                next = pushUnique(next, p);
+            }
+            commit(next);
+            setDraft(rest);
+            return;
+        }
+        setDraft(v);
+    };
+
+    const onKeyDown = (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            addFromDraft();
+        } else if (e.key === 'Backspace' && draft === '' && tags.length > 0) {
+            e.preventDefault();
+            commit(tags.slice(0, -1));
+        }
+    };
+
+    const onBlur = () => {
+        if (draft.trim() && tags.length < 3) addFromDraft();
+    };
+
+    const removeAt = (index) => {
+        commit(tags.filter((_, i) => i !== index));
+    };
+
+    return (
+        <div className="relative">
+            <MapPin className="w-[18px] h-[18px] text-[#666] shrink-0 absolute left-4 top-3.5 pointer-events-none z-[1]" aria-hidden />
+            <div
+                role="group"
+                className="min-h-[48px] w-full bg-[#111] border border-[#222] focus-within:border-[#E92A15]/50 focus-within:bg-[#1A1A1A] rounded-xl py-2 pl-12 pr-3 flex flex-wrap gap-2 items-center transition-all outline-none cursor-text"
+                onClick={() => inputRef.current?.focus()}
+            >
+                {tags.map((tag, i) => (
+                    <span
+                        key={`${tag}-${i}`}
+                        className="inline-flex items-center gap-1 max-w-full pl-2.5 pr-1 py-1 rounded-lg text-[13px] font-medium text-[#e5e5e5] bg-[#1a1a1a] border border-[#333] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+                        title={tag}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <span className="truncate max-w-[220px]">{tag}</span>
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                removeAt(i);
+                            }}
+                            className="p-0.5 rounded-md text-[#737373] hover:text-white hover:bg-[#2a2a2a] shrink-0"
+                            aria-label={`Remove ${tag}`}
+                        >
+                            <X className="w-3.5 h-3.5" strokeWidth={2.5} />
+                        </button>
+                    </span>
+                ))}
+                <input
+                    ref={inputRef}
+                    id={id}
+                    type="text"
+                    value={draft}
+                    onChange={onInputChange}
+                    onKeyDown={onKeyDown}
+                    onBlur={onBlur}
+                    placeholder={tags.length >= 3 ? 'Max 3 markets' : tags.length === 0 ? 'e.g. Texas, US · India · United Kingdom' : 'Add another…'}
+                    disabled={tags.length >= 3}
+                    className="flex-1 min-w-[160px] bg-transparent border-none outline-none text-white text-[14px] placeholder:text-[#555] py-1.5 disabled:opacity-40"
+                    autoComplete="off"
+                    onClick={(e) => e.stopPropagation()}
+                />
+            </div>
+        </div>
+    );
+}
+
 export default function BrandHubPage({ user: userProp, authUserId }) {
     const [user, setUser] = useState(null);
     const [profileData, setProfileData] = useState({
@@ -153,6 +258,7 @@ export default function BrandHubPage({ user: userProp, authUserId }) {
         companySize: '',
         language: '',
         reach: '',
+        trackingLocations: [],
         social_linkedin: '',
         social_instagram: '',
         social_substack: '',
@@ -188,6 +294,9 @@ export default function BrandHubPage({ user: userProp, authUserId }) {
             companySize: merged?.companySize || prev.companySize || '',
             language: merged?.language || prev.language || '',
             reach: merged?.reach || prev.reach || '',
+            trackingLocations: Array.isArray(merged?.trackingLocations)
+                ? merged.trackingLocations.slice(0, 3)
+                : prev.trackingLocations || [],
             social_linkedin: merged?.social_linkedin || prev.social_linkedin || '',
             social_instagram: merged?.social_instagram || prev.social_instagram || '',
             social_substack: merged?.social_substack || prev.social_substack || '',
@@ -381,7 +490,7 @@ export default function BrandHubPage({ user: userProp, authUserId }) {
                         </p>
 
                         <div className="flex flex-col gap-2">
-                            <label className="text-[#666] text-[10px] font-bold uppercase tracking-[0.15em] ml-1">Location</label>
+                            <label className="text-[#666] text-[10px] font-bold uppercase tracking-[0.15em] ml-1">Primary location</label>
                             <div className="relative">
                                 <MapPin className="w-[18px] h-[18px] text-[#666] flex-shrink-0 absolute left-4 top-1/2 -translate-y-1/2" />
                                 <input 
@@ -404,6 +513,22 @@ export default function BrandHubPage({ user: userProp, authUserId }) {
                                     className="w-full bg-[#111] border border-[#222] focus:border-[#E92A15]/50 focus:bg-[#1A1A1A] outline-none text-white text-[14px] placeholder:text-[#555] rounded-xl py-3 pl-12 pr-4 transition-all"
                                 />
                             </div>
+                        </div>
+
+                        <div className="flex flex-col gap-2 md:col-span-2">
+                            <label htmlFor="brandhub-tracking-markets" className="text-[#666] text-[10px] font-bold uppercase tracking-[0.15em] ml-1">
+                                Visibility markets (max 3)
+                            </label>
+                            <TrackingMarketsField
+                                id="brandhub-tracking-markets"
+                                value={profileData.trackingLocations}
+                                onChange={(next) =>
+                                    setProfileData((prev) => ({ ...prev, trackingLocations: next }))
+                                }
+                            />
+                            <p className="text-[10px] text-[#555] ml-1 leading-relaxed">
+                                Each scan weaves these regions into prompts so models compare your brand vs competitors by market (share of voice, rank, sentiment). Leave empty to use primary location only.
+                            </p>
                         </div>
 
                         <div className="flex flex-col gap-2">

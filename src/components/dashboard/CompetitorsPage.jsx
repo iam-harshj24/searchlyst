@@ -5,7 +5,8 @@ import {
 } from 'lucide-react';
 import { SentimentPercentDisplay } from '@/components/ui/SentimentTriGauge';
 import { promptPreview } from '@/lib/promptPreview';
-import { readVisibilityCache, storageUserIdSegment } from '@/lib/visibilityStorageKeys';
+import { ENGINE_LABELS } from '@/lib/geoGapHelpers';
+import { readVisibilityCache, storageUserIdSegment, mergeVisibilityScan } from '@/lib/visibilityStorageKeys';
 
 function competitorsStorageKey(authUserId, domain) {
     const uid = storageUserIdSegment(authUserId);
@@ -184,11 +185,16 @@ function BrandAvatar({ name }) {
     );
 }
 
-export default function CompetitorsPage({ user, onTabChange }) {
-    const scanData = useMemo(
-        () => readVisibilityCache(user?.authUserId, user?.domain, user?.projectId),
-        [user?.authUserId, user?.domain, user?.projectId],
-    );
+export default function CompetitorsPage({ user, scanManager, onTabChange }) {
+    const scanData = useMemo(() => {
+        try {
+            const live = scanManager?.scanResult || null;
+            const cached = readVisibilityCache(user?.authUserId, user?.domain, user?.projectId);
+            return mergeVisibilityScan(live, cached);
+        } catch {
+            return null;
+        }
+    }, [scanManager?.scanResult, user?.authUserId, user?.domain, user?.projectId]);
     const gaps = Array.isArray(scanData?.competitorGaps) ? scanData.competitorGaps : [];
 
     const storageKey = competitorsStorageKey(user?.authUserId, user?.domain);
@@ -714,8 +720,8 @@ export default function CompetitorsPage({ user, onTabChange }) {
                                     <TrendingUp className="w-4 h-4 text-[#E92A15]" /> Where they lead (content gaps)
                                 </h3>
                             </div>
-                            <p className="text-[#666] text-[12px] mb-4">
-                                Prompts where they appear and you don&apos;t — matched by name, domain, or competitor citations.
+                            <p className="text-[#777] text-[11px] mb-4 max-w-md">
+                                Prompts where they show up and you don&apos;t. Badges = which AI engines.
                             </p>
                             {competitorGapsForSelected.length === 0 ? (
                                 <p className="text-[#555] text-[13px]">
@@ -746,7 +752,39 @@ export default function CompetitorsPage({ user, onTabChange }) {
                                                     </span>
                                                 ) : null}
                                             </div>
+                                            {Array.isArray(gap.enginesAffected) && gap.enginesAffected.length > 0 ? (
+                                                <div className="flex flex-wrap gap-1 mt-1.5">
+                                                    {gap.enginesAffected.map((e) => (
+                                                        <span
+                                                            key={e}
+                                                            className="text-[9px] font-semibold px-1.5 py-0.5 rounded-md bg-[#E92A15]/12 text-[#E92A15] border border-[#E92A15]/25"
+                                                        >
+                                                            {ENGINE_LABELS[e] || e}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            ) : null}
                                             {gap.contentAngle && <p className="text-[#777] text-[11px] mt-1">{gap.contentAngle}</p>}
+                                            {(() => {
+                                                const urls = (gap.geoBrief?.competitorCitedUrls || []).filter(
+                                                    (u) =>
+                                                        namesLikelyMatch(selectedCompetitor, u.competitor) ||
+                                                        namesLikelyMatch(selectedCompetitor, u.url || ''),
+                                                );
+                                                if (!urls.length) return null;
+                                                return (
+                                                    <ul className="mt-2 space-y-1 text-[11px] text-blue-400/90">
+                                                        {urls.slice(0, 3).map((u) => (
+                                                            <li key={u.url}>
+                                                                <a href={u.url} target="_blank" rel="noreferrer" className="hover:underline break-all">
+                                                                    {u.title || u.url}
+                                                                </a>
+                                                                <span className="text-[#555] ml-1">({ENGINE_LABELS[u.engine] || u.engine})</span>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                );
+                                            })()}
                                         </div>
                                     );
                                     })}

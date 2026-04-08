@@ -1,5 +1,5 @@
-import { randomUUID } from 'crypto';
-import { runAllAgentsInParallel } from '../services/visibilityAgents.js';
+import { randomUUID, createHash } from 'crypto';
+import { runAllAgentsInParallel, buildPlatformResults } from '../services/visibilityAgents.js';
 import { batchDeepAnalysis } from '../services/responseParser.js';
 import {
     computeVisibilityScore,
@@ -13,15 +13,43 @@ import {
     computeIndustryPresenceRanking,
     computeUrlRanking,
 } from '../services/scoringEngine.js';
-import { queryPerplexity, queryGemini, queryGoogleAI } from '../services/infaticaService.js';
+import { queryPerplexity, queryGemini, queryGoogleAI, queryInfaticaChatGPT } from '../services/infaticaService.js';
 import { parseResponse, batchApplyGeminiSentimentByPrompt } from '../services/responseParser.js';
 import { prisma } from '../lib/prisma.js';
+
+/** In-flight `executeScan` promises — graceful shutdown waits for these before exit. */
+const activeVisibilityScanPromises = new Set();
+
+export function trackVisibilityScanPromise(p) {
+    if (!p || typeof p.then !== 'function') return;
+    activeVisibilityScanPromises.add(p);
+    p.catch(() => {}).finally(() => activeVisibilityScanPromises.delete(p));
+}
+
+/**
+ * Wait for visibility scans to finish (e.g. before process exit). Caps wait at maxMs.
+ * @returns {Promise<boolean>} true if all drained
+ */
+export async function awaitActiveVisibilityScans({ maxMs = 120_000 } = {}) {
+    const deadline = Date.now() + maxMs;
+    while (activeVisibilityScanPromises.size > 0 && Date.now() < deadline) {
+        const pending = [...activeVisibilityScanPromises];
+        await Promise.race([...pending, new Promise((r) => setTimeout(r, 500))]).catch(() => {});
+    }
+    const n = activeVisibilityScanPromises.size;
+    if (n > 0) {
+        console.warn(`[Shutdown] ${n} visibility scan(s) still running after ${maxMs}ms — proceeding with shutdown`);
+    }
+    return n === 0;
+}
+import { normalizeTrackingLocations, inferCountryFromMarkets } from '../utils/marketRegion.js';
 import {
     aggregateCitationsForIntelligence,
     generateCitationIntelligenceBrief,
     generatePerUrlTableInsights,
     extractCompetitorContext,
 } from '../services/citationIntelligenceService.js';
+import { buildGapHeatmapMatrix } from '../services/geoPlaybook.js';
 
 function buildCompStr(competitors) {
     const list = (competitors || []).map(c => typeof c === 'string' ? c : (c.name || c.domain)).filter(Boolean);
@@ -117,10 +145,11 @@ function isDuplicateOfBrandOrTracked(name, brandName, brandDomain, expandedCompe
     return false;
 }
 
-const PROMPT_ENGINE_ORDER = ['perplexity', 'gemini', 'googleAI'];
+const PROMPT_ENGINE_ORDER = ['perplexity', 'gemini', 'chatgpt', 'googleAI'];
 
 function engineDisplayLabel(ek) {
-    if (ek === 'googleAI') return 'ChatGPT';
+    if (ek === 'googleAI') return 'Google AI Overviews';
+    if (ek === 'chatgpt') return 'ChatGPT';
     if (ek === 'perplexity') return 'Perplexity';
     if (ek === 'gemini') return 'Gemini';
     return ek;
@@ -148,6 +177,43 @@ function attachPromptSentimentSchema(p) {
         });
     }
     return { ...p, sentimentByEngine, engineSentiments };
+}
+
+/** Minimal prompt list so buildPlatformResults gets an accurate prompt count after salvage. */
+function minimalPromptsFromRuns(allRuns) {
+    const keys = [];
+    const seen = new Set();
+    for (const r of allRuns || []) {
+        const k = r?.promptId ?? r?.query;
+        if (k == null || k === '') continue;
+        const sk = String(k);
+        if (!seen.has(sk)) {
+            seen.add(sk);
+            keys.push(sk);
+        }
+    }
+    return keys.map((core, idx) => ({ id: idx, core }));
+}
+
+/**
+ * Mark interrupted scan as failed so the user can rescan fresh.
+ * We no longer create "partial" status — it confused users. Clean slate on rescan.
+ */
+async function markScanFailed(scanId, reason) {
+    try {
+        await prisma.visibilityScan.update({
+            where: { id: scanId },
+            data: {
+                status: 'failed',
+                error: reason ? String(reason).slice(0, 2000) : 'Scan interrupted — please run again.',
+                progress: JSON.stringify({ phase: 'failed', detail: reason || 'Scan interrupted' }),
+            },
+        });
+        return true;
+    } catch (e) {
+        console.error('[Scan] markScanFailed error:', e.message);
+        return false;
+    }
 }
 
 function normalizeGaps(gaps) {
@@ -216,7 +282,12 @@ function buildOverviewFromPlatforms(platformResults, allRuns, brandName, domain,
             if (!entityMap[e.name]) entityMap[e.name] = { ...e, totalMentions: 0, queryCount: new Set(), positionSum: 0, positionCount: 0 };
             entityMap[e.name].totalMentions += e.mentions || 1;
             entityMap[e.name].queryCount.add(run.query);
-            if (e.positionRank) { entityMap[e.name].positionSum += e.positionRank; entityMap[e.name].positionCount++; }
+            // Defensive: ensure positionRank is a positive number
+            const posRank = Number(e.positionRank);
+            if (posRank > 0 && Number.isFinite(posRank)) {
+                entityMap[e.name].positionSum += posRank;
+                entityMap[e.name].positionCount++;
+            }
         }
     }
     const entityGraph = Object.values(entityMap)
@@ -234,7 +305,8 @@ function buildOverviewFromPlatforms(platformResults, allRuns, brandName, domain,
         platformBreakdown: {
             perplexity: { name: 'Perplexity', ...(perEngine.perplexity || { score: 0, runs: 0, mentions: 0 }) },
             gemini: { name: 'Gemini', ...(perEngine.gemini || { score: 0, runs: 0, mentions: 0 }) },
-            googleAI: { name: 'ChatGPT', ...(perEngine.googleAI || { score: 0, runs: 0, mentions: 0 }) },
+            chatgpt: { name: 'ChatGPT', ...(perEngine.chatgpt || { score: 0, runs: 0, mentions: 0 }) },
+            googleAI: { name: 'Google AI Overviews', ...(perEngine.googleAI || { score: 0, runs: 0, mentions: 0 }) },
         },
         perCategory,
         sentiment,
@@ -245,7 +317,7 @@ function buildOverviewFromPlatforms(platformResults, allRuns, brandName, domain,
         entityGraph,
         citationSummary: sourceDomains.topDomains,
         competitorGaps,
-        config: { promptCount, engines: 3, totalCalls },
+        config: { promptCount, engines: 4, totalCalls },
         completedPrompts: promptCount,
         totalPrompts: promptCount,
     };
@@ -253,7 +325,7 @@ function buildOverviewFromPlatforms(platformResults, allRuns, brandName, domain,
 
 /** Assemble per-platform analytics into the Overview result. */
 /** Assemble the result JSON that the frontend consumes. */
-function assembleResult(overview, platformResults, intelligence, brandName, domain, industry, errors, isPartial = false) {
+function assembleResult(overview, platformResults, intelligence, brandName, domain, industry, errors) {
     const sovArr = overview.shareOfVoice?.competitors?.map(c => ({ name: c.name, sov: c.sov })) || [];
     sovArr.unshift({ name: overview.shareOfVoice?.brand?.name || brandName, sov: overview.shareOfVoice?.brand?.sov || 0 });
 
@@ -262,7 +334,6 @@ function assembleResult(overview, platformResults, intelligence, brandName, doma
         domain,
         industry: industry || '',
         scannedAt: new Date().toISOString(),
-        isPartial,
         score: overview.score,
         shareOfVoice: overview.shareOfVoice,
         industryRanking: overview.industryRanking,
@@ -277,6 +348,7 @@ function assembleResult(overview, platformResults, intelligence, brandName, doma
         entityGraph: overview.entityGraph,
         citationSummary: overview.citationSummary,
         competitorGaps: normalizeGaps(overview.competitorGaps),
+        gapHeatmap: buildGapHeatmapMatrix(normalizeGaps(overview.competitorGaps)),
         competitorAnalysis: { shareOfVoice: sovArr, industryRanking: overview.industryRanking || [], threats: [] },
         competitorInsights: {
             topFindings: intelligence?.strengthAreas || [],
@@ -289,6 +361,7 @@ function assembleResult(overview, platformResults, intelligence, brandName, doma
         platforms: {
             perplexity: platformResults?.perplexity || null,
             gemini: platformResults?.gemini || null,
+            chatgpt: platformResults?.chatgpt || null,
             googleAI: platformResults?.googleAI || null,
         },
         agentErrors: errors?.length > 0 ? errors : undefined,
@@ -296,56 +369,92 @@ function assembleResult(overview, platformResults, intelligence, brandName, doma
 }
 
 /**
- * Scan execution with 3 dedicated parallel pipelines.
+ * Scan execution with 4 dedicated parallel pipelines.
  * Early results fire at ~50% completion so the frontend can start rendering.
  * Final results saved after all pipelines finish + deep analysis.
  */
-async function executeScan(scanId, userId, projectId, brandName, domain, industry, competitors, location, country, language) {
+async function executeScan(scanId, userId, projectId, brandName, domain, industry, competitors, location, country, language, trackingLocationsRaw) {
     const expandedCompetitors = (competitors || []).map(c => typeof c === 'string' ? { name: c, domain: c } : c);
+    const trackingLocations = normalizeTrackingLocations(trackingLocationsRaw);
+    const effectiveCountry =
+        (country && String(country).trim()) || inferCountryFromMarkets(trackingLocations, location || '') || '';
 
     try {
         await prisma.visibilityScan.update({
             where: { id: scanId },
-            data: { progress: JSON.stringify({ phase: 'agents_running', detail: 'Running 3 parallel pipelines (Perplexity ×2, Gemini ×3, Google SERP ×3). Fast SERP mode — no headless render.', completed: 0, total: 0 }) }
+            data: { progress: JSON.stringify({ phase: 'agents_running', detail: 'Running 4 parallel pipelines (Perplexity, Gemini, ChatGPT, Google AI Overviews / SERP). Fast SERP mode — no headless render.', completed: 0, total: 0 }) }
         });
 
-        const agentConfig = { brandName, domain, industry, competitors: expandedCompetitors, location, country, language };
+        const agentConfig = {
+            brandName,
+            domain,
+            industry,
+            competitors: expandedCompetitors,
+            location,
+            country: effectiveCountry,
+            language,
+            trackingLocations,
+        };
 
         let lastProgressUpdate = 0;
         const { platformResults, allRuns, errors } = await runAllAgentsInParallel(
             agentConfig,
-            // Progress callback — throttled to every 2s
+            // Progress callback — throttled to every 2s unless p.force (e.g. post-Infatica sentiment phase)
             async (p) => {
                 const now = Date.now();
-                if (now - lastProgressUpdate < 2000) return;
+                if (!p.force && now - lastProgressUpdate < 2000) return;
                 lastProgressUpdate = now;
+                const phase = p.phase || 'querying';
+                const detail = p.detail
+                    || `${p.completed}/${p.total} engine calls (${p.successful} with data)`;
                 try {
                     await prisma.visibilityScan.update({
                         where: { id: scanId },
-                        data: { progress: JSON.stringify({ phase: 'querying', detail: `${p.completed}/${p.total} calls (${p.successful} with data)`, completed: p.completed, total: p.total, successful: p.successful }) }
+                        data: {
+                            progress: JSON.stringify({
+                                phase,
+                                detail,
+                                completed: p.completed,
+                                total: p.total,
+                                successful: p.successful,
+                            }),
+                        },
                     });
                 } catch (_) { /* ignore */ }
             },
-            // Early results callback — fires at ~50% completion across all 3 pipelines
-            async (phase1Runs, allPrompts) => {
+            // Early results — first snapshot after ~50% of engine×prompt calls complete
+            async (phase1Runs, allPrompts, meta) => {
                 try {
                     const earlyOverview = buildOverviewFromPlatforms({}, phase1Runs, brandName, domain, industry, expandedCompetitors, null);
-                    const earlyResult = assembleResult(earlyOverview, {}, null, brandName, domain, industry, [], true);
+                    const earlyResult = assembleResult(earlyOverview, {}, null, brandName, domain, industry, []);
                     earlyResult.completedPhase = 1;
+                    const totalCalls = allPrompts.length * PROMPT_ENGINE_ORDER.length;
+                    earlyResult.earlyPhase = {
+                        completedCallsAtEarly: meta?.completedCallsAtEarly ?? phase1Runs.length,
+                        totalCallsExpected: meta?.totalCalls ?? totalCalls,
+                        percentThreshold: meta?.percentThreshold ?? 50,
+                        totalPrompts: meta?.totalPrompts ?? allPrompts.length,
+                    };
+
+                    const detailParts = [
+                        `Initial results ready — at least ${meta?.percentThreshold ?? 50}% of engine responses complete (${meta?.completedCallsAtEarly ?? phase1Runs.length}/${meta?.totalCalls ?? totalCalls} calls).`,
+                        'Charts reflect finished calls only; refining until 100% and final sentiment…',
+                    ];
 
                     await prisma.visibilityScan.update({
                         where: { id: scanId },
                         data: {
                             results: JSON.stringify(earlyResult),
+                            allRuns: JSON.stringify(phase1Runs),
                             progress: JSON.stringify({
                                 phase: 'early_results',
-                                detail: 'Phase 1 complete — early results available. Enhancing with remaining prompts...',
+                                detail: detailParts.join(' '),
                                 completed: phase1Runs.length,
-                                total: allPrompts.length * 3,
+                                total: totalCalls,
                             }),
                         },
                     });
-                    console.log(`[Scan:${scanId}] Phase 1 early results saved (${phase1Runs.length} runs)`);
+                    console.log(`[Scan:${scanId}] Phase 1 early results (${phase1Runs.length} runs, ~50% calls threshold)`);
                 } catch (e) {
                     console.warn(`[Scan:${scanId}] Failed to save early results:`, e.message);
                 }
@@ -357,7 +466,14 @@ async function executeScan(scanId, userId, projectId, brandName, domain, industr
 
         await prisma.visibilityScan.update({
             where: { id: scanId },
-            data: { progress: JSON.stringify({ phase: 'analyzing', detail: 'Computing final scores & running AI analysis...', completed: completedCalls, total: completedCalls }) }
+            data: {
+                progress: JSON.stringify({
+                    phase: 'analyzing',
+                    detail: 'Aggregating scores & citation stats...',
+                    completed: completedCalls,
+                    total: completedCalls,
+                }),
+            },
         });
 
         const wherePrev = { userId, status: 'completed', id: { not: scanId } };
@@ -382,6 +498,18 @@ async function executeScan(scanId, userId, projectId, brandName, domain, industr
             }
         }
 
+        await prisma.visibilityScan.update({
+            where: { id: scanId },
+            data: {
+                progress: JSON.stringify({
+                    phase: 'analyzing',
+                    detail: 'Generating executive brief (Gemini, optional)...',
+                    completed: completedCalls,
+                    total: completedCalls,
+                }),
+            },
+        });
+
         const [intelligence, overview] = await Promise.all([
             batchDeepAnalysis(allRuns, brandName, domain, expandedCompetitors).catch(err => {
                 console.error('[Scan] Deep analysis failed:', err.message);
@@ -400,7 +528,7 @@ async function executeScan(scanId, userId, projectId, brandName, domain, industr
             ),
         ]);
 
-        const finalResult = assembleResult(overview, platformResults, intelligence, brandName, domain, industry, errors, false);
+        const finalResult = assembleResult(overview, platformResults, intelligence, brandName, domain, industry, errors);
 
         await prisma.visibilityScan.update({
             where: { id: scanId },
@@ -413,23 +541,29 @@ async function executeScan(scanId, userId, projectId, brandName, domain, industr
         });
     } catch (err) {
         console.error('[Scan] Fatal:', err);
-        await prisma.visibilityScan.update({ where: { id: scanId }, data: { status: 'failed', error: err.message } });
+        const msg = String(err?.message || err || 'Unknown error').slice(0, 2000);
+        await markScanFailed(scanId, `Scan interrupted: ${msg}`);
     }
 }
 
 /**
  * Cleanup orphaned scans on server startup.
- * If the server restarts mid-scan, those scans are stuck at 'scanning' forever.
+ * When the Node API process restarts, in-flight scans are lost — mark them failed so user can rescan fresh.
+ * No "partial" status anymore — clean slate on every rescan.
  */
 export async function cleanupOrphanedScans() {
     try {
-        // Any scan still in 'scanning' state when the server (re)starts is orphaned —
-        // the async executeScan that owned it is dead. Mark ALL of them failed.
-        const orphans = await prisma.visibilityScan.updateMany({
-            where: { status: 'scanning' },
-            data: { status: 'failed', error: 'Server restarted during scan — please re-run' },
-        });
-        if (orphans.count > 0) console.log(`[Cleanup] Marked ${orphans.count} orphaned scan(s) as failed`);
+        const stuck = await prisma.visibilityScan.findMany({ where: { status: 'scanning' } });
+        if (stuck.length > 0) {
+            const reason =
+                process.env.NODE_ENV === 'production'
+                    ? 'Scan service restarted — please run the scan again.'
+                    : 'Dev server restarted — please run the scan again.';
+            for (const job of stuck) {
+                await markScanFailed(job.id, reason);
+            }
+            console.log(`[Cleanup] Marked ${stuck.length} interrupted scan(s) as failed — users can rescan fresh.`);
+        }
     } catch (err) {
         console.warn('[Cleanup] Could not clean orphaned scans:', err.message);
     }
@@ -437,7 +571,7 @@ export async function cleanupOrphanedScans() {
 
 export async function startVisibilityScan(req, res) {
     try {
-        const { brandName, domain, industry, competitors, location, country, language, projectId } = req.body;
+        const { brandName, domain, industry, competitors, location, country, language, projectId, trackingLocations } = req.body;
         const userId = req.user.id;
         if (!brandName || !domain) return res.status(400).json({ success: false, message: 'brandName and domain are required' });
         if (!process.env.INFATICA_API_KEY?.trim()) {
@@ -449,7 +583,35 @@ export async function startVisibilityScan(req, res) {
             orderBy: { created_at: 'desc' },
         });
         if (existing) {
-            return res.json({ success: true, scanId: existing.id, status: 'scanning', message: 'Scan already in progress' });
+            const staleMsRaw = process.env.VISIBILITY_STALE_SCANNING_MS;
+            const defaultStale =
+                process.env.NODE_ENV === 'production'
+                    ? 15 * 60 * 1000
+                    : 2.5 * 60 * 1000;
+            const staleMs =
+                staleMsRaw != null && staleMsRaw !== '' && !Number.isNaN(parseInt(staleMsRaw, 10))
+                    ? Math.max(30_000, parseInt(staleMsRaw, 10))
+                    : defaultStale;
+            const ageMs = Date.now() - new Date(existing.updated_at).getTime();
+            if (ageMs < staleMs) {
+                return res.json({
+                    success: true,
+                    scanId: existing.id,
+                    status: 'scanning',
+                    message: 'Scan already in progress',
+                });
+            }
+            const isProd = process.env.NODE_ENV === 'production';
+            const supersedePartial = isProd
+                ? 'This scan had no recent progress and was closed when you started a new one. Partial data from that run is saved below.'
+                : 'Previous scan had no recent progress (or the dev server reloaded). It was closed so you can start fresh. Partial data is saved below.';
+            const supersedeFailed = isProd
+                ? 'Previous scan had no stored responses and was replaced by your new scan.'
+                : 'Previous scan had no data yet — replaced by your new scan.';
+            console.warn(
+                `[Scan] Superseding stale scanning job ${existing.id} (age ${Math.round(ageMs / 1000)}s ≥ ${staleMs / 1000}s)`,
+            );
+            await closeOutScanningJob(existing, supersedePartial, supersedeFailed);
         }
 
         const scanId = randomUUID();
@@ -466,7 +628,20 @@ export async function startVisibilityScan(req, res) {
             }
         });
 
-        executeScan(scanId, userId, projectId ? parseInt(projectId, 10) : null, brandName, domain, industry || '', competitors || [], location || '', country || '', language || 'English');
+        const scanPromise = executeScan(
+            scanId,
+            userId,
+            projectId ? parseInt(projectId, 10) : null,
+            brandName,
+            domain,
+            industry || '',
+            competitors || [],
+            location || '',
+            country || '',
+            language || 'English',
+            trackingLocations,
+        );
+        trackVisibilityScanPromise(scanPromise);
         res.json({ success: true, scanId, status: 'scanning' });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -482,7 +657,7 @@ export async function getScanStatus(req, res) {
         const progress = job.progress ? (typeof job.progress === 'string' ? JSON.parse(job.progress) : job.progress) : {};
         const results = job.results ? (typeof job.results === 'string' ? JSON.parse(job.results) : job.results) : null;
 
-        const hasEarlyResults = progress.phase === 'early_results' || (results && results.isPartial);
+        const hasEarlyResults = progress.phase === 'early_results';
 
         return res.json({
             success: true,
@@ -532,7 +707,18 @@ export async function getLatestScan(req, res) {
         const scan = await prisma.visibilityScan.findFirst({ where, orderBy: { created_at: 'desc' } });
         if (!scan) return res.json({ success: true, scan: null });
         const results = scan.results ? (typeof scan.results === 'string' ? JSON.parse(scan.results) : scan.results) : null;
-        return res.json({ success: true, scan: { id: scan.id, projectId: scan.projectId, brandName: scan.brandName, domain: scan.domain, createdAt: scan.created_at, result: results } });
+        return res.json({
+            success: true,
+            scan: {
+                id: scan.id,
+                projectId: scan.projectId,
+                brandName: scan.brandName,
+                domain: scan.domain,
+                createdAt: scan.created_at,
+                status: scan.status,
+                result: results,
+            },
+        });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -596,6 +782,7 @@ function extractPlatformScores(results) {
     return {
         perplexity: results.platforms.perplexity?.score?.overall ?? null,
         gemini: results.platforms.gemini?.score?.overall ?? null,
+        chatgpt: results.platforms.chatgpt?.score?.overall ?? null,
         googleAI: results.platforms.googleAI?.score?.overall ?? null,
     };
 }
@@ -774,7 +961,8 @@ export async function runCustomPrompt(req, res) {
         const engines = [
             { key: 'perplexity', fn: queryPerplexity, label: 'Perplexity' },
             { key: 'gemini', fn: queryGemini, label: 'Gemini' },
-            { key: 'googleAI', fn: queryGoogleAI, label: 'ChatGPT' },
+            { key: 'chatgpt', fn: queryInfaticaChatGPT, label: 'ChatGPT' },
+            { key: 'googleAI', fn: queryGoogleAI, label: 'Google AI Overviews' },
         ];
 
         const hasData = (raw) => raw && (raw.text || raw.html || (Array.isArray(raw.sources) && raw.sources.length > 0));
@@ -862,6 +1050,7 @@ export async function runCustomPromptsBatch(req, res) {
         const engines = [
             { key: 'perplexity', fn: queryPerplexity },
             { key: 'gemini', fn: queryGemini },
+            { key: 'chatgpt', fn: queryInfaticaChatGPT },
             { key: 'googleAI', fn: queryGoogleAI },
         ];
         const hasData = (raw) => raw && (raw.text || raw.html || (Array.isArray(raw.sources) && raw.sources.length > 0));
@@ -930,6 +1119,281 @@ export async function runCustomPromptsBatch(req, res) {
 
         return res.json({ success: true, prompts });
     } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+}
+
+const APPEND_ALLOWED_ENGINES = ['perplexity', 'gemini', 'chatgpt', 'googleAI'];
+const ENGINE_QUERY_FN = {
+    perplexity: queryPerplexity,
+    gemini: queryGemini,
+    chatgpt: queryInfaticaChatGPT,
+    googleAI: queryGoogleAI,
+};
+
+function customPromptIdFromQuery(query) {
+    const norm = String(query || '').trim().replace(/\s+/g, ' ');
+    const h = createHash('sha256').update(norm.toLowerCase()).digest('hex').slice(0, 14);
+    return `cstm_${h}`;
+}
+
+function promptsFromMergedRuns(allRuns) {
+    const byId = new Map();
+    for (const r of allRuns || []) {
+        const id = r.promptId;
+        if (id == null || id === '') continue;
+        if (!byId.has(id)) {
+            byId.set(id, {
+                id,
+                core: r.query || '',
+                weight: r.promptWeight ?? 1,
+                category: r.category || 'general',
+                intent: r.intent || 'general',
+                strategicValue: r.strategicValue ?? 10,
+                includesBrand: r.includesBrand ?? false,
+            });
+        }
+    }
+    return [...byId.values()];
+}
+
+function emptyCustomRun(promptId, query, engine) {
+    return {
+        promptId,
+        query,
+        engine,
+        promptWeight: 1,
+        category: 'custom',
+        intent: 'custom_prompt',
+        strategicValue: 10,
+        includesBrand: false,
+        brandMentioned: false,
+        brandEntity: null,
+        entities: [],
+        citations: [],
+        citationStats: { total: 0, byCategory: {}, brandCited: false, competitorsCited: [] },
+        textLength: 0,
+        rawText: null,
+    };
+}
+
+function runFromParsedCustom(promptId, query, engine, parsed) {
+    return {
+        promptId,
+        query,
+        engine,
+        promptWeight: 1,
+        category: 'custom',
+        intent: 'custom_prompt',
+        strategicValue: 10,
+        includesBrand: false,
+        brandMentioned: parsed.brandMentioned,
+        brandEntity: parsed.brandEntity,
+        entities: parsed.entities,
+        citations: parsed.citations,
+        citationStats: parsed.citationStats,
+        textLength: parsed.textLength,
+        rawText: parsed.rawText,
+    };
+}
+
+/**
+ * Run only the given custom prompt(s) on selected engines, merge into an existing completed scan,
+ * recompute full overview + platforms, persist allRuns + results. Does not re-query matrix prompts.
+ */
+export async function appendCustomPromptsToScan(req, res) {
+    try {
+        const userId = req.user.id;
+        const {
+            scanId,
+            queries: queriesRaw,
+            engines: enginesRaw,
+            brandName,
+            domain,
+            competitors,
+            country,
+            language,
+            projectId,
+        } = req.body || {};
+
+        if (!scanId || typeof scanId !== 'string') {
+            return res.status(400).json({ success: false, message: 'scanId is required' });
+        }
+        if (!process.env.INFATICA_API_KEY?.trim()) {
+            return res.status(503).json({ success: false, message: 'Visibility scans require INFATICA_API_KEY on the server' });
+        }
+
+        const scan = await prisma.visibilityScan.findFirst({
+            where: { id: scanId, userId },
+        });
+        if (!scan) {
+            return res.status(404).json({ success: false, message: 'Scan not found' });
+        }
+        if (scan.status !== 'completed') {
+            return res.status(400).json({ success: false, message: 'Only completed scans can be updated with custom prompts' });
+        }
+
+        let queries = Array.isArray(queriesRaw)
+            ? queriesRaw.map((q) => String(q || '').trim()).filter(Boolean)
+            : typeof queriesRaw === 'string'
+              ? [queriesRaw.trim()].filter(Boolean)
+              : [];
+        if (queries.length === 0) {
+            return res.status(400).json({ success: false, message: 'At least one non-empty query is required' });
+        }
+        if (queries.length > 5) {
+            return res.status(400).json({ success: false, message: 'Maximum 5 custom prompts per request' });
+        }
+
+        let engines = Array.isArray(enginesRaw) ? enginesRaw.map((e) => String(e || '').trim()) : [];
+        engines = engines.filter((e) => APPEND_ALLOWED_ENGINES.includes(e));
+        if (engines.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: `engines must include at least one of: ${APPEND_ALLOWED_ENGINES.join(', ')}`,
+            });
+        }
+
+        const expandedCompetitors = (competitors || []).map((c) => (typeof c === 'string' ? { name: c, domain: c } : c));
+        const bn = String(brandName || scan.brandName || '').trim();
+        const dom = String(domain || scan.domain || '').trim();
+        if (!bn || !dom) {
+            return res.status(400).json({ success: false, message: 'brandName and domain are required' });
+        }
+
+        let allRuns = [];
+        try {
+            const raw = scan.allRuns ? (typeof scan.allRuns === 'string' ? JSON.parse(scan.allRuns) : scan.allRuns) : [];
+            allRuns = Array.isArray(raw) ? raw : [];
+        } catch {
+            allRuns = [];
+        }
+
+        const engineSet = new Set(engines);
+        const touchedPromptIds = new Set(queries.map((q) => customPromptIdFromQuery(q)));
+
+        const stripped = allRuns.filter((r) => {
+            if (!touchedPromptIds.has(r.promptId)) return true;
+            return !engineSet.has(r.engine);
+        });
+
+        const hasData = (raw) => raw && (raw.text || raw.html || (Array.isArray(raw.sources) && raw.sources.length > 0));
+
+        const newRuns = [];
+        for (const q of queries) {
+            const promptId = customPromptIdFromQuery(q);
+            for (const ek of engines) {
+                const fn = ENGINE_QUERY_FN[ek];
+                try {
+                    const raw = await fn(q, country || '', language || '');
+                    if (hasData(raw)) {
+                        const parsed = parseResponse(raw, bn, dom, expandedCompetitors, ek);
+                        newRuns.push(runFromParsedCustom(promptId, q, ek, parsed));
+                    } else {
+                        newRuns.push(emptyCustomRun(promptId, q, ek));
+                    }
+                } catch (err) {
+                    console.warn(`[appendCustom] ${ek} failed for prompt ${promptId}:`, err.message);
+                    const run = emptyCustomRun(promptId, q, ek);
+                    run._errorReason = err.message;
+                    newRuns.push(run);
+                }
+            }
+        }
+
+        const sentimentBatch = [];
+        for (const r of newRuns) {
+            if (r.brandMentioned && r.brandEntity && ((r.rawText || '').trim().length > 0 || (r.citations || []).length > 0)) {
+                sentimentBatch.push({
+                    promptId: r.promptId,
+                    engine: r.engine,
+                    brandMentioned: r.brandMentioned,
+                    brandEntity: r.brandEntity,
+                    rawText: r.rawText,
+                });
+            }
+        }
+        if (sentimentBatch.length > 0 && bn) {
+            try {
+                await batchApplyGeminiSentimentByPrompt(sentimentBatch, bn);
+            } catch (e) {
+                console.warn('[appendCustom] Gemini sentiment batch failed:', e.message);
+            }
+        }
+
+        const mergedRuns = [...stripped, ...newRuns];
+
+        let oldResults = null;
+        try {
+            oldResults = scan.results ? (typeof scan.results === 'string' ? JSON.parse(scan.results) : scan.results) : null;
+        } catch {
+            oldResults = null;
+        }
+        const industry = scan.industry || oldResults?.industry || '';
+
+        const promptsForPlatform = promptsFromMergedRuns(mergedRuns);
+        const platformResults = buildPlatformResults(mergedRuns, promptsForPlatform, bn, expandedCompetitors, dom);
+
+        const wherePrev = { userId, status: 'completed', id: { not: scanId } };
+        const pidNum = projectId != null ? Number(projectId) : scan.projectId;
+        if (pidNum != null && !Number.isNaN(pidNum)) {
+            wherePrev.projectId = pidNum;
+        } else if (dom) {
+            wherePrev.domain = dom;
+        }
+        const prevScan = await prisma.visibilityScan.findFirst({
+            where: wherePrev,
+            orderBy: { created_at: 'desc' },
+            select: { allRuns: true },
+        });
+        let previousRuns = null;
+        if (prevScan?.allRuns) {
+            try {
+                previousRuns =
+                    typeof prevScan.allRuns === 'string' ? JSON.parse(prevScan.allRuns) : prevScan.allRuns;
+                if (!Array.isArray(previousRuns) || previousRuns.length === 0) previousRuns = null;
+            } catch {
+                previousRuns = null;
+            }
+        }
+
+        const [intelligence, overview] = await Promise.all([
+            batchDeepAnalysis(mergedRuns, bn, dom, expandedCompetitors).catch((err) => {
+                console.error('[appendCustom] Deep analysis failed:', err.message);
+                return oldResults?.intelligence ?? null;
+            }),
+            Promise.resolve(
+                buildOverviewFromPlatforms(
+                    platformResults,
+                    mergedRuns,
+                    bn,
+                    dom,
+                    industry,
+                    expandedCompetitors,
+                    previousRuns,
+                ),
+            ),
+        ]);
+
+        const finalResult = assembleResult(overview, platformResults, intelligence, bn, dom, industry, []);
+
+        await prisma.visibilityScan.update({
+            where: { id: scanId },
+            data: {
+                allRuns: JSON.stringify(mergedRuns),
+                results: JSON.stringify(finalResult),
+                updated_at: new Date(),
+            },
+        });
+
+        return res.json({
+            success: true,
+            scanId,
+            result: finalResult,
+            appended: { promptCount: queries.length, engines, newRunCount: newRuns.length },
+        });
+    } catch (error) {
+        console.error('[appendCustom]', error);
         res.status(500).json({ success: false, message: error.message });
     }
 }

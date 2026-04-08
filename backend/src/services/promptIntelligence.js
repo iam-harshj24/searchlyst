@@ -1,3 +1,5 @@
+import { normalizeTrackingLocations } from '../utils/marketRegion.js';
+
 /**
  * Super-20 Prompt Matrix — multi-dimensional visibility extraction framework.
  *
@@ -29,19 +31,32 @@ export async function generatePromptMatrix(brand) {
     return generateSuperPrompts(brand, 'general');
 }
 
+function buildRegionalPromptFooter(trackedMarkets, brandLabel, compStr) {
+    if (!trackedMarkets.length) return '';
+    const markets = trackedMarkets.join(' · ');
+    return `\n\n[Regional tracking — treat each market distinctly: ${markets}. For ${brandLabel} vs ${compStr}: where possible, quantify AI visibility, share of voice, sentiment, and competitive rank per market. If you cannot separate regions, state that clearly.]`;
+}
+
 export function generateSuperPrompts(brand, platform = 'general') {
-    const { brandName, domain, industry, competitors = [], location } = brand;
+    const { brandName, domain, industry, competitors = [], location, trackingLocations } = brand;
+    const tracked = normalizeTrackingLocations(trackingLocations);
     const compList = competitors
         .map(c => (typeof c === 'string' ? c : c.name))
         .filter(Boolean);
     const compStr = compList.length > 0 ? compList.join(', ') : 'leading competitors';
     const topComp = compList.length > 0 ? compList[0] : 'the top competitor';
     const secondComp = compList.length > 1 ? compList[1] : topComp;
-    const loc = location || 'Global';
-    const reach = loc.toLowerCase() === 'global' ? 'worldwide' : 'regional';
+    const locBase = (tracked[0] || location || 'Global').trim() || 'Global';
+    const loc =
+        tracked.length > 1
+            ? `${locBase} (compare also: ${tracked.slice(1).join('; ')})`
+            : locBase;
+    const reach = locBase.toLowerCase() === 'global' ? 'worldwide' : 'regional';
+    const brandLabel = brandName || 'the brand';
+    const regionalFooter = buildRegionalPromptFooter(tracked, brandLabel, compStr);
 
     const vars = {
-        BRAND: brandName || 'the brand',
+        BRAND: brandLabel,
         DOMAIN: domain || '',
         INDUSTRY: industry || 'the industry',
         COMPETITORS: compStr,
@@ -50,6 +65,7 @@ export function generateSuperPrompts(brand, platform = 'general') {
         COMPETITOR_B: secondComp,
         LOCATION: loc,
         REACH: reach,
+        TRACKING_MARKETS: tracked.length ? tracked.join(' · ') : locBase,
     };
 
     const templates = [
@@ -337,7 +353,7 @@ For each of {COMPETITORS}: do they hold a role? If not, what specifically earns 
 
     return templates.map((t) => ({
         id: t.id,
-        core: fillVariables(t.text, vars),
+        core: fillVariables(t.text, vars) + regionalFooter,
         intent: t.intent,
         category: t.category,
         includesBrand: t.includesBrand,
@@ -346,6 +362,17 @@ For each of {COMPETITORS}: do they hold a role? If not, what specifically earns 
     }));
 }
 
-export function generateFallbackPrompts(brandName, domain, industry, competitors, location) {
-    return generateSuperPrompts({ brandName, domain, industry, competitors, location });
+/** @param {object|string} brandOrName — full brand object, or legacy brandName string */
+export function generateFallbackPrompts(brandOrName, domain, industry, competitors, location, trackingLocations) {
+    if (brandOrName && typeof brandOrName === 'object') {
+        return generateSuperPrompts(brandOrName);
+    }
+    return generateSuperPrompts({
+        brandName: brandOrName,
+        domain,
+        industry,
+        competitors,
+        location,
+        trackingLocations,
+    });
 }

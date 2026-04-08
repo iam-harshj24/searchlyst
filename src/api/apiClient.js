@@ -223,6 +223,10 @@ export const apiClient = {
     async runCustomPromptsBatch(data) {
       return apiClient.post('/visibility/run-prompts', data);
     },
+    /** Merge custom prompts into latest scan: only selected engines queried; full scores recomputed & DB updated */
+    async appendCustomPromptsToScan(data) {
+      return apiClient.post('/visibility/append-custom-prompts', data);
+    },
     async suggestCompetitors(data) {
       return apiClient.post('/visibility/suggest-competitors', data);
     },
@@ -300,10 +304,19 @@ export const apiClient = {
     async suggestTopics(data) {
       return apiClient.post('/content/suggest-topics', data);
     },
-    async list(projectId) {
-      const q = projectId ? `?projectId=${projectId}` : '';
-      const res = await apiClient.get(`/content${q}`);
+    async list(projectId, { archive = 'exclude' } = {}) {
+      const params = new URLSearchParams();
+      if (projectId != null && projectId !== '') params.set('projectId', String(projectId));
+      if (archive) params.set('archive', archive);
+      const qs = params.toString();
+      const res = await apiClient.get(`/content${qs ? `?${qs}` : ''}`);
       return res?.contents ?? [];
+    },
+    async updateStatus(id, status) {
+      return apiClient.patch(`/content/${id}`, { status });
+    },
+    async remove(id) {
+      return apiClient.delete(`/content/${id}`);
     },
   },
 

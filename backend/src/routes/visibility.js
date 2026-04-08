@@ -7,6 +7,7 @@ import {
     getScanHistory,
     runCustomPrompt,
     runCustomPromptsBatch,
+    appendCustomPromptsToScan,
     suggestCompetitors,
     postCitationIntelligence,
     postCitationUrlInsights,
@@ -20,6 +21,7 @@ router.use(authenticateToken);
 router.post('/scan', startVisibilityScan);
 router.post('/run-prompt', runCustomPrompt);
 router.post('/run-prompts', runCustomPromptsBatch);
+router.post('/append-custom-prompts', appendCustomPromptsToScan);
 router.post('/suggest-competitors', suggestCompetitors);
 router.post('/citation-intelligence', postCitationIntelligence);
 router.post('/citation-url-insights', postCitationUrlInsights);

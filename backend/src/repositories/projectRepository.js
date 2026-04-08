@@ -12,7 +12,42 @@ function serializeProject(data) {
     } else {
         delete result.competitors;
     }
+    if ('trackingLocations' in data) {
+        if (data.trackingLocations == null) {
+            result.trackingLocations = null;
+        } else if (Array.isArray(data.trackingLocations)) {
+            const trimmed = data.trackingLocations
+                .map((x) => String(x ?? '').trim())
+                .filter(Boolean)
+                .slice(0, 3);
+            result.trackingLocations = trimmed.length ? JSON.stringify(trimmed) : null;
+        } else if (typeof data.trackingLocations === 'string') {
+            result.trackingLocations = data.trackingLocations.trim() || null;
+        } else {
+            delete result.trackingLocations;
+        }
+    } else {
+        delete result.trackingLocations;
+    }
     return result;
+}
+
+function parseTrackingLocations(raw) {
+    if (raw == null || raw === '') return [];
+    if (Array.isArray(raw)) {
+        return raw.map((x) => String(x ?? '').trim()).filter(Boolean).slice(0, 3);
+    }
+    if (typeof raw === 'string') {
+        try {
+            const j = JSON.parse(raw);
+            return Array.isArray(j)
+                ? j.map((x) => String(x ?? '').trim()).filter(Boolean).slice(0, 3)
+                : [];
+        } catch {
+            return [];
+        }
+    }
+    return [];
 }
 
 function deserializeProject(project) {
@@ -22,6 +57,7 @@ function deserializeProject(project) {
         competitors: project.competitors
             ? (typeof project.competitors === 'string' ? JSON.parse(project.competitors) : project.competitors)
             : null,
+        trackingLocations: parseTrackingLocations(project.trackingLocations),
     };
 }
 
@@ -40,6 +76,17 @@ export const projectRepository = {
                 competitors: data.competitors != null
                     ? (typeof data.competitors === 'string' ? data.competitors : JSON.stringify(data.competitors))
                     : null,
+                trackingLocations:
+                    data.trackingLocations != null && Array.isArray(data.trackingLocations)
+                        ? JSON.stringify(
+                              data.trackingLocations
+                                  .map((x) => String(x ?? '').trim())
+                                  .filter(Boolean)
+                                  .slice(0, 3),
+                          )
+                        : typeof data.trackingLocations === 'string'
+                          ? data.trackingLocations || null
+                          : null,
             },
         });
         return deserializeProject(result);

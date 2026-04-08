@@ -1,10 +1,10 @@
 /**
- * Live Infatica smoke test (Perplexity + Gemini + Google SERP).
+ * Live Infatica smoke test (Perplexity + Gemini + ChatGPT + Google SERP).
  * Requires: INFATICA_API_KEY in .env or environment.
  * Run from backend: node scripts/test-infatica-live.mjs
  */
 import 'dotenv/config';
-import { queryPerplexity, queryGemini, queryGoogleAI } from '../src/services/infaticaService.js';
+import { queryPerplexity, queryGemini, queryGoogleAI, queryInfaticaChatGPT } from '../src/services/infaticaService.js';
 import { parseResponse } from '../src/services/responseParser.js';
 
 const q = process.argv.slice(2).join(' ') || 'What are three trusted sources for enterprise CRM comparisons in 2026?';
@@ -25,6 +25,7 @@ async function main() {
     for (const [label, fn, engine] of [
         ['Perplexity', () => queryPerplexity(q, ''), 'perplexity'],
         ['Gemini', () => queryGemini(q, ''), 'gemini'],
+        ['ChatGPT (/chatgpt)', () => queryInfaticaChatGPT(q, '', ''), 'chatgpt'],
         ['Google SERP (AI Overview context)', () => queryGoogleAI(q, 'us'), 'googleAI'],
     ]) {
         console.log(`--- ${label} ---`);
