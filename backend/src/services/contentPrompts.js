@@ -72,6 +72,12 @@ CRITICAL: Return ONE JSON object only. No text outside JSON.
 }
 
 STRICT: "faq" 3-5 items matching ## FAQ in "content". "content" must include ### AI search & discoverability notes and ## FAQ. Do not append META SECTIONs, scores, or posting-time notes after the article inside "content".
+
+OUTPUT HYGIENE (critical for Blog and Email):
+- Never end "content" with a bare comma-separated keyword run (e.g. foo, bar, baz, ...). Use ## Keywords or ## Tags with Markdown bullets, or put terms only in JSON "suggestedKeywords" as plain strings without #.
+- Never use a body line that is only hashtags (#a #b #c). Put hashtags in "suggestedKeywords" OR under "## Hashtags" as bullets "- #tag".
+- For email newsletters: put subject line options under "## Subject line options" as a numbered Markdown list (1. ... 2. ...), never one comma-separated line.
+- Use real ## / ### headings and "- " bullets; avoid CSV-style lists in the narrative body.
 `;
 
     // 1. Email Newsletter

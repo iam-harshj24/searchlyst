@@ -61,6 +61,8 @@ model Project {
   industry         String?
   companySize      String?
   location         String?
+  /// JSON array of up to 3 market labels (e.g. "Austin, TX", "India") for visibility prompts + Infatica region hint
+  trackingLocations String?         @db.Text
   language         String?
   reach            String?
   competitors      String?          @db.Text

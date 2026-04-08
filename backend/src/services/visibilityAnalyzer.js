@@ -94,7 +94,7 @@ export function analyzeCompetitorInResponse(html, competitorName, competitorDoma
 }
 
 export function aggregateResults(queryResults, brandName) {
-    const platforms = { perplexity: [], gemini: [], googleAI: [] };
+    const platforms = { perplexity: [], gemini: [], chatgpt: [], googleAI: [] };
     let totalMentions = 0;
     let sentimentCounts = { positive: 0, neutral: 0, negative: 0 };
     let totalQueries = queryResults.length;
@@ -118,9 +118,12 @@ export function aggregateResults(queryResults, brandName) {
     const scores = {
         perplexity: calcScore(platforms.perplexity),
         gemini: calcScore(platforms.gemini),
+        chatgpt: calcScore(platforms.chatgpt),
         googleAI: calcScore(platforms.googleAI),
     };
-    scores.overall = Math.round((scores.perplexity * 0.35 + scores.gemini * 0.35 + scores.googleAI * 0.3));
+    scores.overall = Math.round(
+        scores.perplexity * 0.25 + scores.gemini * 0.25 + scores.chatgpt * 0.25 + scores.googleAI * 0.25,
+    );
 
     const totalSentimentResponses = sentimentCounts.positive + sentimentCounts.neutral + sentimentCounts.negative;
     const sentiment = totalSentimentResponses > 0 ? {

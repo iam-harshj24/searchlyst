@@ -10,8 +10,9 @@ import {
     DialogTitle,
     DialogDescription,
 } from '@/components/ui/dialog';
-import { ChatGPTLogo, GeminiLogo, PerplexityLogo } from '../landing/AILogos';
+import { ChatGPTLogo, GeminiLogo, GoogleLogo, PerplexityLogo } from '../landing/AILogos';
 import { apiClient } from '@/api/apiClient';
+import { readVisibilityCache, mergeVisibilityScan } from '@/lib/visibilityStorageKeys';
 import { TrendPill } from '@/components/ui/TrendPill';
 import {
     AreaChart, Area, PieChart, Pie, Cell,
@@ -42,19 +43,37 @@ function normalizeSentimentTriple(p, n, neg) {
     return { positive: rp, neutral: rn, negative: rneg };
 }
 
-function demoSentimentTrend() {
-    return [
-        { month: 'Jan', monthFull: 'January', positive: 42, neutral: 40, negative: 18 },
-        { month: 'Feb', monthFull: 'February', positive: 48, neutral: 36, negative: 16 },
-        { month: 'Mar', monthFull: 'March', positive: 55, neutral: 32, negative: 13 },
-        { month: 'Apr', monthFull: 'April', positive: 70, neutral: 20, negative: 10 },
-        { month: 'May', monthFull: 'May', positive: 68, neutral: 24, negative: 8 },
-        { month: 'Jun', monthFull: 'June', positive: 72, neutral: 21, negative: 7 },
-        { month: 'Jul', monthFull: 'July', positive: 75, neutral: 18, negative: 7 },
-    ];
+/** Real trend series from saved scan history (one point per completed scan). */
+function buildTrendRowsFromScanHistory(scanHistory) {
+    const monthShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const rows = (Array.isArray(scanHistory) ? scanHistory : [])
+        .map((h) => {
+            const snap = h?.geoSnapshot?.sentimentSummary;
+            if (!snap || typeof snap !== 'object') return null;
+            const d = h.date ? new Date(h.date) : null;
+            if (!d || Number.isNaN(d.getTime())) return null;
+            const label = `${monthShort[d.getMonth()]} ${d.getDate()}`;
+            const monthFull = d.toLocaleString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+            });
+            const nn = normalizeSentimentTriple(
+                Number(snap.positive) || 0,
+                Number(snap.neutral) || 0,
+                Number(snap.negative) || 0,
+            );
+            return { sortKey: d.getTime(), month: label, monthFull, ...nn };
+        })
+        .filter(Boolean)
+        .sort((a, b) => a.sortKey - b.sortKey);
+    if (rows.length === 0) return null;
+    return rows.map(({ sortKey: _t, ...rest }) => rest);
 }
 
-function buildSentimentTrendData(scanResult, summary) {
+function buildSentimentTrendData(scanResult, summary, totalSentimentRuns, scanHistory) {
     const hist = scanResult?.sentiment?.trend;
     if (Array.isArray(hist) && hist.length > 0) {
         return hist.map((row) => ({
@@ -65,38 +84,33 @@ function buildSentimentTrendData(scanResult, summary) {
             negative: Number(row.negative) || 0,
         }));
     }
-    if (!scanResult || !summary) return demoSentimentTrend();
 
-    const ref = scanResult.scannedAt ? new Date(scanResult.scannedAt) : new Date();
+    const fromHistory = buildTrendRowsFromScanHistory(scanHistory);
+    if (fromHistory && fromHistory.length > 0) return fromHistory;
+
+    if (!scanResult || !summary) return [];
+
     const end = normalizeSentimentTriple(
         Number(summary.positive) || 0,
         Number(summary.neutral) || 0,
         Number(summary.negative) || 0,
     );
-    const start = normalizeSentimentTriple(
-        Math.max(0, end.positive - 30),
-        Math.min(100, end.neutral + 18),
-        Math.max(0, end.negative - 6),
-    );
+    const hasSentimentSignal =
+        totalSentimentRuns > 0 || end.positive > 0 || end.negative > 0 || (end.neutral > 0 && end.neutral < 100);
+    if (!hasSentimentSignal) return [];
+
+    const ref = scanResult.scannedAt ? new Date(scanResult.scannedAt) : new Date();
     const monthShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const data = [];
-    for (let i = 0; i < 7; i++) {
-        const d = new Date(ref.getFullYear(), ref.getMonth() - (6 - i), 1);
-        const t = i / 6;
-        const smooth = t * t;
-        const raw = {
-            positive: Math.round(start.positive + (end.positive - start.positive) * smooth),
-            neutral: Math.round(start.neutral + (end.neutral - start.neutral) * smooth),
-            negative: Math.round(start.negative + (end.negative - start.negative) * smooth),
-        };
-        const nn = normalizeSentimentTriple(raw.positive, raw.neutral, raw.negative);
-        data.push({
-            month: monthShort[d.getMonth()],
-            monthFull: d.toLocaleString('en-US', { month: 'long' }),
-            ...nn,
-        });
-    }
-    return data;
+    const label = `${monthShort[ref.getMonth()]} ${ref.getDate()}`;
+    const monthFull = ref.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+    });
+    const row = { month: label, monthFull, ...end };
+    return [row, row];
 }
 
 function SentimentTrendTooltip({ active, payload, brandName, domain }) {
@@ -279,7 +293,7 @@ function MapTooltip({ info, x, y, brandName, domain }) {
                     <span className="text-white font-bold">{info.citations?.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between items-center gap-2">
-                    <span className="text-[#666]">Sentiment:</span>
+                    <span className="text-[#666]">Sentiment (full scan):</span>
                     <SentimentPercentDisplay value={info.sentiment} size="sm" align="end" />
                 </div>
                 <div className="flex justify-between">
@@ -291,7 +305,7 @@ function MapTooltip({ info, x, y, brandName, domain }) {
     );
 }
 
-function deriveSentimentAndGeo(scanResult) {
+function deriveSentimentAndGeo(scanResult, scanHistory) {
     if (!scanResult) return null;
 
     const sentiment = scanResult.sentiment || {};
@@ -305,10 +319,23 @@ function deriveSentimentAndGeo(scanResult) {
         { name: 'Negative', value: summary.negative || 0, color: SENTIMENT_JIO.negative },
     ];
 
-    const sentimentTrend = buildSentimentTrendData(scanResult, summary);
+    const rawIdxEarly = summary.sentimentIndex;
+    const averageSentiment =
+        rawIdxEarly != null && Number.isFinite(Number(rawIdxEarly))
+            ? Number(rawIdxEarly)
+            : totalSentimentRuns > 0
+                ? estimateSentimentIndexFromSummary(summary)
+                : null;
 
-    const ENGINE_ORDER_LOCAL = ['perplexity', 'gemini', 'googleAI'];
-    const ENGINE_LABELS = { perplexity: 'Perplexity', gemini: 'Gemini', googleAI: 'ChatGPT' };
+    const sentimentTrend = buildSentimentTrendData(scanResult, summary, totalSentimentRuns, scanHistory);
+
+    const ENGINE_ORDER_LOCAL = ['perplexity', 'gemini', 'chatgpt', 'googleAI'];
+    const ENGINE_LABELS = {
+        perplexity: 'Perplexity',
+        gemini: 'Gemini',
+        chatgpt: 'ChatGPT',
+        googleAI: 'Google AI Overviews',
+    };
 
     const prompts = (scanResult.prompts || []).map(p => {
         const engines = p.engines || {};
@@ -383,9 +410,13 @@ function deriveSentimentAndGeo(scanResult) {
     for (const [geo, data] of Object.entries(regionMap)) {
         const isoKey = COUNTRY_TO_ISO[geo];
         if (isoKey) {
+            const sent =
+                averageSentiment != null && Number.isFinite(Number(averageSentiment))
+                    ? Math.round(Number(averageSentiment) * 10) / 10
+                    : null;
             geoSentiment[isoKey] = {
                 region: ISO_NUMERIC_TO_NAME[isoKey] || geo,
-                sentiment: Math.round(summary.positive || 50),
+                sentiment: sent,
                 citations: data.citations,
                 mentions: data.mentions,
             };
@@ -412,14 +443,6 @@ function deriveSentimentAndGeo(scanResult) {
     const activeRegions = Object.keys(regionMap).filter(g => g !== 'global').length;
     const negativePct = summary.negative || 0;
 
-    const rawIdx = summary.sentimentIndex;
-    const averageSentiment =
-        rawIdx != null && Number.isFinite(Number(rawIdx))
-            ? Number(rawIdx)
-            : totalSentimentRuns > 0
-                ? estimateSentimentIndexFromSummary(summary)
-                : null;
-
     return {
         sentimentBreakdown,
         sentimentTrend,
@@ -445,7 +468,7 @@ const KPI_INSPECT_COPY = {
     regions: {
         title: 'Active regions',
         description:
-            'Number of country buckets inferred from citation domains (for example .de → Germany). More regions usually means broader geographic exposure in AI answers.',
+            'Number of country buckets inferred from citation domains (for example .de → Germany). Citation counts are regional; map shading uses your scan-wide sentiment index (we do not infer per-country sentiment from domains alone).',
     },
     avgSentiment: {
         title: 'Average sentiment',
@@ -470,7 +493,15 @@ export default function SentimentGeoPage({ user, scanManager }) {
 
     const brandName = user?.brandName || 'Your Brand';
     const domain = user?.domain || '';
-    const scanResult = scanManager?.scanResult || null;
+
+    const scanResult = useMemo(
+        () =>
+            mergeVisibilityScan(
+                scanManager?.scanResult || null,
+                readVisibilityCache(user?.authUserId, domain, user?.projectId),
+            ),
+        [scanManager?.scanResult, user?.authUserId, domain, user?.projectId],
+    );
 
     useEffect(() => {
         setScanHistory([]);
@@ -513,7 +544,10 @@ export default function SentimentGeoPage({ user, scanManager }) {
         };
     }, [scanHistory]);
 
-    const derived = useMemo(() => deriveSentimentAndGeo(scanResult), [scanResult]);
+    const derived = useMemo(
+        () => deriveSentimentAndGeo(scanResult, scanHistory),
+        [scanResult, scanHistory],
+    );
 
     const scanDate = scanResult?.scannedAt
         ? new Date(scanResult.scannedAt).toLocaleString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', second: '2-digit' })
@@ -526,7 +560,7 @@ export default function SentimentGeoPage({ user, scanManager }) {
         { name: 'Neutral', value: 0, color: SENTIMENT_JIO.neutral },
         { name: 'Negative', value: 0, color: SENTIMENT_JIO.negative },
     ];
-    const sentimentTrend = derived?.sentimentTrend || demoSentimentTrend();
+    const sentimentTrend = Array.isArray(derived?.sentimentTrend) ? derived.sentimentTrend : [];
     const summary = derived?.summary || { positive: 0, neutral: 0, negative: 0 };
     const prompts = derived?.prompts || [];
     const geoSentiment = derived?.geoSentiment || {};
@@ -656,7 +690,14 @@ export default function SentimentGeoPage({ user, scanManager }) {
                                 <h2 className="text-white font-semibold text-[16px]">Sentiment Trend</h2>
                                 <p className="text-[#666] text-[13px] mt-0.5">How AI platforms perceive your brand over time.</p>
                                 {!hasData && (
-                                    <p className="text-[#555] text-[11px] mt-2">Sample curve — run a scan to anchor the last point to your data.</p>
+                                    <p className="text-[#555] text-[11px] mt-2">
+                                        Run a visibility scan first. With multiple saved scans, this chart uses your history; otherwise it shows this scan only.
+                                    </p>
+                                )}
+                                {hasData && sentimentTrend.length === 0 && (
+                                    <p className="text-[#555] text-[11px] mt-2">
+                                        No labeled sentiment in this scan yet, so there is nothing to plot. After the next completed scan, points appear here.
+                                    </p>
                                 )}
                             </div>
                             <div className="flex flex-wrap items-center gap-3 text-[11px] shrink-0">
@@ -674,83 +715,94 @@ export default function SentimentGeoPage({ user, scanManager }) {
                                 </span>
                             </div>
                         </div>
-                        <button
-                            type="button"
-                            onClick={() => setChartInspect('trend')}
-                            className="relative w-full flex-1 min-h-[280px] text-left rounded-xl border border-transparent hover:border-[#333] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#E92A15]/45 transition-colors group"
-                            aria-label="Open sentiment trend chart in a larger view"
-                        >
-                            <span className="absolute top-1 right-2 z-10 flex items-center gap-1 text-[10px] font-medium text-[#555] opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 pointer-events-none">
-                                <Maximize2 className="w-3 h-3" strokeWidth={2.2} aria-hidden />
-                                Enlarge
-                            </span>
-                            <div className="w-full flex-1 min-h-[280px]" style={{ minHeight: 280 }}>
-                            <ResponsiveContainer width="100%" height={280}>
-                                <AreaChart data={sentimentTrend} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
-                                    <defs>
-                                        <linearGradient id="sentTrendPos" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="0%" stopColor={SENTIMENT_JIO.positive} stopOpacity={0.4} />
-                                            <stop offset="100%" stopColor={SENTIMENT_JIO.positive} stopOpacity={0} />
-                                        </linearGradient>
-                                        <linearGradient id="sentTrendNeu" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="0%" stopColor={SENTIMENT_JIO.neutral} stopOpacity={0.45} />
-                                            <stop offset="100%" stopColor={SENTIMENT_JIO.neutral} stopOpacity={0} />
-                                        </linearGradient>
-                                        <linearGradient id="sentTrendNeg" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="0%" stopColor={SENTIMENT_JIO.negative} stopOpacity={0.45} />
-                                            <stop offset="100%" stopColor={SENTIMENT_JIO.negative} stopOpacity={0} />
-                                        </linearGradient>
-                                    </defs>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#333" />
-                                    <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#737373', fontSize: 11 }} />
-                                    <YAxis
-                                        axisLine={false}
-                                        tickLine={false}
-                                        tick={{ fill: '#525252', fontSize: 10 }}
-                                        domain={[0, 100]}
-                                        ticks={[0, 25, 50, 75, 100]}
-                                        width={36}
-                                    />
-                                    <Tooltip
-                                        content={(props) => (
-                                            <SentimentTrendTooltip {...props} brandName={brandName} domain={domain} />
-                                        )}
-                                        cursor={{ stroke: '#ffffff', strokeWidth: 1, strokeOpacity: 0.35 }}
-                                    />
-                                    <Area
-                                        type="monotone"
-                                        dataKey="negative"
-                                        name="Negative"
-                                        stroke={SENTIMENT_JIO.negative}
-                                        strokeWidth={2}
-                                        fill="url(#sentTrendNeg)"
-                                        dot={{ r: 3, strokeWidth: 1.5, fill: '#0B0B0B', stroke: SENTIMENT_JIO.negative }}
-                                        activeDot={{ r: 5, strokeWidth: 0, fill: SENTIMENT_JIO.negative }}
-                                    />
-                                    <Area
-                                        type="monotone"
-                                        dataKey="neutral"
-                                        name="Neutral"
-                                        stroke={SENTIMENT_JIO.neutral}
-                                        strokeWidth={2}
-                                        fill="url(#sentTrendNeu)"
-                                        dot={{ r: 3, strokeWidth: 1.5, fill: '#0B0B0B', stroke: SENTIMENT_JIO.neutral }}
-                                        activeDot={{ r: 5, strokeWidth: 0, fill: SENTIMENT_JIO.neutral }}
-                                    />
-                                    <Area
-                                        type="monotone"
-                                        dataKey="positive"
-                                        name="Positive"
-                                        stroke={SENTIMENT_JIO.positive}
-                                        strokeWidth={2}
-                                        fill="url(#sentTrendPos)"
-                                        dot={{ r: 3, strokeWidth: 1.5, fill: '#0B0B0B', stroke: SENTIMENT_JIO.positive }}
-                                        activeDot={{ r: 5, strokeWidth: 0, fill: SENTIMENT_JIO.positive }}
-                                    />
-                                </AreaChart>
-                            </ResponsiveContainer>
+                        {sentimentTrend.length > 0 ? (
+                            <button
+                                type="button"
+                                onClick={() => setChartInspect('trend')}
+                                className="relative w-full flex-1 min-h-[280px] text-left rounded-xl border border-transparent hover:border-[#333] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#E92A15]/45 transition-colors group"
+                                aria-label="Open sentiment trend chart in a larger view"
+                            >
+                                <span className="absolute top-1 right-2 z-10 flex items-center gap-1 text-[10px] font-medium text-[#555] opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 pointer-events-none">
+                                    <Maximize2 className="w-3 h-3" strokeWidth={2.2} aria-hidden />
+                                    Enlarge
+                                </span>
+                                <div className="w-full flex-1 min-h-[280px]" style={{ minHeight: 280 }}>
+                                    <ResponsiveContainer width="100%" height={280}>
+                                        <AreaChart data={sentimentTrend} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
+                                            <defs>
+                                                <linearGradient id="sentTrendPos" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="0%" stopColor={SENTIMENT_JIO.positive} stopOpacity={0.4} />
+                                                    <stop offset="100%" stopColor={SENTIMENT_JIO.positive} stopOpacity={0} />
+                                                </linearGradient>
+                                                <linearGradient id="sentTrendNeu" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="0%" stopColor={SENTIMENT_JIO.neutral} stopOpacity={0.45} />
+                                                    <stop offset="100%" stopColor={SENTIMENT_JIO.neutral} stopOpacity={0} />
+                                                </linearGradient>
+                                                <linearGradient id="sentTrendNeg" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="0%" stopColor={SENTIMENT_JIO.negative} stopOpacity={0.45} />
+                                                    <stop offset="100%" stopColor={SENTIMENT_JIO.negative} stopOpacity={0} />
+                                                </linearGradient>
+                                            </defs>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#333" />
+                                            <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#737373', fontSize: 11 }} />
+                                            <YAxis
+                                                axisLine={false}
+                                                tickLine={false}
+                                                tick={{ fill: '#525252', fontSize: 10 }}
+                                                domain={[0, 100]}
+                                                ticks={[0, 25, 50, 75, 100]}
+                                                width={36}
+                                            />
+                                            <Tooltip
+                                                content={(props) => (
+                                                    <SentimentTrendTooltip {...props} brandName={brandName} domain={domain} />
+                                                )}
+                                                cursor={{ stroke: '#ffffff', strokeWidth: 1, strokeOpacity: 0.35 }}
+                                            />
+                                            <Area
+                                                type="monotone"
+                                                dataKey="negative"
+                                                name="Negative"
+                                                stroke={SENTIMENT_JIO.negative}
+                                                strokeWidth={2}
+                                                fill="url(#sentTrendNeg)"
+                                                dot={{ r: 3, strokeWidth: 1.5, fill: '#0B0B0B', stroke: SENTIMENT_JIO.negative }}
+                                                activeDot={{ r: 5, strokeWidth: 0, fill: SENTIMENT_JIO.negative }}
+                                            />
+                                            <Area
+                                                type="monotone"
+                                                dataKey="neutral"
+                                                name="Neutral"
+                                                stroke={SENTIMENT_JIO.neutral}
+                                                strokeWidth={2}
+                                                fill="url(#sentTrendNeu)"
+                                                dot={{ r: 3, strokeWidth: 1.5, fill: '#0B0B0B', stroke: SENTIMENT_JIO.neutral }}
+                                                activeDot={{ r: 5, strokeWidth: 0, fill: SENTIMENT_JIO.neutral }}
+                                            />
+                                            <Area
+                                                type="monotone"
+                                                dataKey="positive"
+                                                name="Positive"
+                                                stroke={SENTIMENT_JIO.positive}
+                                                strokeWidth={2}
+                                                fill="url(#sentTrendPos)"
+                                                dot={{ r: 3, strokeWidth: 1.5, fill: '#0B0B0B', stroke: SENTIMENT_JIO.positive }}
+                                                activeDot={{ r: 5, strokeWidth: 0, fill: SENTIMENT_JIO.positive }}
+                                            />
+                                        </AreaChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </button>
+                        ) : (
+                            <div
+                                className="w-full flex-1 min-h-[280px] rounded-xl border border-[#222] bg-[#0d0d0d] flex items-center justify-center px-6"
+                                style={{ minHeight: 280 }}
+                            >
+                                <p className="text-[#555] text-[13px] text-center max-w-md">
+                                    No trend points to show yet.
+                                </p>
                             </div>
-                        </button>
+                        )}
                     </div>
 
                     <div className="bg-[#0B0B0B] border border-[#222] rounded-2xl p-6 flex flex-col">
@@ -820,7 +872,7 @@ export default function SentimentGeoPage({ user, scanManager }) {
                             })}
                         </div>
                         <p className="text-[#555] text-[11px] mt-4 pt-3 border-t border-[#1a1a1a]">
-                            Based on {scanResult?.sentiment?.total || 0} brand mentions (Perplexity, Gemini &amp; ChatGPT).
+                            Based on {scanResult?.sentiment?.total || 0} brand mentions (Perplexity, Gemini, ChatGPT &amp; Google AI Overviews).
                         </p>
                         </button>
                     </div>
@@ -858,6 +910,9 @@ export default function SentimentGeoPage({ user, scanManager }) {
                                     <PlatformSentimentTableHeaderCell>
                                         <EngineColumnHeader logo={ChatGPTLogo} label="ChatGPT" />
                                     </PlatformSentimentTableHeaderCell>
+                                    <PlatformSentimentTableHeaderCell>
+                                        <EngineColumnHeader logo={GoogleLogo} label="Google AI Overviews" />
+                                    </PlatformSentimentTableHeaderCell>
                                 </tr>
                             </thead>
                             <tbody>
@@ -871,9 +926,10 @@ export default function SentimentGeoPage({ user, scanManager }) {
                                                 <td className="text-center"><div className="animate-pulse bg-[#1a1a1a] rounded w-14 h-5 mx-auto" /></td>
                                                 <td className="text-center"><div className="animate-pulse bg-[#1a1a1a] rounded w-14 h-5 mx-auto" /></td>
                                                 <td className="text-center"><div className="animate-pulse bg-[#1a1a1a] rounded w-14 h-5 mx-auto" /></td>
+                                                <td className="text-center"><div className="animate-pulse bg-[#1a1a1a] rounded w-14 h-5 mx-auto" /></td>
                                             </tr>
                                         ))}
-                                        <tr><td colSpan={6} className="py-4 text-center text-[#444] text-[12px]">Run a scan to see per-platform sentiment data</td></tr>
+                                        <tr><td colSpan={7} className="py-4 text-center text-[#444] text-[12px]">Run a scan to see per-platform sentiment data</td></tr>
                                     </>
                                 ) : prompts.map((row, i) => {
                                     const promptP = promptPreview(row.prompt);
@@ -920,6 +976,7 @@ export default function SentimentGeoPage({ user, scanManager }) {
                                             </td>
                                             <td className="text-center">{sentChip('perplexity')}</td>
                                             <td className="text-center">{sentChip('gemini')}</td>
+                                            <td className="text-center">{sentChip('chatgpt')}</td>
                                             <td className="text-center">{sentChip('googleAI')}</td>
                                         </tr>
                                     );
@@ -1130,7 +1187,7 @@ export default function SentimentGeoPage({ user, scanManager }) {
                             <DialogDescription className="text-[#888] text-[12px]">
                                 {chartInspect === 'trend' && 'Positive, neutral, and negative share over the displayed window (hover points for exact values).'}
                                 {chartInspect === 'pie' && 'Distribution of AI sentiment labels for this scan.'}
-                                {chartInspect === 'map' && 'Hover countries with data to see citations, sentiment, and mentions.'}
+                                {chartInspect === 'map' && 'Hover countries with data to see regional citations and mentions; sentiment shown is your full-scan index, not per country.'}
                             </DialogDescription>
                         </DialogHeader>
 

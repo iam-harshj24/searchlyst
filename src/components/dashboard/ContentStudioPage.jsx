@@ -1,12 +1,14 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
     PenTool, Sparkles, FileText, Instagram, Linkedin, MessageCircle, Mail, 
     Loader2, Copy, Check, ChevronRight, Settings2, CornerDownLeft, Circle, Library, Twitter, Filter, X,
+    Archive, Trash2, ArchiveRestore,
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { apiClient } from '@/api/apiClient';
 import ReactMarkdown from 'react-markdown';
 import { copyMarkdownToClipboard, stripPasteMetaNoise } from '@/lib/copyRichMarkdown';
+import { sanitizeArticleObject } from '@/lib/contentArticleSanitize';
 
 /** Fix models that double-escape newlines inside JSON "content". */
 function normalizeBodyContent(str) {
@@ -34,14 +36,14 @@ function normalizeArticle(article, topic) {
             const parsed = JSON.parse(cleanStr);
             return normalizeArticle(parsed, topic);
         } catch {
-            return {
+            return sanitizeArticleObject({
                 title: topic,
                 content: normalizeBodyContent(typeof article === 'string' ? article : ''),
                 sources: [],
                 faq: [],
                 keyTakeaways: [],
                 suggestedKeywords: [],
-            };
+            });
         }
     }
     
@@ -55,7 +57,7 @@ function normalizeArticle(article, topic) {
         }
     }
     
-    return {
+    return sanitizeArticleObject({
         title: article.title || topic,
         metaDescription: article.metaDescription,
         keyTakeaways: article.keyTakeaways || [],
@@ -66,7 +68,7 @@ function normalizeArticle(article, topic) {
         discoverabilityNotes: article.discoverabilityNotes || [],
         wordCount: article.wordCount,
         readingTime: article.readingTime,
-    };
+    });
 }
 
 function getArticleFromItem(item) {
@@ -219,6 +221,8 @@ export default function ContentStudioPage({ user }) {
     const [libDatePreset, setLibDatePreset] = useState('all');
     const [libDateFrom, setLibDateFrom] = useState('');
     const [libDateTo, setLibDateTo] = useState('');
+    /** API: exclude archived (default) | only archived | all */
+    const [libArchiveFilter, setLibArchiveFilter] = useState('exclude');
 
     // Contextual Defaults
     const brandName = user?.brandName || 'Camana Homes';
@@ -251,27 +255,72 @@ export default function ContentStudioPage({ user }) {
         loadSuggestions();
     }, [user]);
 
+    const refreshLibrary = useCallback(async () => {
+        setLoadingLibrary(true);
+        try {
+            const contents = await apiClient.content.list(user?.projectId, { archive: libArchiveFilter });
+            setContentLibrary((contents || []).map((c) => ({
+                id: c.id,
+                title: c.title,
+                platform: c.platform,
+                status: c.status,
+                date: c.date,
+                createdAt: c.createdAt || null,
+                article: c.article,
+            })));
+        } catch {
+            setContentLibrary([]);
+        } finally {
+            setLoadingLibrary(false);
+        }
+    }, [user?.projectId, libArchiveFilter]);
+
     useEffect(() => {
-        const load = async () => {
+        void refreshLibrary();
+    }, [refreshLibrary]);
+
+    const handleArchiveItem = useCallback(
+        async (item) => {
+            if (!item?.id) return;
             try {
-                const contents = await apiClient.content.list(user?.projectId);
-                setContentLibrary((contents || []).map((c) => ({
-                    id: c.id,
-                    title: c.title,
-                    platform: c.platform,
-                    status: c.status,
-                    date: c.date,
-                    createdAt: c.createdAt || null,
-                    article: c.article,
-                })));
-            } catch {
-                setContentLibrary([]);
-            } finally {
-                setLoadingLibrary(false);
+                await apiClient.content.updateStatus(item.id, 'archived');
+                await refreshLibrary();
+                setSelectedLibraryItem((cur) => (cur?.id === item.id ? null : cur));
+            } catch (e) {
+                console.error(e);
             }
-        };
-        load();
-    }, [user?.projectId]);
+        },
+        [refreshLibrary],
+    );
+
+    const handleRestoreItem = useCallback(
+        async (item) => {
+            if (!item?.id) return;
+            try {
+                await apiClient.content.updateStatus(item.id, 'draft');
+                await refreshLibrary();
+                setSelectedLibraryItem((cur) => (cur?.id === item.id ? null : cur));
+            } catch (e) {
+                console.error(e);
+            }
+        },
+        [refreshLibrary],
+    );
+
+    const handleDeleteItem = useCallback(
+        async (item) => {
+            if (!item?.id) return;
+            if (!window.confirm('Delete this content permanently? This cannot be undone.')) return;
+            try {
+                await apiClient.content.remove(item.id);
+                await refreshLibrary();
+                setSelectedLibraryItem((cur) => (cur?.id === item.id ? null : cur));
+            } catch (e) {
+                console.error(e);
+            }
+        },
+        [refreshLibrary],
+    );
 
     useEffect(() => {
         if (step === 4 && activeTab && generatedContent[activeTab]) {
@@ -342,6 +391,7 @@ export default function ContentStudioPage({ user }) {
     const libraryFiltersActive =
         libPlatformFilter !== 'all' ||
         libDatePreset !== 'all' ||
+        libArchiveFilter !== 'exclude' ||
         (libDatePreset === 'custom' && (libDateFrom || libDateTo));
 
     const resetLibraryFilters = () => {
@@ -349,6 +399,7 @@ export default function ContentStudioPage({ user }) {
         setLibDatePreset('all');
         setLibDateFrom('');
         setLibDateTo('');
+        setLibArchiveFilter('exclude');
     };
 
     const togglePlatform = (id) => {
@@ -497,13 +548,53 @@ export default function ContentStudioPage({ user }) {
                             <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 text-[#E92A15] animate-spin" /></div>
                         ) : selectedLibraryItem != null ? (
                             <div className="bg-[#0B0B0B] border border-[#222] rounded-3xl overflow-hidden shadow-2xl">
-                                <div className="p-5 border-b border-[#222] flex items-center justify-between bg-[#111]">
-                                    <h3 className="text-white font-semibold text-[16px] truncate pr-4">{selectedLibraryItem.title}</h3>
-                                    <div className="flex items-center gap-3 shrink-0">
-                                        <button onClick={() => handleCopy(libExportDraft, 'lib')} className="px-4 py-2 text-[12px] font-medium text-white bg-[#1A1A1A] border border-[#333] hover:bg-[#222] rounded-xl transition-all">
+                                <div className="p-5 border-b border-[#222] flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between bg-[#111]">
+                                    <div className="min-w-0">
+                                        <h3 className="text-white font-semibold text-[16px] truncate">{selectedLibraryItem.title}</h3>
+                                        {selectedLibraryItem.status === 'archived' ? (
+                                            <span className="inline-block mt-1 text-[10px] font-semibold uppercase tracking-wider text-amber-400/90">Archived</span>
+                                        ) : null}
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2 shrink-0">
+                                        {selectedLibraryItem.status !== 'archived' ? (
+                                            <button
+                                                type="button"
+                                                onClick={() => void handleArchiveItem(selectedLibraryItem)}
+                                                className="inline-flex items-center gap-1.5 px-3 py-2 text-[12px] font-medium text-white bg-[#1A1A1A] border border-[#333] hover:bg-[#222] rounded-xl transition-all"
+                                            >
+                                                <Archive className="w-3.5 h-3.5" strokeWidth={2} aria-hidden />
+                                                Archive
+                                            </button>
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                onClick={() => void handleRestoreItem(selectedLibraryItem)}
+                                                className="inline-flex items-center gap-1.5 px-3 py-2 text-[12px] font-medium text-white bg-[#1A1A1A] border border-[#333] hover:bg-[#222] rounded-xl transition-all"
+                                            >
+                                                <ArchiveRestore className="w-3.5 h-3.5" strokeWidth={2} aria-hidden />
+                                                Restore
+                                            </button>
+                                        )}
+                                        <button
+                                            type="button"
+                                            onClick={() => void handleDeleteItem(selectedLibraryItem)}
+                                            className="inline-flex items-center gap-1.5 px-3 py-2 text-[12px] font-medium text-red-300 bg-red-950/30 border border-red-900/40 hover:bg-red-950/50 rounded-xl transition-all"
+                                        >
+                                            <Trash2 className="w-3.5 h-3.5" strokeWidth={2} aria-hidden />
+                                            Delete
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleCopy(libExportDraft, 'lib')}
+                                            className="px-3 py-2 text-[12px] font-medium text-white bg-[#1A1A1A] border border-[#333] hover:bg-[#222] rounded-xl transition-all"
+                                        >
                                             {copied === 'lib' ? 'Copied!' : 'Copy for CMS'}
                                         </button>
-                                        <button onClick={() => setSelectedLibraryItem(null)} className="px-4 py-2 text-[12px] font-medium text-white bg-[#E92A15] hover:bg-[#D12512] rounded-xl transition-all">
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedLibraryItem(null)}
+                                            className="px-3 py-2 text-[12px] font-medium text-white bg-[#E92A15] hover:bg-[#D12512] rounded-xl transition-all"
+                                        >
                                             Close
                                         </button>
                                     </div>
@@ -529,6 +620,18 @@ export default function ContentStudioPage({ user }) {
                                     Filter library
                                 </div>
                                 <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end flex-1 min-w-0">
+                                    <label className="flex flex-col gap-1.5 min-w-[160px]">
+                                        <span className="text-[10px] uppercase tracking-wider text-[#666] font-semibold">View</span>
+                                        <select
+                                            value={libArchiveFilter}
+                                            onChange={(e) => setLibArchiveFilter(e.target.value)}
+                                            className="bg-[#0B0B0B] border border-[#333] text-[#e5e5e5] text-[13px] rounded-lg px-3 py-2 focus:outline-none focus:border-[#E92A15]/50"
+                                        >
+                                            <option value="exclude">Active (hide archived)</option>
+                                            <option value="only">Archived only</option>
+                                            <option value="all">All</option>
+                                        </select>
+                                    </label>
                                     <label className="flex flex-col gap-1.5 min-w-[160px]">
                                         <span className="text-[10px] uppercase tracking-wider text-[#666] font-semibold">Platform</span>
                                         <select
@@ -613,22 +716,74 @@ export default function ContentStudioPage({ user }) {
                                     ) : null}
                                 </p>
                                 {filteredContentLibrary.map((item) => (
-                                    <button key={item.id} onClick={() => setSelectedLibraryItem(item)} className="w-full text-left bg-[#0B0B0B] border border-[#222] rounded-2xl p-5 flex items-center justify-between hover:border-[#444] hover:bg-[#111] transition-all group">
-                                        <div className="flex items-center gap-5 min-w-0">
-                                            <div className="w-12 h-12 bg-[#1A1A1A] border border-[#333] rounded-xl flex items-center justify-center shrink-0">
-                                                <FileText className="w-5 h-5 text-[#888]" />
-                                            </div>
-                                            <div className="min-w-0">
-                                                <p className="text-white text-[15px] font-semibold truncate mb-1">{item.title}</p>
-                                                <div className="flex items-center gap-3">
-                                                    <span className="text-[#888] text-[12px]">{item.platform}</span>
-                                                    <span className="text-[#444]">•</span>
-                                                    <span className="text-[#888] text-[12px]">{item.date}</span>
+                                    <div
+                                        key={item.id}
+                                        className="w-full bg-[#0B0B0B] border border-[#222] rounded-2xl p-4 sm:p-5 flex items-stretch gap-2 sm:gap-3 hover:border-[#444] hover:bg-[#111] transition-all group"
+                                    >
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedLibraryItem(item)}
+                                            className="flex-1 min-w-0 text-left flex items-center justify-between gap-3 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-[#E92A15]/45"
+                                        >
+                                            <div className="flex items-center gap-4 min-w-0">
+                                                <div className="w-12 h-12 bg-[#1A1A1A] border border-[#333] rounded-xl flex items-center justify-center shrink-0">
+                                                    <FileText className="w-5 h-5 text-[#888]" aria-hidden />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="text-white text-[15px] font-semibold truncate mb-1">{item.title}</p>
+                                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                                        <span className="text-[#888] text-[12px]">{item.platform}</span>
+                                                        <span className="text-[#444]" aria-hidden>•</span>
+                                                        <span className="text-[#888] text-[12px]">{item.date}</span>
+                                                        {item.status === 'archived' ? (
+                                                            <>
+                                                                <span className="text-[#444]" aria-hidden>•</span>
+                                                                <span className="text-amber-400/90 text-[11px] font-semibold uppercase tracking-wide">Archived</span>
+                                                            </>
+                                                        ) : null}
+                                                    </div>
                                                 </div>
                                             </div>
+                                            <ChevronRight className="w-5 h-5 text-[#555] group-hover:text-white transition-colors shrink-0" aria-hidden />
+                                        </button>
+                                        <div
+                                            className="flex flex-col sm:flex-row items-center gap-1 shrink-0 border-l border-[#2a2a2a] pl-2 sm:pl-3"
+                                            onClick={(e) => e.stopPropagation()}
+                                            onKeyDown={(e) => e.stopPropagation()}
+                                            role="presentation"
+                                        >
+                                            {item.status !== 'archived' ? (
+                                                <button
+                                                    type="button"
+                                                    title="Archive"
+                                                    aria-label="Archive"
+                                                    onClick={() => void handleArchiveItem(item)}
+                                                    className="p-2 rounded-lg text-[#888] hover:text-white hover:bg-[#1a1a1a] border border-transparent hover:border-[#333] transition-colors"
+                                                >
+                                                    <Archive className="w-4 h-4" strokeWidth={2} />
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    type="button"
+                                                    title="Restore"
+                                                    aria-label="Restore from archive"
+                                                    onClick={() => void handleRestoreItem(item)}
+                                                    className="p-2 rounded-lg text-[#888] hover:text-white hover:bg-[#1a1a1a] border border-transparent hover:border-[#333] transition-colors"
+                                                >
+                                                    <ArchiveRestore className="w-4 h-4" strokeWidth={2} />
+                                                </button>
+                                            )}
+                                            <button
+                                                type="button"
+                                                title="Delete"
+                                                aria-label="Delete permanently"
+                                                onClick={() => void handleDeleteItem(item)}
+                                                className="p-2 rounded-lg text-red-400/80 hover:text-red-300 hover:bg-red-950/25 border border-transparent hover:border-red-900/40 transition-colors"
+                                            >
+                                                <Trash2 className="w-4 h-4" strokeWidth={2} />
+                                            </button>
                                         </div>
-                                        <ChevronRight className="w-5 h-5 text-[#555] group-hover:text-white transition-colors" />
-                                    </button>
+                                    </div>
                                 ))}
                             </div>
                             )}

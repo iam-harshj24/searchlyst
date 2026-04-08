@@ -103,6 +103,7 @@ export async function updateProject(req, res) {
             social_linkedin, social_instagram, social_substack, social_reddit,
             social_twitter, social_youtube, social_quora, social_tiktok,
             website_url, domain,
+            trackingLocations,
         } = req.body;
 
         if (userId === -1) {
@@ -135,6 +136,7 @@ export async function updateProject(req, res) {
             social_quora,
             social_tiktok,
             ...(normalizedDomain ? { domain: normalizedDomain } : {}),
+            ...(trackingLocations !== undefined ? { trackingLocations } : {}),
         });
 
         // Also update User's role_type since the Brand Hub manages it

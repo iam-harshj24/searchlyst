@@ -155,6 +155,9 @@ try {
     assert(gaps.length >= 1, 'At least one gap (competitor present, brand absent)');
     assert(gaps[0].query, 'Gap has query');
     assert(gaps[0].competitorsPresent && gaps[0].competitorsPresent.length > 0, 'Gap has competitors');
+    assert(gaps[0].gapId && typeof gaps[0].gapId === 'string', 'Gap has stable gapId');
+    assert(gaps[0].geoBrief?.targetPlatforms?.length > 0, 'Gap has geoBrief.targetPlatforms');
+    assert(gaps[0].byEngine && typeof gaps[0].byEngine === 'object', 'Gap has byEngine');
     pass('computeCompetitorGap: detects gaps');
 
     const ranking = computeIndustryRanking(gapRuns, 'Searchlyst', [{ name: 'Ahrefs' }]);

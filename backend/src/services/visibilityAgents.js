@@ -2,18 +2,19 @@
  * Visibility Agents — Dedicated parallel pipelines per engine
  *
  * Architecture:
- * - 3 independent pipelines: Perplexity, Gemini, GoogleAI
- * - Each pipeline owns ALL 20 prompts and processes them at its own pace
+ * - 4 independent pipelines: Perplexity, Gemini, ChatGPT (Infatica /chatgpt), Google SERP (AI Overviews context)
+ * - Each pipeline owns ALL prompts and processes them at its own pace
  * - Worker-pool concurrency within each pipeline:
- *     Perplexity : 2 concurrent by default (set VISIBILITY_PERPLEXITY_CONCURRENCY)
+ *     Perplexity : 1 concurrent by default (set VISIBILITY_PERPLEXITY_CONCURRENCY) — reduces Infatica/429 empty runs
  *     Gemini     : 3 concurrent
- *     GoogleAI   : 3 concurrent
- * - Total peak concurrency: 2+3+3 = 8 default simultaneous Infatica calls
+ *     ChatGPT    : 3 concurrent
+ *     GoogleAI   : 3 concurrent (SERP / Infatica serp)
+ * - Total peak concurrency: 1+3+3+3 = 10 default simultaneous Infatica calls
  * - No prompt blocks another engine — if Perplexity is slow, Gemini races ahead
- * - Early results fire at 50% completion across all pipelines
+ * - Early results fire once ≥50% of engine×prompt calls have completed (initial dashboard), then refine to 100%
  */
 
-import { queryPerplexity, queryGemini, queryGoogleAI } from './infaticaService.js';
+import { queryPerplexity, queryGemini, queryGoogleAI, queryInfaticaChatGPT } from './infaticaService.js';
 import { generatePromptMatrixForPlatform, generateFallbackPrompts } from './promptIntelligence.js';
 import { parseResponse, batchApplyGeminiSentimentByPrompt } from './responseParser.js';
 import {
@@ -26,12 +27,20 @@ import {
     computeSentimentBreakdown,
 } from './scoringEngine.js';
 
-const ENGINES = ['perplexity', 'gemini', 'googleAI'];
-const PLATFORM_NAMES = { perplexity: 'Perplexity', gemini: 'Gemini', googleAI: 'ChatGPT' };
+const ENGINES = ['perplexity', 'gemini', 'chatgpt', 'googleAI'];
+const PLATFORM_NAMES = {
+    perplexity: 'Perplexity',
+    gemini: 'Gemini',
+    chatgpt: 'ChatGPT',
+    googleAI: 'Google AI Overviews',
+};
 
 const PIPELINE_CONCURRENCY = {
+    // Default 2: Perplexity was the tail bottleneck at 1× (last prompts wait behind the whole queue). Override if Infatica returns 429s.
     perplexity: Math.min(4, Math.max(1, Number(process.env.VISIBILITY_PERPLEXITY_CONCURRENCY) || 2)),
-    gemini: 3,
+    // Gemini/ChatGPT: lower VISIBILITY_GEMINI_CONCURRENCY if Infatica returns 429 under load.
+    gemini: Math.min(4, Math.max(1, Number(process.env.VISIBILITY_GEMINI_CONCURRENCY) || 3)),
+    chatgpt: Math.min(4, Math.max(1, Number(process.env.VISIBILITY_CHATGPT_CONCURRENCY) || 3)),
     googleAI: 3,
 };
 
@@ -52,6 +61,7 @@ function withHardTimeout(promise, ms, label) {
 function queryFn(engine) {
     if (engine === 'perplexity') return queryPerplexity;
     if (engine === 'gemini') return queryGemini;
+    if (engine === 'chatgpt') return queryInfaticaChatGPT;
     if (engine === 'googleAI') return queryGoogleAI;
     return queryGemini;
 }
@@ -160,7 +170,7 @@ function runHasData(r) {
         || (Array.isArray(r.citations) && r.citations.length > 0);
 }
 
-function buildPlatformResults(allRuns, prompts, brandName, competitors, domain) {
+export function buildPlatformResults(allRuns, prompts, brandName, competitors, domain) {
     const platformResults = {};
     for (const engine of ENGINES) {
         const engineRuns = allRuns.filter(r => r.engine === engine);
@@ -191,32 +201,41 @@ function buildPlatformResults(allRuns, prompts, brandName, competitors, domain) 
 /**
  * Main entry point.
  *
- * Runs 3 engine pipelines fully in parallel. Each pipeline independently processes
+ * Runs 4 engine pipelines fully in parallel. Each pipeline independently processes
  * all prompts with its own concurrency level.
  */
 export async function runAllAgentsInParallel(agentConfig, onAgentProgress, onEarlyResults) {
-    const { brandName, domain, industry, competitors, location, country, language } = agentConfig;
+    const { brandName, domain, industry, competitors, location, country, language, trackingLocations } = agentConfig;
 
     let prompts;
     try {
         prompts = await generatePromptMatrixForPlatform(
-            { brandName, domain, industry, competitors, location, language }, 'general',
+            { brandName, domain, industry, competitors, location, language, trackingLocations }, 'general',
         );
     } catch (err) {
         console.warn('[Agents] Prompt generation failed, using fallback:', err.message);
-        prompts = generateFallbackPrompts(brandName, domain, industry, competitors, location);
+        prompts = generateFallbackPrompts({
+            brandName,
+            domain,
+            industry,
+            competitors,
+            location,
+            trackingLocations,
+        });
     }
 
     const totalCalls = prompts.length * ENGINES.length;
+    /** First dashboard snapshot after this many engine×prompt calls finish (default 50%; override VISIBILITY_EARLY_PERCENT=40–90). */
+    const earlyPercent = Math.min(95, Math.max(40, Number(process.env.VISIBILITY_EARLY_PERCENT) || 50));
+    const earlyCallThreshold = Math.max(1, Math.ceil(totalCalls * (earlyPercent / 100)));
     let completedCalls = 0;
     let successCalls = 0;
     let earlyFired = false;
     const allRuns = [];
 
-    const earlyThreshold = Math.floor(totalCalls * 0.5);
-
-    console.log(`[Agents] ═══ START: ${prompts.length} prompts × 3 engines = ${totalCalls} calls ═══`);
-    console.log(`[Agents] Pipelines: Perplexity(×${PIPELINE_CONCURRENCY.perplexity}), Gemini(×${PIPELINE_CONCURRENCY.gemini}), GoogleAI(×${PIPELINE_CONCURRENCY.googleAI})`);
+    console.log(`[Agents] ═══ START: ${prompts.length} prompts × ${ENGINES.length} engines = ${totalCalls} calls ═══`);
+    console.log(`[Agents] Early results after ${earlyCallThreshold}/${totalCalls} calls (${earlyPercent}%), then refine to full matrix`);
+    console.log(`[Agents] Pipelines: Perplexity(×${PIPELINE_CONCURRENCY.perplexity}), Gemini(×${PIPELINE_CONCURRENCY.gemini}), ChatGPT(×${PIPELINE_CONCURRENCY.chatgpt}), GoogleAI(×${PIPELINE_CONCURRENCY.googleAI})`);
     console.log(`[Agents] Hard timeout per engine call: ${HARD_TIMEOUT_MS / 1000}s`);
 
     const scanStart = Date.now();
@@ -230,19 +249,26 @@ export async function runAllAgentsInParallel(agentConfig, onAgentProgress, onEar
             onAgentProgress({ completed: completedCalls, total: totalCalls, successful: successCalls });
         }
 
-        if (!earlyFired && completedCalls >= earlyThreshold && onEarlyResults) {
+        if (!earlyFired && completedCalls >= earlyCallThreshold && onEarlyResults) {
             earlyFired = true;
             const snapshot = [...allRuns];
-            onEarlyResults(snapshot, prompts).catch(e =>
+            onEarlyResults(snapshot, prompts, {
+                completedCallsAtEarly: completedCalls,
+                totalCalls,
+                percentThreshold: earlyPercent,
+                totalPrompts: prompts.length,
+            }).catch((e) =>
                 console.warn('[Agents] Early results callback error:', e.message),
             );
         }
     };
 
-    const [perplexityRuns, geminiRuns, googleRuns] = await Promise.all([
+    const [perplexityRuns, geminiRuns, chatgptRuns, googleRuns] = await Promise.all([
         runPipeline('perplexity', prompts, PIPELINE_CONCURRENCY.perplexity,
             { brandName, domain, competitors, country, language }, onCallDone),
         runPipeline('gemini', prompts, PIPELINE_CONCURRENCY.gemini,
+            { brandName, domain, competitors, country, language }, onCallDone),
+        runPipeline('chatgpt', prompts, PIPELINE_CONCURRENCY.chatgpt,
             { brandName, domain, competitors, country, language }, onCallDone),
         runPipeline('googleAI', prompts, PIPELINE_CONCURRENCY.googleAI,
             { brandName, domain, competitors, country, language }, onCallDone),
@@ -250,8 +276,27 @@ export async function runAllAgentsInParallel(agentConfig, onAgentProgress, onEar
 
     const elapsed = ((Date.now() - scanStart) / 1000).toFixed(1);
 
-    const mergedRuns = [...perplexityRuns, ...geminiRuns, ...googleRuns];
-    await batchApplyGeminiSentimentByPrompt(mergedRuns, brandName);
+    const mergedRuns = [...perplexityRuns, ...geminiRuns, ...chatgptRuns, ...googleRuns];
+
+    // Infatica calls are done — UI otherwise looked "stuck" with no new progress until final save.
+    if (onAgentProgress) {
+        await Promise.resolve(
+            onAgentProgress({
+                completed: totalCalls,
+                total: totalCalls,
+                successful: successCalls,
+                phase: 'gemini_sentiment',
+                detail: 'Engine calls finished. Scoring brand sentiment with Gemini (per prompt)...',
+                force: true,
+            }),
+        );
+    }
+
+    try {
+        await batchApplyGeminiSentimentByPrompt(mergedRuns, brandName);
+    } catch (sentErr) {
+        console.error('[Agents] Gemini sentiment batch failed — continuing with unscored runs:', sentErr.message);
+    }
     const platformResults = buildPlatformResults(mergedRuns, prompts, brandName, competitors, domain);
 
     const stats = {};

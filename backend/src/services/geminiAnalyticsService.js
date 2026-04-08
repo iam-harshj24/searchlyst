@@ -64,6 +64,7 @@ EXTRACT AND RETURN ONLY THIS JSON (no markdown, no explanation):
   "platformBreakdown": {
     "perplexity": {"mentioned": <bool>, "sentiment": "<positive/negative/neutral>", "snippets": ["<key quotes>"]},
     "gemini": {"mentioned": <bool>, "sentiment": "<positive/negative/neutral>", "snippets": ["<key quotes>"]},
+    "chatgpt": {"mentioned": <bool>, "sentiment": "<positive/negative/neutral>", "snippets": ["<key quotes>"]},
     "googleAI": {"mentioned": <bool>, "sentiment": "<positive/negative/neutral>", "snippets": ["<key quotes>"]}
   },
   "sources": [
@@ -138,6 +139,7 @@ function buildFallbackAnalytics(rawResponses, brandName, compStr) {
 
     const pMentioned = rawResponses.some(r => r.engine === 'perplexity' && (r.rawText || '').toLowerCase().includes(brandName.toLowerCase()));
     const gMentioned = rawResponses.some(r => r.engine === 'gemini' && (r.rawText || '').toLowerCase().includes(brandName.toLowerCase()));
+    const cgMentioned = rawResponses.some(r => r.engine === 'chatgpt' && (r.rawText || '').toLowerCase().includes(brandName.toLowerCase()));
     const gaiMentioned = rawResponses.some(r => r.engine === 'googleAI' && (r.rawText || '').toLowerCase().includes(brandName.toLowerCase()));
 
     const entityGraph = [
@@ -157,6 +159,7 @@ function buildFallbackAnalytics(rawResponses, brandName, compStr) {
         platformBreakdown: {
             perplexity: { mentioned: pMentioned, sentiment: 'neutral', snippets: [] },
             gemini: { mentioned: gMentioned, sentiment: 'neutral', snippets: [] },
+            chatgpt: { mentioned: cgMentioned, sentiment: 'neutral', snippets: [] },
             googleAI: { mentioned: gaiMentioned, sentiment: 'neutral', snippets: [] },
         },
         sources,

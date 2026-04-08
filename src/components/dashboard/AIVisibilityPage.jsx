@@ -5,7 +5,8 @@ import {
     Users, BookOpen, Star, AlertCircle, BarChart3, Lightbulb, CheckCircle, Globe, RefreshCw,
     Plug, Send, Download, Cpu, BarChart2, Layers, HelpCircle, PenTool, ExternalLink,
 } from 'lucide-react';
-import { ChatGPTLogo, GeminiLogo } from '../landing/AILogos';
+import { ChatGPTLogo, GeminiLogo, GoogleLogo } from '../landing/AILogos';
+import { StackedEngineIcons, buildStackStatesFromEngineKeyList } from '@/components/dashboard/StackedEngineIcons';
 import {
     XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
     PieChart, Pie, Cell,
@@ -31,8 +32,30 @@ import {
     CitationUrlYAxisTick,
 } from '@/components/charts/BrandChartUi';
 
-const PI = { perplexity: '🔮', gemini: '✨', googleAI: '🤖', chatgpt: '🤖', claude: '✹' };
-const EL = { perplexity: 'Perplexity', gemini: 'Gemini', googleAI: 'ChatGPT', chatgpt: 'ChatGPT', claude: 'Claude' };
+const PI = { perplexity: '🔮', gemini: '✨', googleAI: '🔎', chatgpt: '💬', claude: '✹' };
+const EL = { perplexity: 'Perplexity', gemini: 'Gemini', googleAI: 'Google AI Overviews', chatgpt: 'ChatGPT', claude: 'Claude' };
+
+const CITATION_ENGINE_KEYS = ['perplexity', 'gemini', 'chatgpt', 'googleAI'];
+
+/** Engines that cited this domain (uses scan row `engines` when present, else derives from prompt citations). */
+function collectEnginesForCitationRow(c, prompts, normDomFn) {
+    const raw = c?.engines;
+    if (Array.isArray(raw) && raw.length > 0) {
+        return [...new Set(raw.map((e) => String(e || '').trim()).filter(Boolean))];
+    }
+    const target = normDomFn(c?.domain);
+    if (!target) return [];
+    const set = new Set();
+    for (const p of prompts || []) {
+        for (const ek of CITATION_ENGINE_KEYS) {
+            const data = p.engines?.[ek];
+            if (!data?.citations?.length) continue;
+            const hit = data.citations.some((cit) => normDomFn(cit?.domain) === target);
+            if (hit) set.add(ek);
+        }
+    }
+    return [...set];
+}
 
 const SOV_BAR_COLORS = [
     '#ef4444', '#b91c1c', '#3b82f6', '#06b6d4', '#a855f7', '#f59e0b', '#10b981', '#ec4899',
@@ -135,47 +158,18 @@ function sentimentIndex0to100(v) {
     return Math.round(Math.min(100, Math.max(0, v)));
 }
 
-/** LLM logos for URL / citation “engines” column (replaces 3-letter abbreviations). */
-function UrlEngineLogo({ engineKey }) {
-    const k = String(engineKey || '').toLowerCase().replace(/\s/g, '');
-    const wrap = 'w-7 h-7 rounded-md bg-[#141414] border border-[#2a2a2a] flex items-center justify-center shrink-0';
-    if (k === 'perplexity') {
-        return (
-            <span className={wrap} title="Perplexity">
-                <img src="/perplexity.png" alt="" className="w-4 h-4 object-contain" style={{ filter: 'brightness(0) invert(1)' }} />
-            </span>
-        );
-    }
-    if (k === 'gemini') {
-        return (
-            <span className={wrap} title="Gemini">
-                <GeminiLogo className="w-4 h-4 object-contain text-[#4285f4]" />
-            </span>
-        );
-    }
-    if (k === 'googleai' || k === 'chatgpt') {
-        return (
-            <span className={wrap} title="Google AI">
-                <ChatGPTLogo className="w-4 h-4 text-white" />
-            </span>
-        );
-    }
-    return (
-        <span className={`${wrap} text-[7px] font-bold text-[#555] uppercase`} title={String(engineKey || '')}>
-            {(engineKey || '?').toString().slice(0, 3)}
-        </span>
-    );
-}
-
-function HelpHint({ text }) {
+function HelpHint({ text, light }) {
+    const iconCls = light
+        ? 'text-white/40 hover:text-white/75'
+        : 'text-[#555] hover:text-[#888]';
     return (
         <UiTooltip>
             <TooltipTrigger asChild>
-                <button type="button" className="inline-flex text-[#555] hover:text-[#888] ml-0.5 align-middle" aria-label="Help">
+                <button type="button" className={`inline-flex ml-0.5 align-middle ${iconCls}`} aria-label="Help">
                     <HelpCircle className="w-3.5 h-3.5" />
                 </button>
             </TooltipTrigger>
-            <TooltipContent side="top" className="max-w-[240px] text-[11px] leading-snug bg-[#1a1a1a] border border-[#333] text-[#e5e5e5]">
+            <TooltipContent side="top" className="max-w-[240px] text-[11px] leading-snug bg-[#1a1a1a] border border-[#333] text-white">
                 {text}
             </TooltipContent>
         </UiTooltip>
@@ -314,8 +308,8 @@ const LIVE_STATUS_BY_PHASE = {
         { icon: Target, text: 'Generating intelligence prompts tailored to your industry…' },
     ],
     agents_running: [
-        { icon: Send, text: 'Dispatching agents to ChatGPT, Gemini & Perplexity…' },
-        { icon: Layers, text: 'Aligning prompt matrix across all three platforms…' },
+        { icon: Send, text: 'Dispatching agents to Perplexity, Gemini, ChatGPT & Google AI Overviews…' },
+        { icon: Layers, text: 'Aligning prompt matrix across Perplexity, Gemini, ChatGPT & Google AI Overviews…' },
     ],
     querying: [
         { icon: Download, text: 'Sending prompts and collecting live AI responses…' },
@@ -331,6 +325,10 @@ const LIVE_STATUS_BY_PHASE = {
         { icon: BarChart2, text: 'Parsing responses — brand mentions, position & sentiment…' },
         { icon: Activity, text: 'Building visibility scores & share-of-voice parameters…' },
         { icon: Lightbulb, text: 'Running deep analysis for strategic AI Insights…' },
+    ],
+    gemini_sentiment: [
+        { icon: Activity, text: 'All engine calls finished — batch sentiment scoring with Gemini…' },
+        { icon: Lightbulb, text: 'Final numbers will replace the preview once this step completes…' },
     ],
     default: [
         { icon: Loader2, text: 'Processing your AI visibility scan…' },
@@ -351,13 +349,18 @@ function ScanProgressWidget({ phase, phaseDetail, progress, scanId }) {
 
     const steps = [
         { id: 'initializing', label: 'Connect & prepare', sub: 'Secure session and your brand context' },
-        { id: 'agents_running', label: 'Launch agents', sub: 'ChatGPT, Gemini & Perplexity' },
+        { id: 'agents_running', label: 'Launch agents', sub: 'Perplexity, Gemini, ChatGPT, Google AI Overviews' },
         { id: 'querying', label: 'Collect responses', sub: 'Answers, sources & citations' },
         { id: 'analyzing', label: 'Analyze & score', sub: 'Visibility, SOV, sentiment' },
     ];
 
     const phaseOrder = ['initializing', 'agents_running', 'querying', 'analyzing'];
-    const rawPhase = phase === 'done' ? 'analyzing' : (phase || 'initializing');
+    const rawPhase =
+        phase === 'done'
+            ? 'analyzing'
+            : phase === 'early_results' || phase === 'gemini_sentiment'
+              ? 'querying'
+              : (phase || 'initializing');
     let activeIdx = phaseOrder.indexOf(rawPhase);
     if (activeIdx < 0) activeIdx = 0;
 
@@ -556,7 +559,7 @@ export default function AIVisibilityPage({ user, scanManager, onTabChange }) {
     const platformScoreTrends = useMemo(() => {
         const h = Array.isArray(scanHistory) ? scanHistory : [];
         if (h.length < 2) {
-            return { googleAI: null, gemini: null, perplexity: null };
+            return { googleAI: null, gemini: null, perplexity: null, chatgpt: null };
         }
         const prev = h[h.length - 2];
         const last = h[h.length - 1];
@@ -570,6 +573,7 @@ export default function AIVisibilityPage({ user, scanManager, onTabChange }) {
             googleAI: d('googleAI'),
             gemini: d('gemini'),
             perplexity: d('perplexity'),
+            chatgpt: d('chatgpt'),
         };
     }, [scanHistory]);
 
@@ -862,7 +866,7 @@ export default function AIVisibilityPage({ user, scanManager, onTabChange }) {
                             AI Visibility Intelligence
                         </h1>
                         <p className="text-[#888] text-[13px]">
-                            Track {brandName || 'your brand'} across ChatGPT, Gemini &amp; Perplexity
+                            Track {brandName || 'your brand'} across Perplexity, Gemini, ChatGPT &amp; Google AI Overviews
                         </p>
                     </div>
                 </div>
@@ -884,14 +888,18 @@ export default function AIVisibilityPage({ user, scanManager, onTabChange }) {
                     phaseDetail={phaseDetail}
                     progress={progress}
                 />
-                {r && r.isPartial && (
+                {r && r.earlyPhase && (
                     <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/5 border border-amber-500/20 rounded-xl p-4 flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
                             <Lightbulb className="w-4 h-4 text-amber-400" />
                         </div>
                         <div>
-                            <p className="text-amber-200 text-sm font-medium">Early results are ready — stay a few more minutes while we refine</p>
-                            <p className="text-amber-200/60 text-xs mt-0.5">Phase 1 complete. The remaining prompts are running in the background to enhance accuracy.</p>
+                            <p className="text-amber-200 text-sm font-medium">Initial results — we&apos;re still refining the full scan</p>
+                            <p className="text-amber-200/60 text-xs mt-0.5">
+                                {r.earlyPhase.completedCallsAtEarly != null && r.earlyPhase.totalCallsExpected != null
+                                    ? `${r.earlyPhase.completedCallsAtEarly} of ${r.earlyPhase.totalCallsExpected} engine responses complete (${r.earlyPhase.percentThreshold ?? 50}% threshold). Final scores update when the scan finishes.`
+                                    : 'Initial snapshot is live. Remaining engine calls are running in the background; the dashboard will refresh when the full scan finishes.'}
+                            </p>
                         </div>
                     </div>
                 )}
@@ -918,9 +926,9 @@ export default function AIVisibilityPage({ user, scanManager, onTabChange }) {
                             <Activity className="w-12 h-12 text-red-500/20 mx-auto mb-3" />
                             <h3 className="text-[var(--text-primary)] font-medium text-lg mb-1">Check Your AI Visibility</h3>
                             <p className="text-[var(--text-secondary)] text-sm max-w-md mx-auto mb-1.5">
-                                Queries ChatGPT, Gemini &amp; Perplexity with smart prompts and analyzes brand mentions, citations &amp; sentiment in real-time.
+                                Queries Perplexity, Gemini, ChatGPT &amp; Google AI Overviews with smart prompts and analyzes brand mentions, citations &amp; sentiment in real-time.
                             </p>
-                            <p className="text-[var(--text-muted)] text-xs mb-5">~45 API calls (15 per platform) • Results update live as each prompt completes</p>
+                            <p className="text-[var(--text-muted)] text-xs mb-5">~4 engines × each prompt (Infatica) • Results update live as calls complete</p>
                             <Button onClick={startScan} disabled={!domain} className="bg-[#ef4444] hover:bg-red-600 text-white rounded-full px-8 shadow-lg shadow-red-500/20 shadow-xl mt-4">
                                 <RefreshCw className="w-4 h-4 mr-2" /> Start Scan
                             </Button>
@@ -954,12 +962,14 @@ export default function AIVisibilityPage({ user, scanManager, onTabChange }) {
                         {(() => {
                             const pScore = r.platforms?.perplexity?.score?.overall ?? 0;
                             const gScore = r.platforms?.gemini?.score?.overall ?? 0;
-                            const cScore = r.platforms?.googleAI?.score?.overall ?? 0;
+                            const cgScore = r.platforms?.chatgpt?.score?.overall ?? 0;
+                            const goScore = r.platforms?.googleAI?.score?.overall ?? 0;
                             return (
-                                <div className="flex-1 w-full min-w-0 border border-[#333333] rounded-[20px] px-4 py-6 lg:px-6 lg:py-6 grid grid-cols-1 sm:grid-cols-3 items-start gap-4 lg:gap-6 backdrop-blur-md" style={{ background: '#FFFFFF0A' }}>
-                                    <SemiCircleGauge score={cScore} trendDelta={platformScoreTrends.googleAI} icon={<ChatGPTLogo className="w-[16px] h-[16px] text-white" />} label="ChatGPT" size={160} />
-                                    <SemiCircleGauge score={gScore} trendDelta={platformScoreTrends.gemini} icon={<GeminiLogo className="w-[16px] h-[16px] text-[#4285f4]" />} label="Gemini" size={160} />
+                                <div className="flex-1 w-full min-w-0 border border-[#333333] rounded-[20px] px-4 py-6 lg:px-6 lg:py-6 grid grid-cols-2 lg:grid-cols-4 items-start gap-4 lg:gap-6 backdrop-blur-md" style={{ background: '#FFFFFF0A' }}>
                                     <SemiCircleGauge score={pScore} trendDelta={platformScoreTrends.perplexity} icon={<img src="/perplexity.png" alt="Perplexity" className="w-[16px] h-[16px] object-contain" style={{ filter: 'brightness(0) invert(1)' }} />} label="Perplexity" size={160} />
+                                    <SemiCircleGauge score={gScore} trendDelta={platformScoreTrends.gemini} icon={<GeminiLogo className="w-[16px] h-[16px] text-[#4285f4]" />} label="Gemini" size={160} />
+                                    <SemiCircleGauge score={cgScore} trendDelta={platformScoreTrends.chatgpt} icon={<ChatGPTLogo className="w-[16px] h-[16px] text-white" />} label="ChatGPT" size={160} />
+                                    <SemiCircleGauge score={goScore} trendDelta={platformScoreTrends.googleAI} icon={<GoogleLogo className="w-[16px] h-[16px]" />} label="Google AI Overviews" size={160} />
                                 </div>
                             );
                         })()}
@@ -1318,6 +1328,8 @@ export default function AIVisibilityPage({ user, scanManager, onTabChange }) {
                             .sort((a, b) => b.value - a.value);
                         const typeTotal = typeEntries.reduce((s, e) => s + e.value, 0) || 1;
                         const filteredRows = sourcesBrandOnly ? rawList.filter(rowMatchesBrand) : rawList;
+                        const volumeTotal =
+                            filteredRows.reduce((s, c) => s + (Number(c.count) || Number(c.mentions) || 0), 0) || 1;
 
                         return (
                         <>
@@ -1326,9 +1338,12 @@ export default function AIVisibilityPage({ user, scanManager, onTabChange }) {
                                 <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
                                     <div>
                                         <h3 className="text-white font-semibold text-[15px] mb-0.5">Source domains</h3>
-                                        <p className="text-[#777] text-[12px]">Domains cited in AI responses. Type is inferred from domain and URL patterns.</p>
+                                        <p className="text-white text-[12px] leading-snug">
+                                            {filteredRows.length} domain{filteredRows.length !== 1 ? 's' : ''} · Per row: which{' '}
+                                            <span className="text-white/90">models cited that domain</span>, share of volume, and format hints.
+                                        </p>
                                     </div>
-                                    <label className="flex items-center gap-2 cursor-pointer text-[11px] text-[#aaa] shrink-0 select-none">
+                                    <label className="flex items-center gap-2 cursor-pointer text-[11px] text-white shrink-0 select-none">
                                         <input
                                             type="checkbox"
                                             checked={sourcesBrandOnly}
@@ -1339,44 +1354,117 @@ export default function AIVisibilityPage({ user, scanManager, onTabChange }) {
                                     </label>
                                 </div>
                                 <div className="overflow-x-auto rounded-xl border border-[#262626]">
-                                    <table className="w-full text-left text-[13px] border-collapse">
+                                    <table className="w-full text-left text-[13px] border-collapse min-w-[720px]">
                                         <thead>
                                             <tr className="border-b border-[#262626]">
-                                                <th className="py-3 pl-4 text-[11px] font-medium text-[#737373]">Domain</th>
-                                                <th className="py-3 px-3 text-[11px] font-medium text-[#737373]">Type</th>
-                                                <th className="py-3 px-3 text-[11px] font-medium text-[#737373] text-center">Mentions</th>
-                                                <th className="py-3 pr-4 text-[11px] font-medium text-[#737373] text-right">Pages</th>
+                                                <th className="py-3 pl-4 text-[10px] font-semibold text-white uppercase tracking-wider">Domain</th>
+                                                <th className="py-3 px-2 text-[10px] font-semibold text-white uppercase tracking-wider text-center whitespace-nowrap">
+                                                    <span className="inline-flex items-center justify-center gap-0.5">
+                                                        Models
+                                                        <HelpHint
+                                                            light
+                                                            text="AI engines that returned at least one citation from this domain in this scan. Icons match your scan stack (Perplexity, Gemini, ChatGPT, Google AI Overviews)."
+                                                        />
+                                                    </span>
+                                                </th>
+                                                <th className="py-3 px-2 text-[10px] font-semibold text-white uppercase tracking-wider">Type</th>
+                                                <th className="py-3 px-2 text-[10px] font-semibold text-white uppercase tracking-wider min-w-[120px]">
+                                                    <span className="inline-flex items-center gap-0.5">
+                                                        Share
+                                                        <HelpHint
+                                                            light
+                                                            text="This domain’s share of total citation mentions in the rows shown (updates when you filter)."
+                                                        />
+                                                    </span>
+                                                </th>
+                                                <th className="py-3 px-2 text-[10px] font-semibold text-white uppercase tracking-wider text-center whitespace-nowrap">
+                                                    <span className="inline-flex items-center justify-center gap-0.5">
+                                                        Avg / page
+                                                        <HelpHint
+                                                            light
+                                                            text="Average citation mentions per distinct URL from this domain (total mentions ÷ unique pages)."
+                                                        />
+                                                    </span>
+                                                </th>
+                                                <th className="py-3 px-2 text-[10px] font-semibold text-white uppercase tracking-wider text-center">Mentions</th>
+                                                <th className="py-3 pr-4 text-[10px] font-semibold text-white uppercase tracking-wider text-right">Pages</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {filteredRows.map((c, i) => (
+                                            {filteredRows.map((c, i) => {
+                                                const count = Number(c.count) || Number(c.mentions) || 0;
+                                                const pages = Number(c.uniqueUrls) || 0;
+                                                const sharePct = volumeTotal > 0 ? (count / volumeTotal) * 100 : 0;
+                                                const avgPerPage = pages > 0 ? (count / pages).toFixed(1) : '—';
+                                                const engineKeys = collectEnginesForCitationRow(c, r?.prompts || [], normDom);
+                                                const byEngine = buildStackStatesFromEngineKeyList(engineKeys);
+                                                const contentFormat = classifyDomainContentType(c.domain);
+                                                return (
                                                 <tr key={i} className={`border-b border-[#1f1f1f] transition-colors hover:bg-[#141414]/80 ${c.isTargetBrand ? 'bg-emerald-500/[0.04]' : ''}`}>
-                                                    <td className="py-3.5 pl-4">
-                                                        <div className="flex items-center gap-2.5 min-w-0">
-                                                            <div className="w-8 h-8 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a] flex items-center justify-center overflow-hidden shrink-0">
-                                                                <img src={`https://www.google.com/s2/favicons?domain=${c.domain}&sz=32`} className="w-4 h-4" onError={ev => { ev.currentTarget.style.display = 'none' }} alt="" />
+                                                    <td className="py-3.5 pl-4 align-top">
+                                                        <div className="flex items-start gap-2.5 min-w-0">
+                                                            <div className="w-8 h-8 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a] flex items-center justify-center overflow-hidden shrink-0 mt-0.5">
+                                                                <img src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(c.domain)}&sz=32`} className="w-4 h-4" onError={ev => { ev.currentTarget.style.display = 'none' }} alt="" />
                                                             </div>
-                                                            <a href={`https://${c.domain}`} target="_blank" rel="noreferrer" className={`inline-flex items-center gap-1 truncate max-w-[220px] font-semibold text-[13px] ${c.isTargetBrand ? 'text-white hover:text-[#E92A15]' : 'text-white hover:text-[#E92A15]'}`}>
-                                                                {c.domain}
-                                                                <ExternalLink className="w-3 h-3 opacity-40 shrink-0" />
-                                                            </a>
+                                                            <div className="min-w-0">
+                                                                <a href={`https://${c.domain}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold text-[13px] text-white hover:text-[#E92A15]">
+                                                                    <span className="truncate max-w-[200px]">{c.domain}</span>
+                                                                    <ExternalLink className="w-3 h-3 opacity-50 shrink-0" />
+                                                                </a>
+                                                                <p className="text-[11px] text-white mt-0.5 tabular-nums">
+                                                                    {sharePct.toFixed(1)}% of citation volume in this list
+                                                                </p>
+                                                            </div>
                                                         </div>
                                                     </td>
-                                                    <td className="py-3.5 px-3">
-                                                        <span className="inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-medium bg-[#2a2a2a] text-[#d4d4d4]">
-                                                            {classifyCitationRow(c)}
-                                                        </span>
+                                                    <td className="py-3.5 px-2 align-middle">
+                                                        <div className="flex justify-center">
+                                                            {engineKeys.length > 0 ? (
+                                                                <StackedEngineIcons
+                                                                    size="sm"
+                                                                    onlyActiveEngines
+                                                                    byEngine={byEngine}
+                                                                />
+                                                            ) : (
+                                                                <span className="text-[12px] text-white tabular-nums">—</span>
+                                                            )}
+                                                        </div>
                                                     </td>
-                                                    <td className="py-3.5 px-3 text-center">
-                                                        <span className="inline-flex min-w-[2rem] justify-center rounded-full bg-amber-500/15 text-amber-200 px-2.5 py-0.5 text-[12px] font-semibold tabular-nums">{c.count}</span>
+                                                    <td className="py-3.5 px-2 align-top">
+                                                        <div className="flex flex-col gap-1.5">
+                                                            <span className="inline-flex w-fit rounded-full px-2.5 py-0.5 text-[11px] font-medium bg-[#2a2a2a] border border-[#3a3a3a] text-white">
+                                                                {classifyCitationRow(c)}
+                                                            </span>
+                                                            <span className="inline-flex w-fit rounded-md px-2 py-0.5 text-[10px] font-medium bg-[#1a1a1a] text-white/90 border border-[#333]" title="Inferred site format from domain">
+                                                                {contentFormat}
+                                                            </span>
+                                                        </div>
                                                     </td>
-                                                    <td className="py-3.5 pr-4 text-right">
-                                                        <span className="inline-flex rounded-full bg-[#262626] text-[#a3a3a3] px-2.5 py-0.5 text-[11px] font-medium tabular-nums">{c.uniqueUrls ?? '—'}</span>
+                                                    <td className="py-3.5 px-2 align-middle">
+                                                        <div className="flex flex-col gap-1 min-w-[100px]">
+                                                            <span className="text-[12px] font-semibold text-white tabular-nums">{sharePct.toFixed(1)}%</span>
+                                                            <div className="h-1.5 w-full rounded-full bg-[#1f1f1f] overflow-hidden border border-[#2a2a2a]">
+                                                                <div
+                                                                    className="h-full rounded-full bg-gradient-to-r from-[#E92A15]/90 to-[#ff6b52]/80"
+                                                                    style={{ width: `${Math.min(100, sharePct)}%` }}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="py-3.5 px-2 text-center align-middle">
+                                                        <span className="text-[12px] font-semibold text-white tabular-nums">{avgPerPage}</span>
+                                                    </td>
+                                                    <td className="py-3.5 px-2 text-center align-middle">
+                                                        <span className="inline-flex min-w-[2rem] justify-center rounded-full bg-amber-500/15 text-amber-200 px-2.5 py-0.5 text-[12px] font-semibold tabular-nums">{count || '—'}</span>
+                                                    </td>
+                                                    <td className="py-3.5 pr-4 text-right align-middle">
+                                                        <span className="inline-flex rounded-full bg-[#262626] text-white px-2.5 py-0.5 text-[11px] font-medium tabular-nums border border-[#333]">{pages || '—'}</span>
                                                     </td>
                                                 </tr>
-                                            ))}
+                                                );
+                                            })}
                                             {filteredRows.length === 0 && (
-                                                <tr><td colSpan={4} className="py-10 text-center text-[#666] text-[13px]">{sourcesBrandOnly ? 'No domains tagged as your brand in this scan summary.' : 'No citations found. Run a scan to populate sources.'}</td></tr>
+                                                <tr><td colSpan={7} className="py-10 text-center text-white text-[13px]">{sourcesBrandOnly ? 'No domains tagged as your brand in this scan summary.' : 'No citations found. Run a scan to populate sources.'}</td></tr>
                                             )}
                                         </tbody>
                                     </table>
@@ -1741,10 +1829,12 @@ export default function AIVisibilityPage({ user, scanManager, onTabChange }) {
                                                     }`}>{u.count}</span>
                                                 </td>
                                                 <td className="py-4 px-3 align-middle text-center">
-                                                    <div className="inline-flex flex-wrap items-center justify-center gap-1 rounded-full border border-[#333] bg-[#0f0f0f] px-2 py-1.5 max-w-[132px] mx-auto">
-                                                        {(u.engines || []).map((eng) => (
-                                                            <UrlEngineLogo key={`${sliceStart + i}-${eng}`} engineKey={eng} />
-                                                        ))}
+                                                    <div className="inline-flex items-center justify-center rounded-full border border-[#333] bg-[#0f0f0f] px-2 py-1.5 mx-auto">
+                                                        <StackedEngineIcons
+                                                            size="sm"
+                                                            order={u.engines || []}
+                                                            byEngine={buildStackStatesFromEngineKeyList(u.engines || [])}
+                                                        />
                                                     </div>
                                                 </td>
                                                 <td className="py-4 px-3 align-middle text-center">
@@ -1834,7 +1924,7 @@ export default function AIVisibilityPage({ user, scanManager, onTabChange }) {
 
                     <p className="text-[var(--text-muted)] text-[10px] text-center">
                         {r.scannedAt ? `Scanned ${new Date(r.scannedAt).toLocaleString()}` : ''} •{' '}
-                        {r.config?.totalCalls || '?'} API calls across ChatGPT, Gemini &amp; Perplexity
+                        {r.config?.totalCalls || '?'} API calls across Perplexity, Gemini, ChatGPT &amp; Google AI Overviews
                     </p>
                 </>
             )}

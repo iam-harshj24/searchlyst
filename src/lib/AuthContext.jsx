@@ -75,6 +75,28 @@ export const AuthProvider = ({ children }) => {
     setIsAuthenticated(false);
   };
 
+  /** Remove all Searchlyst-scoped browser storage for this device (used after logout). */
+  const purgeAllLocalSearchlystData = () => {
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+      if (
+        key.startsWith('searchlyst_') ||
+        key === 'authToken' ||
+        key === 'user'
+      ) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach((k) => localStorage.removeItem(k));
+    try {
+      sessionStorage.clear();
+    } catch {
+      /* private mode */
+    }
+  };
+
   // ── Sign in anonymously (guest mode) ─────────────────────────────────────
   const signInAnonymously = async () => {
     try {
@@ -186,24 +208,7 @@ export const AuthProvider = ({ children }) => {
   // ── Logout ────────────────────────────────────────────────────────────────
   const logout = () => {
     apiClient.auth.logout();
-    const keysToRemove = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (
-        key?.startsWith('searchlyst_visibility_') ||
-        key?.startsWith('searchlyst_active_scan_') ||
-        key?.startsWith('searchlyst_audit_') ||
-        key?.startsWith('searchlyst_active_audit_') ||
-        key?.startsWith('searchlyst_actions_state_') ||
-        key?.startsWith('searchlyst_added_competitors_') ||
-        key === 'searchlyst_projects' ||
-        key?.startsWith('searchlyst_projects_')
-      ) {
-        keysToRemove.push(key);
-      }
-    }
-    keysToRemove.forEach((k) => localStorage.removeItem(k));
-    try { sessionStorage.clear(); } catch { /* private mode */ }
+    purgeAllLocalSearchlystData();
     setUser(null);
     setIsAuthenticated(false);
     navigate('/Login');

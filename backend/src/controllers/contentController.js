@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { prisma } from '../lib/prisma.js';
 import { getPromptForPlatform } from '../services/contentPrompts.js';
+import { sanitizeArticleObject } from '../utils/contentArticleSanitize.js';
 
 let genAI = null;
 function getModel() {
@@ -11,12 +12,18 @@ function getModel() {
 export async function listContent(req, res) {
     try {
         const userId = req.user.id;
-        const { projectId } = req.query;
+        const { projectId, archive = 'exclude' } = req.query;
         const where = { userId };
         if (projectId) {
             const pid = parseInt(projectId, 10);
             if (!isNaN(pid)) where.projectId = pid;
         }
+        if (archive === 'only') {
+            where.status = 'archived';
+        } else if (archive !== 'all') {
+            where.NOT = { status: 'archived' };
+        }
+
         const items = await prisma.content.findMany({
             where,
             orderBy: { created_at: 'desc' },
@@ -28,6 +35,7 @@ export async function listContent(req, res) {
             try {
                 article = JSON.parse(c.payload);
             } catch {}
+            const raw = article || { title: c.title, content: '' };
             return {
                 id: c.id,
                 title: c.title,
@@ -35,7 +43,7 @@ export async function listContent(req, res) {
                 status: c.status,
                 date: formatDate(c.created_at),
                 createdAt: c.created_at ? new Date(c.created_at).toISOString() : null,
-                article: article || { title: c.title, content: '' },
+                article: sanitizeArticleObject(raw),
             };
         });
         return res.json({ success: true, contents });
@@ -96,6 +104,7 @@ export async function generateArticle(req, res) {
             };
         }
 
+        article = sanitizeArticleObject(article);
         const title = article.title || topic;
         const platformName = platform || 'Blog';
 
@@ -182,5 +191,52 @@ Example (illustrative only — adapt to the brand's industry and location):
     } catch (error) {
         console.error('Topic suggestion error:', error);
         res.status(500).json({ success: false, message: error.message });
+    }
+}
+
+const CONTENT_STATUSES = ['draft', 'published', 'archived'];
+
+export async function updateContent(req, res) {
+    try {
+        const userId = req.user.id;
+        const id = parseInt(req.params.id, 10);
+        const { status } = req.body || {};
+        if (Number.isNaN(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid content id' });
+        }
+        if (!CONTENT_STATUSES.includes(status)) {
+            return res.status(400).json({ success: false, message: `status must be one of: ${CONTENT_STATUSES.join(', ')}` });
+        }
+        const row = await prisma.content.findFirst({ where: { id, userId } });
+        if (!row) {
+            return res.status(404).json({ success: false, message: 'Content not found' });
+        }
+        await prisma.content.update({
+            where: { id },
+            data: { status, updated_at: new Date() },
+        });
+        return res.json({ success: true });
+    } catch (error) {
+        console.error('Update content error:', error);
+        return res.status(500).json({ success: false, message: error.message });
+    }
+}
+
+export async function deleteContent(req, res) {
+    try {
+        const userId = req.user.id;
+        const id = parseInt(req.params.id, 10);
+        if (Number.isNaN(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid content id' });
+        }
+        const row = await prisma.content.findFirst({ where: { id, userId } });
+        if (!row) {
+            return res.status(404).json({ success: false, message: 'Content not found' });
+        }
+        await prisma.content.delete({ where: { id } });
+        return res.json({ success: true });
+    } catch (error) {
+        console.error('Delete content error:', error);
+        return res.status(500).json({ success: false, message: error.message });
     }
 }

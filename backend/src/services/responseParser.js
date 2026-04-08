@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import * as cheerio from 'cheerio';
+import { isReadableAnswerText } from '../utils/readableText.js';
 import { multiFactorSentiment0to100, weightedOverallFromFactors } from './multiFactorSentiment.js';
 import { buildGeminiSentimentBatchPrompt } from './geminiSentimentPrompt.js';
 
@@ -7,6 +8,23 @@ let genAI = null;
 function getModel() {
     if (!genAI) genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     return genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+}
+
+/** Prevents scans from hanging forever if Gemini never responds (SDK has no default deadline). */
+const GEMINI_VISIBILITY_TIMEOUT_MS = Math.min(
+    180_000,
+    Math.max(25_000, Number(process.env.GEMINI_VISIBILITY_TIMEOUT_MS) || 90_000),
+);
+
+function withGeminiDeadline(promise, label) {
+    let t;
+    const deadline = new Promise((_, reject) => {
+        t = setTimeout(
+            () => reject(new Error(`${label}: Gemini timeout ${GEMINI_VISIBILITY_TIMEOUT_MS / 1000}s`)),
+            GEMINI_VISIBILITY_TIMEOUT_MS,
+        );
+    });
+    return Promise.race([promise, deadline]).finally(() => clearTimeout(t));
 }
 
 // ── Domain Categorization ────────────────────────────────────────────────────
@@ -76,11 +94,32 @@ function stripHtmlToPlain(html, maxLen = 14_000) {
 
 function decodeGoogleResultHref(href) {
     if (!href || typeof href !== 'string') return null;
-    if (href.startsWith('http')) return href;
+    const decodeQ = (q) => {
+        if (!q || typeof q !== 'string') return null;
+        if (!q.startsWith('http')) return null;
+        try {
+            return decodeURIComponent(q.replace(/\+/g, ' '));
+        } catch {
+            return q;
+        }
+    };
+    if (href.startsWith('http')) {
+        try {
+            const u = new URL(href);
+            if (u.hostname.includes('google.') && u.pathname.includes('/url')) {
+                const q = u.searchParams.get('q') || u.searchParams.get('url');
+                const out = decodeQ(q);
+                if (out) return out;
+            }
+        } catch { /* keep */ }
+        return href;
+    }
     if (href.startsWith('/url?')) {
         try {
-            const q = new URLSearchParams(href.replace(/^\/url\?/, '')).get('q');
-            if (q?.startsWith('http')) return q;
+            const sp = new URLSearchParams(href.replace(/^\/url\?/, ''));
+            const q = sp.get('q') || sp.get('url') || sp.get('adurl');
+            const out = decodeQ(q);
+            if (out) return out;
         } catch { /* ignore */ }
     }
     return null;
@@ -110,47 +149,452 @@ function extractLinksFromHtml(html) {
     } catch { return []; }
 }
 
+/**
+ * When AI Overview markup is missing or parser returns garbage, use classic organic titles + snippets + links.
+ * Google DOM changes often — use h3-centric + div.g fallbacks.
+ */
+function extractGoogleOrganicSnippetsFromHtml(html) {
+    if (!html || typeof html !== 'string') return { markdown: '', links: [] };
+    try {
+        const $ = cheerio.load(html);
+        $('script, style, noscript, svg').remove();
+        const links = [];
+        const chunks = [];
+        const seen = new Set();
+
+        const resolveHref = (rawHref) => {
+            if (!rawHref) return null;
+            if (rawHref.startsWith('http')) return decodeGoogleResultHref(rawHref) || rawHref;
+            return decodeGoogleResultHref(rawHref);
+        };
+
+        const pushResult = (title, snippet, href) => {
+            if (!href || !/^https?:\/\//i.test(href)) return;
+            // Skip Google ad URLs
+            if (href.includes('/aclk?') || href.includes('/adurl?')) return;
+            let domain = '';
+            try {
+                domain = new URL(href).hostname.replace(/^www\./, '');
+            } catch {
+                return;
+            }
+            if (domain === 'google.com' || domain.endsWith('.google.com') || domain.includes('gstatic')) return;
+            // Skip ad networks
+            const adDomains = ['doubleclick.net', 'googlesyndication.com', 'googleadservices.com'];
+            if (adDomains.some(ad => domain.includes(ad))) return;
+            const t = title.replace(/\s+/g, ' ').trim();
+            const sn = snippet.replace(/\s+/g, ' ').trim();
+            // Skip if title starts with "Ad·" or "Sponsored"
+            if (/^(ad\s*·|sponsored|promoted)/i.test(t)) return;
+            if (t.length < 2 && sn.length < 15) return;
+            if (seen.has(href)) return;
+            seen.add(href);
+            links.push({ url: href, domain, title: t || sn.slice(0, 72) });
+            const body = sn || t;
+            let block = '';
+            if (t.length >= 2) block += `### ${t}\n\n`;
+            block += body;
+            block += `\n\n[${domain}](${href})`;
+            chunks.push(block);
+        };
+
+        // A) Standard organic cards
+        $('div.g, div.Gx5Zad, div.tF2Cxc, div.N54PNb').each((_, el) => {
+            const $el = $(el);
+            // Skip ad containers
+            if ($el.attr('data-text-ad') || $el.hasClass('ads-ad') || $el.find('[data-text-ad], .ad_cclk, .ads-ad').length) return;
+            const title = $el.find('h3').first().text().trim();
+            const snippet =
+                $el.find('.VwiC3b, .yXK7lf, .MUxGbd, .aCOpRe, .lyLwlc, .IsZvec, .kb0PBd, .lEBKjf, .yiP64c, .s3v9rd')
+                    .first()
+                    .text()
+                    .trim();
+            const $a = $el.find('a[href]').filter((__, n) => {
+                const h = $(n).attr('href') || '';
+                return h.startsWith('http') || h.startsWith('/url');
+            }).first();
+            const href = resolveHref($a.attr('href'));
+            pushResult(title, snippet, href);
+        });
+
+        // B) h3 wrapped in <a> (common layout)
+        $('#rso h3, #center_col h3, #search h3, main h3').each((_, h3) => {
+            const $h3 = $(h3);
+            const title = $h3.text().trim();
+            if (title.length < 2) return;
+            let raw = $h3.closest('a').attr('href') || '';
+            const $scope = $h3.closest('div.g, div.MjjYud, div.tF2Cxc, div[data-hveid], div.N54PNb').first();
+            if (!raw && $scope.length) {
+                raw = $scope.find('a[href^="http"], a[href^="/url"]').first().attr('href') || '';
+            }
+            const href = resolveHref(raw);
+            let snippet = '';
+            if ($scope.length) {
+                snippet = $scope.find('.VwiC3b, .aCOpRe, .IsZvec, .lEBKjf').first().text().trim();
+            }
+            pushResult(title, snippet, href);
+        });
+
+        return { markdown: chunks.join('\n\n---\n\n'), links };
+    } catch {
+        return { markdown: '', links: [] };
+    }
+}
+
+// ── Readable answer extraction (semantic HTML → markdown-ish text) ─────────────
+
+/** Inline **bold**, *italic*, [text](url) inside a phrasing context. */
+function extractInlineMarkdown($, el) {
+    if (!el) return '';
+    let out = '';
+    $(el).contents().each((_, node) => {
+        if (node.type === 'text') {
+            out += node.data || '';
+            return;
+        }
+        if (node.type !== 'tag') return;
+        const n = node.name?.toLowerCase();
+        if (n === 'br') {
+            out += '\n';
+            return;
+        }
+        if (n === 'strong' || n === 'b') {
+            const inner = extractInlineMarkdown($, node).replace(/\s+/g, ' ').trim();
+            if (inner) out += `**${inner}**`;
+            return;
+        }
+        if (n === 'em' || n === 'i') {
+            const inner = extractInlineMarkdown($, node).replace(/\s+/g, ' ').trim();
+            if (inner) out += `*${inner}*`;
+            return;
+        }
+        if (n === 'a') {
+            const href = $(node).attr('href');
+            const inner = extractInlineMarkdown($, node).replace(/\s+/g, ' ').trim();
+            if (href && /^https?:\/\//i.test(href) && inner) {
+                out += `[${inner}](${href})`;
+            } else {
+                out += inner;
+            }
+            return;
+        }
+        if (n === 'code') {
+            const inner = $(node).text().trim();
+            if (inner) out += `\`${inner}\``;
+            return;
+        }
+        out += extractInlineMarkdown($, node);
+    });
+    return out.trim();
+}
+
+const GOOGLE_SERP_NOISE = /people also ask|related searches|trending searches|see more results|images for|videos for|sponsored|promoted|advertisement|why this ad|about featured snippets|about this result|feedback\s*$/i;
+
+function postProcessAnswerMarkdown(md, engine) {
+    if (!md || typeof md !== 'string') return '';
+    const lines = md.split('\n').filter((line) => {
+        const s = line.trim();
+        if (s.length < 2) return true;
+        if (GOOGLE_SERP_NOISE.test(s) && engine === 'googleAI') return false;
+        if (/^(show more|see more|read more|expand)$/i.test(s)) return false;
+        // Filter lines that are clearly ads
+        if (/^(ad\s*·|sponsored\s+by|promoted\s+content)/i.test(s)) return false;
+        return true;
+    });
+    return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+/**
+ * Walk block-level nodes inside a subtree in document order → headings, paragraphs, lists.
+ * Skips nav/footer and duplicate chunks so the dashboard reads like the live UIs.
+ */
+function extractSemanticMarkdownFromRoot($, root) {
+    if (!root) return '';
+    const $root = $(root);
+    const lines = [];
+    const seen = new Set();
+
+    $root.find('h1,h2,h3,h4,h5,h6,p,li,blockquote,pre').each((_, el) => {
+        if ($(el).closest('nav,footer,header,[role="navigation"],button').length) return;
+        const tag = el.tagName?.toLowerCase();
+        if (tag === 'p' && $(el).parents('li').length) return;
+
+        let t = '';
+        if (tag === 'pre') {
+            t = $(el).text().replace(/\r\n/g, '\n').trim();
+            if (t.length > 2) {
+                lines.push('```');
+                lines.push(t);
+                lines.push('```');
+                lines.push('');
+            }
+            return;
+        }
+
+        if (tag === 'blockquote') {
+            t = extractInlineMarkdown($, el).replace(/\s+/g, ' ').trim();
+            if (t.length > 2) {
+                lines.push(`> ${t}`);
+                lines.push('');
+            }
+            return;
+        }
+
+        t = extractInlineMarkdown($, el).replace(/\s+/g, ' ').trim();
+        if (t.length < 2) return;
+
+        const dedupKey = t.slice(0, 160).toLowerCase();
+        if (seen.has(dedupKey)) return;
+        seen.add(dedupKey);
+
+        if (tag === 'li') {
+            lines.push(`- ${t}`);
+            return;
+        }
+        if (tag?.startsWith('h')) {
+            const level = tag === 'h1' ? '# ' : tag === 'h2' ? '## ' : tag === 'h3' ? '### ' : '#### ';
+            lines.push(`${level}${t}`);
+            lines.push('');
+            return;
+        }
+        lines.push(t);
+        lines.push('');
+    });
+
+    return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+/** Prefer ARIA / region semantics over obfuscated class names (Google changes classes often). */
+function findGoogleAiOverviewRoot($) {
+    // Try ARIA label "AI Overview" or "AI-generated answer"
+    const overviewAria = $('[aria-label*="AI Overview" i], [aria-label*="AI overview" i], [aria-label*="AI-generated" i], [aria-label*="generated answer" i]').first();
+    if (overviewAria.length) {
+        const region = overviewAria.closest('[role="region"]');
+        if (region.length) {
+            const txt = region.text().replace(/\s+/g, ' ').trim();
+            if (txt.length > 60) {
+                console.log(`[GoogleAI] Found AI Overview via ARIA (region, ${txt.length}ch)`);
+                return region.get(0);
+            }
+        }
+        const block = overviewAria.closest('div[data-hveid], div.MjjYud, div[data-ved], div[jsname], div[jscontroller]').first();
+        if (block.length) {
+            const txt = block.text().replace(/\s+/g, ' ').trim();
+            if (txt.length > 60) {
+                console.log(`[GoogleAI] Found AI Overview via ARIA (block, ${txt.length}ch)`);
+                return block.get(0);
+            }
+        }
+        // If we found the label but containers were too small, try the element itself
+        const txt = overviewAria.text().replace(/\s+/g, ' ').trim();
+        if (txt.length > 40) {
+            console.log(`[GoogleAI] Found AI Overview via ARIA (direct, ${txt.length}ch)`);
+            return overviewAria.get(0);
+        }
+    }
+
+    // Try "Generative" label (some regions use this)
+    const genLabel = $('[aria-label*="Generative" i], [aria-label*="generative" i]').first();
+    if (genLabel.length) {
+        const region = genLabel.closest('[role="region"]');
+        if (region.length) {
+            const txt = region.text().replace(/\s+/g, ' ').trim();
+            if (txt.length > 60) {
+                console.log(`[GoogleAI] Found AI Overview via Generative label (${txt.length}ch)`);
+                return region.get(0);
+            }
+        }
+    }
+
+    // Legacy class-based selectors
+    const legacy = $('.aiAnswerBox, [class*="ai-overview" i], [class*="AiOverview" i], [class*="ai_overview" i], [class*="SGE" i], [id*="ai-overview" i]').first();
+    if (legacy.length) {
+        const txt = legacy.text().replace(/\s+/g, ' ').trim();
+        if (txt.length > 50) {
+            console.log(`[GoogleAI] Found AI Overview via legacy class (${txt.length}ch)`);
+            return legacy.get(0);
+        }
+    }
+
+    // Data-attribute hints (Google sometimes uses data-attrid for AI features)
+    const dataHint = $('[data-attrid*="ai" i], [data-attrid*="overview" i], [data-attrid*="sge" i]').first();
+    if (dataHint.length) {
+        const txt = dataHint.text().replace(/\s+/g, ' ').trim();
+        if (txt.length > 50) {
+            console.log(`[GoogleAI] Found AI Overview via data-attrid (${txt.length}ch)`);
+            return dataHint.get(0);
+        }
+    }
+
+    console.log(`[GoogleAI] No AI Overview root found via semantic hints`);
+    return null;
+}
+
+/** When semantic hints fail, score SERP blocks that look like multi-paragraph answers (not PAA). */
+function fallbackGoogleSerpAnswerRoot($) {
+    let best = null;
+    let bestScore = 0;
+    // Broader candidates — AI Overviews can appear in various container types
+    const candidates = $(
+        '#search .MjjYud, #rso .MjjYud, #center_col .MjjYud, div.MjjYud, ' +
+        'div.xpd, div.kp-blk, div.ULSxyf, div.IZ6rdc, div.kno-rdesc, ' +
+        '#rso > div[data-hveid], #center_col > div[data-hveid], div[jscontroller]'
+    );
+    candidates.each((_, el) => {
+        const $el = $(el);
+        // Exclude ad containers
+        if ($el.attr('data-text-ad') || $el.hasClass('ads-ad') || $el.find('[data-text-ad], .ads-ad').length) return;
+        const plain = $el.text().replace(/\s+/g, ' ').trim();
+        // Exclude if starts with ad markers
+        if (/^(sponsored|advertisement|promoted|ad\s*·)/i.test(plain)) return;
+        // Lower min length — some AI Overviews are concise
+        if (plain.length < 80) return;
+        if (/people also ask|related searches|trending searches|complementary results|about this result|feedback/i.test(plain)) return;
+        const pCount = $el.find('p').length;
+        const liCount = $el.find('li').length;
+        const h3Count = $el.find('h3').length;
+        // AI Overviews often have structure (lists, multiple paragraphs) — score them highly
+        let score = pCount * 65 + liCount * 22 + h3Count * 15 + Math.min(plain.length, 4000);
+        // Boost if contains citation-style markers (common in AI Overviews)
+        if (/\[\d+\]/.test(plain)) score += 300;
+        if (score > bestScore) {
+            bestScore = score;
+            best = el;
+        }
+    });
+    if (best) {
+        const txt = $(best).text().replace(/\s+/g, ' ').trim();
+        console.log(`[GoogleAI] Fallback SERP scorer found block (${txt.length}ch, score=${bestScore})`);
+    }
+    return best;
+}
+
+function scoreContainerForEngine($, el, engine) {
+    if (!el) return 0;
+    const md = extractSemanticMarkdownFromRoot($, el);
+    if (md.length < 40) return 0;
+    let score = md.length;
+    if (engine === 'googleAI' && GOOGLE_SERP_NOISE.test(md)) score *= 0.35;
+    return score;
+}
+
+const PERPLEXITY_ANSWER_SELECTORS = [
+    'main', '[role="main"]', 'article',
+    '[class*="prose"]', '[class*="answer"]', '[class*="markdown"]',
+    '[class*="response"]', '[class*="Message"]', '[class*="MessageRow"]', '[class*="message-row"]',
+    '[class*="result"]', '[class*="thread"]', '[class*="query-text"]', '[class*="content"]',
+    '[class*="AnswerContent"]', '[class*="answer-content"]', '[class*="TextBlock"]',
+    '[class*="MarkdownAnswer"]', '[class*="markdown_answer"]', '[class*="AssistantTurn"]',
+    '[class*="assistant-turn"]', '[class*="ChatMessage"]', '[class*="chat-message"]',
+    'section[aria-label*="answer" i]',
+    '[data-testid*="answer"]', '[data-testid*="message"]', '[data-testid*="assistant"]',
+    '[data-testid*="text"]', '[data-testid*="content"]', '.pb-lg', '.break-words',
+].join(', ');
+
+const GEMINI_CHATGPT_SELECTORS = [
+    '[class*="response"]', '[class*="answer"]', '[class*="markdown"]', '[class*="model-response"]',
+    '.response-content', 'main article', '[class*="message-content"]', '[class*="conversation-turn"]',
+].join(', ');
+
+const GOOGLE_LEGACY_SELECTORS = [
+    '[data-attrid]', '[data-content-feature]', '[data-md-type]',
+    '.hgKELb', '.wUrVib', '.IZ6rdc', '.LGOcR', '.kno-rdesc', '.V3FYCf', '.bVj5Zb',
+    '.xpdopen', '.mod', '[jsname="Cpkphb"]', '.ULSxyf', '.kp-wholepage',
+    '[class*="IZ6rdc"]', '[class*="wDYxhc"]', '[data-hveid] p',
+].join(', ');
+
 function extractAIAnswerFromRenderedPage(html, engine) {
     if (!html) return '';
     try {
         const $ = cheerio.load(html);
         $('script, style, noscript, svg, link, meta').remove();
-        const parts = [];
+        
+        // Remove ad containers before extraction (avoid extracting ad copy as content)
+        if (engine === 'googleAI' || engine === 'perplexity') {
+            $('[id*="ad" i], [class*="ad" i]').filter((_, el) => {
+                const $el = $(el);
+                const id = ($el.attr('id') || '').toLowerCase();
+                const cls = ($el.attr('class') || '').toLowerCase();
+                // Only remove if clearly ad-related (avoid false positives like "header", "lead")
+                return /\b(ad|ads|advertisement|sponsored|promo)\b/.test(id + ' ' + cls);
+            }).remove();
+        }
 
+        if (engine === 'googleAI') {
+            let root = findGoogleAiOverviewRoot($);
+            if (!root) root = fallbackGoogleSerpAnswerRoot($);
+            if (root) {
+                let md = extractSemanticMarkdownFromRoot($, root);
+                md = postProcessAnswerMarkdown(md, 'googleAI');
+                // Lower threshold — some AI Overviews are concise but valuable
+                if (md.length >= 50) {
+                    console.log(`[GoogleAI] Extracted ${md.length}ch from AI Overview root`);
+                    return md;
+                }
+                console.warn(`[GoogleAI] Found root but markdown too short (${md.length}ch)`);
+            }
+
+            let bestEl = null;
+            let bestScore = 0;
+            $(GOOGLE_LEGACY_SELECTORS).each((_, el) => {
+                const sc = scoreContainerForEngine($, el, 'googleAI');
+                if (sc > bestScore) {
+                    bestScore = sc;
+                    bestEl = el;
+                }
+            });
+            if (bestEl && bestScore >= 60) {
+                const md = postProcessAnswerMarkdown(extractSemanticMarkdownFromRoot($, bestEl), 'googleAI');
+                if (md.length >= 40) {
+                    console.log(`[GoogleAI] Legacy selector extracted ${md.length}ch (score=${bestScore})`);
+                    return md;
+                }
+            }
+            console.warn(`[GoogleAI] No extraction via semantic/legacy paths (bestScore=${bestScore})`);
+        } else {
+            const selectorStr = engine === 'perplexity' ? PERPLEXITY_ANSWER_SELECTORS : GEMINI_CHATGPT_SELECTORS;
+            let bestEl = null;
+            let bestScore = 0;
+            $(selectorStr).each((_, el) => {
+                const sc = scoreContainerForEngine($, el, engine);
+                if (sc > bestScore) {
+                    bestScore = sc;
+                    bestEl = el;
+                }
+            });
+
+            if (bestEl && bestScore >= 50) {
+                const md = postProcessAnswerMarkdown(extractSemanticMarkdownFromRoot($, bestEl), engine);
+                if (md.length >= 40) return md;
+            }
+        }
+
+        // Last resort: longest collapsed text blob (old behavior, poor formatting)
+        const parts = [];
         if (engine === 'perplexity') {
-            $(
-                'main, [role="main"], article, '
-                + '[class*="prose"], [class*="answer"], [class*="markdown"], '
-                + '[class*="response"], [class*="Message"], [class*="MessageRow"], [class*="message-row"], '
-                + '[class*="result"], [class*="thread"], [class*="query-text"], [class*="content"], '
-                + '[class*="AnswerContent"], [class*="answer-content"], [class*="TextBlock"], '
-                + '[data-testid*="answer"], [data-testid*="message"], [data-testid*="assistant"], '
-                + '[data-testid*="text"], [data-testid*="content"], .pb-lg, .break-words'
-            ).each((_, el) => {
+            $(PERPLEXITY_ANSWER_SELECTORS).each((_, el) => {
                 const t = $(el).text().replace(/\s+/g, ' ').trim();
                 if (t.length > 40) parts.push(t);
             });
-
             if (parts.length === 0) {
                 $('p, li, h1, h2, h3, h4, h5, h6, td, th, blockquote, pre, code').each((_, el) => {
                     const t = $(el).text().replace(/\s+/g, ' ').trim();
                     if (t.length > 30) parts.push(t);
                 });
             }
-        } else if (engine === 'gemini') {
-            $('[class*="response"], [class*="answer"], [class*="markdown"], [class*="model-response"], .response-content, main article, [class*="message-content"]').each((_, el) => {
+        } else if (engine === 'gemini' || engine === 'chatgpt') {
+            $(GEMINI_CHATGPT_SELECTORS).each((_, el) => {
                 const t = $(el).text().replace(/\s+/g, ' ').trim();
                 if (t.length > 60) parts.push(t);
             });
-
             if (parts.length === 0) {
                 $('p, li, h1, h2, h3, h4, td, blockquote').each((_, el) => {
                     const t = $(el).text().replace(/\s+/g, ' ').trim();
                     if (t.length > 30) parts.push(t);
                 });
             }
-        } else {
-            $('[data-attrid], [data-content-feature], [data-md-type], .hgKELb, .wUrVib, .IZ6rdc, .LGOcR, .kno-rdesc, .V3FYCf, .bVj5Zb, .xpdopen, .mod, .aiAnswerBox, [class*="ai-overview"], [class*="aiOverview"], [jsname="Cpkphb"]').each((_, el) => {
+        } else if (engine === 'googleAI') {
+            $(GOOGLE_LEGACY_SELECTORS).each((_, el) => {
                 const t = $(el).text().replace(/\s+/g, ' ').trim();
                 if (t.length > 80) parts.push(t);
             });
@@ -165,7 +609,7 @@ function extractAIAnswerFromRenderedPage(html, engine) {
                     deduped.push(parts[i]);
                 }
             }
-            const merged = deduped.join('\n\n').trim();
+            const merged = postProcessAnswerMarkdown(deduped.join('\n\n'), engine);
             if (merged.length > 40) return merged;
         }
 
@@ -421,7 +865,21 @@ export function parseResponse(infaticaResult, brandName, domain, competitors, en
         return fastParse(infaticaResult, brandName, domain, competitors, engine);
     }
 
-    const { text, sources = [], html } = infaticaResult;
+    let { text, sources = [], html } = infaticaResult;
+    // Infatica often returns a full rendered page inside JSON `text` (e.g. ChatGPT HTML) — treat as HTML for extraction.
+    if (!html && text && typeof text === 'string') {
+        const t = text.trim();
+        const minEmbed = engine === 'perplexity' ? 320 : 500;
+        if (t.length > minEmbed && /^[\s\n]*</.test(t) && /<(html|body|!doctype|main|article)\b/i.test(t.slice(0, 4000))) {
+            html = text;
+            text = null;
+        }
+    }
+
+    if (engine === 'googleAI' && text && typeof text === 'string' && !isReadableAnswerText(text.trim())) {
+        console.warn('[Parser/googleAI] Rejecting TEXT payload (encoded / non-prose)');
+        text = null;
+    }
 
     if (text && text.trim().length > 0) {
         const structuredSources = sources.length > 0 ? [...sources] : [];
@@ -502,6 +960,27 @@ export function fastParse(html, brandName, domain, competitors, engine, extraSou
     if (!text) text = extractTextFromHtml(html);
     if (!text && html && html.length > 300) text = stripHtmlToPlain(html, 14_000);
 
+    let googleOrganicLinkRows = [];
+    if (engine === 'googleAI' && html && html.length > 200) {
+        const org = extractGoogleOrganicSnippetsFromHtml(html);
+        googleOrganicLinkRows = org.links.map((l) => ({
+            url: l.url,
+            domain: l.domain,
+            title: l.title || '',
+        }));
+        const organicOk = org.links.length > 0 && org.markdown.length > 24;
+        const proseBad = !text || !isReadableAnswerText(text);
+        // Only use organic as fallback when we have NO text or text is truly garbage
+        // Don't replace short but valid AI Overviews with organic snippets
+        const shouldUseOrganic = organicOk && (proseBad || text.length < 50);
+        if (shouldUseOrganic) {
+            console.log(`[Parser/googleAI] Using organic SERP snippets (${org.markdown.length}ch, ${org.links.length} links) — AI Overview text was ${text?.length || 0}ch`);
+            text = org.markdown;
+        } else if (text && text.length >= 50) {
+            console.log(`[Parser/googleAI] Keeping AI Overview text (${text.length}ch) over organic snippets`);
+        }
+    }
+
     const links = extractLinksFromHtml(html);
     const domainClean = (domain || '').replace(/^www\./, '').toLowerCase();
     const competitorDomains = competitors.map(c => typeof c === 'string' ? c : c.domain || '').filter(Boolean);
@@ -533,6 +1012,7 @@ export function fastParse(html, brandName, domain, competitors, engine, extraSou
         }
     };
     mergeExtra(extraSources);
+    mergeExtra(googleOrganicLinkRows);
     if (text) {
         mergeExtra(extractSourcesFromAIText(text));
     }
@@ -634,13 +1114,14 @@ function parseEngineLLMSentimentPayload(payload) {
     return { score: null, analysis: null };
 }
 
-/** New shape { engines: { perplexity, gemini, googleAI } } or legacy flat keys. */
+/** New shape { engines: { perplexity, gemini, chatgpt, googleAI } } or legacy flat keys. */
 function coalesceEnginesFromBatchJson(scores) {
     if (!scores || typeof scores !== 'object') return {};
     if (scores.engines && typeof scores.engines === 'object') return scores.engines;
     return {
         perplexity: scores.perplexity,
         gemini: scores.gemini,
+        chatgpt: scores.chatgpt,
         googleAI: scores.googleAI,
     };
 }
@@ -675,7 +1156,10 @@ export async function batchApplyGeminiSentimentByPrompt(allRuns, brandName) {
             const model = getModel();
             const userPrompt = buildGeminiSentimentBatchPrompt(brandName, blocks);
 
-            const result = await model.generateContent(userPrompt);
+            const result = await withGeminiDeadline(
+                model.generateContent(userPrompt),
+                '[GeminiSentiment]',
+            );
             const raw = result.response?.text?.() ?? '';
             const scores = parseJsonObjectLoose(raw);
             if (!scores || typeof scores !== 'object') continue;
@@ -727,7 +1211,8 @@ Produce an executive brief with EXACTLY this JSON format:
   "engineInsights": {
     "perplexity": "1 sentence on Perplexity performance",
     "gemini": "1 sentence on Gemini performance",
-    "googleAI": "1 sentence on Google AI performance"
+    "chatgpt": "1 sentence on ChatGPT performance",
+    "googleAI": "1 sentence on Google AI Overviews / SERP performance"
   }
 }
 
@@ -735,7 +1220,7 @@ Return ONLY valid JSON. Make it strategic, data-driven, and highly actionable fo
 
     try {
         const model = getModel();
-        const result = await model.generateContent(prompt);
+        const result = await withGeminiDeadline(model.generateContent(prompt), '[BatchAnalysis]');
         const raw = result.response?.text?.() ?? '';
         const text = raw.trim().replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
         const jsonMatch = text.match(/\{[\s\S]*\}/);
