@@ -1017,7 +1017,7 @@ export default function PromptIntelPage({ user, scanManager, scanId, applyScanRe
                     <div className="px-5 py-4 border-b border-[#262626] bg-[#0a0a0a]">
                         <h3 className="text-white font-semibold text-[14px] tracking-tight">Prompt matrix</h3>
                         <p className="text-white text-[11px] mt-1">
-                            {allPrompts.length} prompt{allPrompts.length !== 1 ? 's' : ''} from your latest stored scan. Tracking matches your onboarding / Brand Hub reach and markets. Citations show up to five source domains plus total count (+N). Models shows only engines that returned a response.
+                            {allPrompts.length} prompt{allPrompts.length !== 1 ? 's' : ''} from your latest stored scan. Tracking matches your onboarding / Brand Hub reach and markets. Models shows only engines that returned a response; Visibility is mention breadth; Citations lists up to five source domains plus total count (+N).
                         </p>
                     </div>
                     {!hasData ? (
@@ -1043,18 +1043,18 @@ export default function PromptIntelPage({ user, scanManager, scanId, applyScanRe
                                         </th>
                                         <th
                                             className="py-3 px-2 text-[10px] font-semibold text-white uppercase tracking-wider text-center whitespace-nowrap"
-                                            title="Up to five source domains (favicons) and +N total citations for this prompt."
-                                        >
-                                            Citations
-                                        </th>
-                                        <th
-                                            className="py-3 px-2 text-[10px] font-semibold text-white uppercase tracking-wider text-center whitespace-nowrap"
                                             title="Logos in each row show only models that returned a response for that prompt."
                                         >
                                             Models
                                         </th>
                                         <th className="py-3 px-2 text-[10px] font-semibold text-white uppercase tracking-wider text-center whitespace-nowrap">
                                             Visibility
+                                        </th>
+                                        <th
+                                            className="py-3 px-2 text-[10px] font-semibold text-white uppercase tracking-wider text-center whitespace-nowrap"
+                                            title="Up to five source domains (favicons) and +N total citations for this prompt."
+                                        >
+                                            Citations
                                         </th>
                                         <th className="py-3 pr-4 pl-2 text-[10px] font-semibold text-white uppercase tracking-wider text-center w-20">
                                             Details
@@ -1094,11 +1094,6 @@ export default function PromptIntelPage({ user, scanManager, scanId, applyScanRe
                                                 </td>
                                                 <td className="py-3 px-2 align-middle">
                                                     <div className="flex items-center justify-center min-h-[28px]">
-                                                        <StackedCitationIcons domains={citeDomains} totalCount={citeTotal} />
-                                                    </div>
-                                                </td>
-                                                <td className="py-3 px-2 align-middle">
-                                                    <div className="flex items-center justify-center min-h-[28px]">
                                                         {enginesRespondedCount(p) > 0 ? (
                                                             <StackedEngineIcons
                                                                 size="sm"
@@ -1112,6 +1107,11 @@ export default function PromptIntelPage({ user, scanManager, scanId, applyScanRe
                                                 </td>
                                                 <td className="py-3 px-2 align-middle text-center">
                                                     <VisibilityBadge tier={visibilityTier(p)} />
+                                                </td>
+                                                <td className="py-3 px-2 align-middle">
+                                                    <div className="flex items-center justify-center min-h-[28px]">
+                                                        <StackedCitationIcons domains={citeDomains} totalCount={citeTotal} />
+                                                    </div>
                                                 </td>
                                                 <td className="py-3 pr-4 pl-2 align-middle text-center">
                                                     <span
