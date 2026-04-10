@@ -19,12 +19,19 @@ const socialPlatforms = [
     { id: 'tiktok', name: 'TikTok', icon: Music2, placeholder: '@yourhandle', color: 'text-[#888]' },
 ];
 
-const styleTraits = [
-    { label: 'Tone', value: 'Professional & Authoritative', confidence: 92 },
-    { label: 'Vocabulary', value: 'Industry-Specific, Moderate Complexity', confidence: 87 },
-    { label: 'Sentence Style', value: 'Mix of Short & Medium, Active Voice', confidence: 85 },
-    { label: 'Personality', value: 'Thought Leader, Data-Driven', confidence: 78 },
-];
+/** Normalize snapshot from API or localStorage (object or JSON string). */
+function parseSocialSnapshot(raw) {
+    if (raw == null) return null;
+    if (typeof raw === 'object') return raw;
+    if (typeof raw === 'string') {
+        try {
+            return JSON.parse(raw);
+        } catch {
+            return null;
+        }
+    }
+    return null;
+}
 
 function parseCommaTags(str) {
     if (str == null || typeof str !== 'string') return [];
@@ -269,7 +276,6 @@ export default function BrandHubPage({ user: userProp, authUserId }) {
         social_tiktok: '',
     });
     const [saving, setSaving] = useState(false);
-    const [styleAnalyzed, setStyleAnalyzed] = useState(false);
     const [socialSnapshot, setSocialSnapshot] = useState(null);
     const [ingestLoading, setIngestLoading] = useState(false);
     const [ingestError, setIngestError] = useState(null);
@@ -283,7 +289,8 @@ export default function BrandHubPage({ user: userProp, authUserId }) {
         const stored = projectId != null
             ? getBrandHubData(authUserId, projectId)
             : getDashboardUser(authUserId);
-        const merged = { ...userProp, ...stored };
+        // Server (userProp) must win over localStorage so fresh socialIngestSnapshot / profile fields are not overwritten by stale cache
+        const merged = { ...stored, ...userProp };
         setUser(merged);
         setProfileData(prev => ({
             ...prev,
@@ -316,12 +323,8 @@ export default function BrandHubPage({ user: userProp, authUserId }) {
             merged?.social_youtube ||
             merged?.social_quora ||
             merged?.social_tiktok;
-        if (anySocial) setStyleAnalyzed(true);
-        if (merged?.socialIngestSnapshot) {
-            setSocialSnapshot(merged.socialIngestSnapshot);
-        } else {
-            setSocialSnapshot(null);
-        }
+        const snap = parseSocialSnapshot(merged?.socialIngestSnapshot);
+        setSocialSnapshot(snap);
     };
 
     const handleSyncSocial = useCallback(async () => {
@@ -330,14 +333,34 @@ export default function BrandHubPage({ user: userProp, authUserId }) {
         setIngestError(null);
         setIngestLoading(true);
         try {
-            const res = await apiClient.projects.ingestSocial(projectId);
+            const socialPayload = {
+                social_linkedin: profileData.social_linkedin ?? '',
+                social_instagram: profileData.social_instagram ?? '',
+                social_substack: profileData.social_substack ?? '',
+                social_reddit: profileData.social_reddit ?? '',
+                social_twitter: profileData.social_twitter ?? '',
+                social_youtube: profileData.social_youtube ?? '',
+                social_quora: profileData.social_quora ?? '',
+                social_tiktok: profileData.social_tiktok ?? '',
+            };
+            const res = await apiClient.projects.ingestSocial(projectId, socialPayload);
             if (res?.snapshot) setSocialSnapshot(res.snapshot);
+            if (res?.project?.socialIngestSnapshot != null && authUserId != null) {
+                const prev = getBrandHubData(authUserId, projectId) || {};
+                const nextLocal = {
+                    ...prev,
+                    ...socialPayload,
+                    socialIngestSnapshot: res.project.socialIngestSnapshot,
+                };
+                setBrandHubData(authUserId, projectId, nextLocal);
+                setUser((u) => ({ ...(u || {}), ...nextLocal }));
+            }
         } catch (e) {
             setIngestError(e?.message || 'Social sync failed');
         } finally {
             setIngestLoading(false);
         }
-    }, [userProp?.projectId]);
+    }, [userProp?.projectId, authUserId, profileData.social_linkedin, profileData.social_instagram, profileData.social_substack, profileData.social_reddit, profileData.social_twitter, profileData.social_youtube, profileData.social_quora, profileData.social_tiktok]);
 
     const handleSave = async () => {
         setSaving(true);
@@ -575,8 +598,11 @@ export default function BrandHubPage({ user: userProp, authUserId }) {
                 <div className="bg-[#0B0B0B] border border-[#222] rounded-2xl p-7">
                     <div className="mb-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                         <div>
-                            <h3 className="text-white font-semibold text-[18px]">Connected Accounts</h3>
-                            <p className="text-[#666] text-[13px] mt-1">Save your links, then sync — we pull public posts where APIs allow (YouTube, Substack, Reddit).</p>
+                            <h3 className="text-white font-semibold text-[18px]">Writing style sources</h3>
+                            <p className="text-[#666] text-[13px] mt-1">
+                                Add links below, then <strong className="text-[#888] font-medium">Extract writing style</strong> — we read public titles only (Substack &amp; Reddit need no extra setup; YouTube needs a server <code className="text-[11px] text-[#666]">YOUTUBE_API_KEY</code>) and infer your voice from those titles.{' '}
+                                <span className="text-[#555]">Nothing is posted or published on your behalf.</span>
+                            </p>
                         </div>
                         {userProp?.projectId != null && (
                             <button
@@ -586,7 +612,7 @@ export default function BrandHubPage({ user: userProp, authUserId }) {
                                 className="shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-full text-[13px] font-medium bg-[#1A1A1A] border border-[#333] text-white hover:border-[#E92A15]/50 hover:bg-[#222] disabled:opacity-50 transition-all"
                             >
                                 {ingestLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                                Sync social data
+                                Extract writing style
                             </button>
                         )}
                     </div>
@@ -622,57 +648,67 @@ export default function BrandHubPage({ user: userProp, authUserId }) {
                     )}
 
                     {socialSnapshot?.fetchedAt && (
-                        <div className="mt-6 border border-[#2a2a2a] rounded-2xl bg-[#111] p-4 space-y-4">
-                            <div className="flex items-center justify-between gap-2">
-                                <p className="text-white text-[13px] font-semibold">Live pull results</p>
-                                <span className="text-[#666] text-[10px]">
-                                    Last sync: {new Date(socialSnapshot.fetchedAt).toLocaleString()}
+                        <details className="mt-6 border border-[#2a2a2a] rounded-2xl bg-[#111] p-4 group/open:pb-4">
+                            <summary className="cursor-pointer list-none flex items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
+                                <span className="text-white text-[13px] font-semibold">
+                                    Sample titles used for inference
+                                    {typeof socialSnapshot?.writingStyle?.sampleCount === 'number' && socialSnapshot.writingStyle.sampleCount > 0
+                                        ? ` (${socialSnapshot.writingStyle.sampleCount})`
+                                        : ''}
                                 </span>
+                                <span className="text-[#666] text-[10px] shrink-0">
+                                    Last extract: {new Date(socialSnapshot.fetchedAt).toLocaleString()}
+                                </span>
+                            </summary>
+                            <p className="text-[#555] text-[11px] mt-2 mb-3">
+                                Read-only references — we do not post or modify your accounts.
+                            </p>
+                            <div className="space-y-4 pt-1 border-t border-[#222]">
+                                {Object.entries(socialSnapshot.platforms || {}).map(([key, block]) => (
+                                    <div key={key} className="border-t border-[#222] pt-3 first:border-t-0 first:pt-0">
+                                        <p className="text-[#E92A15] text-[11px] font-bold uppercase tracking-wider mb-2">{key}</p>
+                                        {block?.channelTitle && (
+                                            <p className="text-[#aaa] text-[12px] mb-1">Channel: {block.channelTitle}</p>
+                                        )}
+                                        {block?.feedUrl && (
+                                            <p className="text-[#666] text-[11px] mb-1 truncate" title={block.feedUrl}>{block.feedUrl}</p>
+                                        )}
+                                        {block?.needsOAuth && (
+                                            <p className="text-[#eab308] text-[12px] leading-snug">{block.message}</p>
+                                        )}
+                                        {block?.needsConfig && (
+                                            <p className="text-amber-400/90 text-[12px] leading-snug">{block.message}</p>
+                                        )}
+                                        {block?.message && !block?.needsOAuth && !block?.needsConfig && block?.ok === false && (
+                                            <p className="text-[#888] text-[12px]">{block.message}</p>
+                                        )}
+                                        {Array.isArray(block?.items) && block.items.length > 0 && (
+                                            <ul className="mt-2 space-y-1.5 max-h-[160px] overflow-y-auto custom-scrollbar pr-1">
+                                                {block.items.map((it, idx) => (
+                                                    <li key={idx} className="text-[12px] text-[#ccc] leading-snug">
+                                                        {it.url ? (
+                                                            <a href={it.url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
+                                                                {it.title || it.url}
+                                                            </a>
+                                                        ) : (
+                                                            <span>{it.title}</span>
+                                                        )}
+                                                        {it.pubDate && <span className="text-[#555] text-[10px] ml-1">({it.pubDate})</span>}
+                                                        {it.subreddit && <span className="text-[#555] text-[10px] ml-1">r/{it.subreddit}</span>}
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        )}
+                                    </div>
+                                ))}
                             </div>
-                            {Object.entries(socialSnapshot.platforms || {}).map(([key, block]) => (
-                                <div key={key} className="border-t border-[#222] pt-3 first:border-t-0 first:pt-0">
-                                    <p className="text-[#E92A15] text-[11px] font-bold uppercase tracking-wider mb-2">{key}</p>
-                                    {block?.channelTitle && (
-                                        <p className="text-[#aaa] text-[12px] mb-1">Channel: {block.channelTitle}</p>
-                                    )}
-                                    {block?.feedUrl && (
-                                        <p className="text-[#666] text-[11px] mb-1 truncate" title={block.feedUrl}>{block.feedUrl}</p>
-                                    )}
-                                    {block?.needsOAuth && (
-                                        <p className="text-[#eab308] text-[12px] leading-snug">{block.message}</p>
-                                    )}
-                                    {block?.needsConfig && (
-                                        <p className="text-amber-400/90 text-[12px] leading-snug">{block.message}</p>
-                                    )}
-                                    {block?.message && !block?.needsOAuth && !block?.needsConfig && block?.ok === false && (
-                                        <p className="text-[#888] text-[12px]">{block.message}</p>
-                                    )}
-                                    {Array.isArray(block?.items) && block.items.length > 0 && (
-                                        <ul className="mt-2 space-y-1.5 max-h-[200px] overflow-y-auto custom-scrollbar pr-1">
-                                            {block.items.map((it, idx) => (
-                                                <li key={idx} className="text-[12px] text-[#ccc] leading-snug">
-                                                    {it.url ? (
-                                                        <a href={it.url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
-                                                            {it.title || it.url}
-                                                        </a>
-                                                    ) : (
-                                                        <span>{it.title}</span>
-                                                    )}
-                                                    {it.pubDate && <span className="text-[#555] text-[10px] ml-1">({it.pubDate})</span>}
-                                                    {it.subreddit && <span className="text-[#555] text-[10px] ml-1">r/{it.subreddit}</span>}
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
+                        </details>
                     )}
 
                     <div className="flex items-start gap-3 p-4 mt-6 border border-[#E92A15]/20 bg-[#E92A15]/5 rounded-xl">
                         <AlertCircle className="w-4 h-4 text-[#E92A15] shrink-0 mt-0.5" />
                         <span className="text-[#aaa] text-[13px] leading-relaxed">
-                            Save your profile after editing links, then use <strong className="text-[#ccc] font-semibold">Sync social data</strong>. YouTube needs <code className="text-[#888] text-[11px]">YOUTUBE_API_KEY</code> on the server. LinkedIn, X, Instagram, TikTok, and Quora need OAuth or partner APIs for real post data — we show clear status for those.
+                            Save your profile after editing links, then use <strong className="text-[#ccc] font-semibold">Extract writing style</strong>. YouTube needs <code className="text-[#888] text-[11px]">YOUTUBE_API_KEY</code> on the server. LinkedIn, X, Instagram, TikTok, and Quora need OAuth or partner APIs to read posts — we show status only; we never publish for you.
                         </span>
                     </div>
                 </div>
@@ -681,30 +717,36 @@ export default function BrandHubPage({ user: userProp, authUserId }) {
                 <div className="bg-[#0B0B0B] border border-[#222] rounded-2xl p-7 flex flex-col">
                     <div className="flex items-center justify-between mb-8">
                         <div>
-                            <h3 className="text-white font-semibold text-[18px]">Your Writing Style Signature</h3>
-                            <p className="text-[#666] text-[13px] mt-1">Placeholders until we run LLM on synced posts; use Sync above for real titles and links.</p>
+                            <h3 className="text-white font-semibold text-[18px]">Saved writing style</h3>
+                            <p className="text-[#666] text-[13px] mt-1">
+                                Inferred from public titles and stored on your project — used to match your voice in generated content. Run <strong className="text-[#888] font-medium">Extract writing style</strong> above after saving links.
+                            </p>
+                            {socialSnapshot?.writingStyle?.summary && (
+                                <p className="text-[#888] text-[12px] mt-2 leading-relaxed border-l-2 border-[#333] pl-3">
+                                    {socialSnapshot.writingStyle.summary}
+                                </p>
+                            )}
                         </div>
                         <button
                             type="button"
                             onClick={handleSyncSocial}
                             disabled={ingestLoading || userProp?.projectId == null}
-                            className="px-6 py-2 border border-[#333] text-[#ccc] hover:border-[#E92A15]/40 flex items-center gap-2 rounded-full text-[13px] font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                            className="px-6 py-2 border border-[#333] text-[#ccc] hover:border-[#E92A15]/40 flex items-center gap-2 rounded-full text-[13px] font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
                         >
                             {ingestLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-                            Sync for style context
+                            Extract writing style
                         </button>
                     </div>
 
-                    {styleAnalyzed &&
-                    socialPlatforms.some((p) => String(profileData[`social_${p.id}`] || '').trim()) ? (
+                    {Array.isArray(socialSnapshot?.writingStyle?.traits) && socialSnapshot.writingStyle.traits.length > 0 ? (
                         <div className="grid grid-cols-2 gap-4">
-                            {styleTraits.map((trait, i) => (
-                                <div key={i} className="flex items-center justify-between p-5 bg-[#111] border border-[#222] rounded-2xl">
-                                    <div>
+                            {socialSnapshot.writingStyle.traits.map((trait, i) => (
+                                <div key={`${trait.label}-${i}`} className="flex items-center justify-between p-5 bg-[#111] border border-[#222] rounded-2xl">
+                                    <div className="min-w-0 pr-2">
                                         <p className="text-[#666] text-[10px] font-bold uppercase tracking-wider">{trait.label}</p>
-                                        <p className="text-white text-[14px] font-medium mt-1">{trait.value}</p>
+                                        <p className="text-white text-[14px] font-medium mt-1 break-words">{trait.value}</p>
                                     </div>
-                                    <div className="flex flex-col items-end">
+                                    <div className="flex flex-col items-end shrink-0">
                                         <span className="text-[#00D26A] text-[16px] font-bold">{trait.confidence}%</span>
                                         <span className="text-[#666] text-[10px] uppercase">confidence</span>
                                     </div>
@@ -716,9 +758,11 @@ export default function BrandHubPage({ user: userProp, authUserId }) {
                             <div className="w-14 h-14 rounded-[14px] border border-[#333] bg-[#1A1A1A] flex items-center justify-center">
                                 <PenTool className="w-6 h-6 text-[#555]" />
                             </div>
-                            <div className="text-center">
-                                <p className="text-[#aaa] text-[14px] font-medium">Connect your social accounts and save your profile</p>
-                                <p className="text-[#666] text-[12px] mt-1">We'll analyze your writing style automatically</p>
+                            <div className="text-center max-w-md px-4">
+                                <p className="text-[#aaa] text-[14px] font-medium">No writing style saved yet</p>
+                                <p className="text-[#666] text-[12px] mt-1">
+                                    Add at least one link we can read (e.g. YouTube with API key, Substack, Reddit), save your profile, then extract. We only save the style profile — we never post for you.
+                                </p>
                             </div>
                         </div>
                     )}

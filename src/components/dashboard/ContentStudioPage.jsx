@@ -1,13 +1,19 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
     PenTool, Sparkles, FileText, Instagram, Linkedin, MessageCircle, Mail, 
-    Loader2, Copy, Check, ChevronRight, Settings2, CornerDownLeft, Circle, Library, Twitter, Filter, X,
+    Loader2, Check, ChevronRight, Settings2, CornerDownLeft, Circle, Library, Twitter, Filter, X,
     Archive, Trash2, ArchiveRestore,
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { apiClient } from '@/api/apiClient';
 import ReactMarkdown from 'react-markdown';
-import { copyMarkdownToClipboard, stripPasteMetaNoise } from '@/lib/copyRichMarkdown';
+import {
+    stripPasteMetaNoise,
+    formatMarkdownForPasteByPlatform,
+    copyMarkdownToClipboard,
+    copyPlainTextToClipboard,
+    markdownToReadyPostPlain,
+} from '@/lib/copyRichMarkdown';
 import { sanitizeArticleObject } from '@/lib/contentArticleSanitize';
 
 /** Fix models that double-escape newlines inside JSON "content". */
@@ -75,9 +81,36 @@ function getArticleFromItem(item) {
     return item?.article || (item?.content ? { title: item.title, content: item.content, sources: item.sources || [], faq: item.faq || [], keyTakeaways: item.keyTakeaways || [], suggestedKeywords: item.suggestedKeywords || [], discoverabilityNotes: item.discoverabilityNotes || [], metaDescription: item.metaDescription } : null);
 }
 
-/** Blog / newsletter: Markdown export for CMS + rich copy. */
-function buildLongformMarkdownExport(article) {
+/** Map library `platform` label or tab id → export profile id */
+function getPlatformExportId(labelOrId) {
+    const map = {
+        'Blog / Article': 'blog',
+        'Email Newsletter': 'newsletter',
+        'LinkedIn Post': 'linkedin',
+        'X / Twitter Thread': 'twitter',
+        'Instagram Caption': 'instagram',
+        'Reddit / Quora': 'reddit',
+    };
+    if (labelOrId && map[labelOrId]) return map[labelOrId];
+    const ids = ['blog', 'newsletter', 'linkedin', 'twitter', 'instagram', 'reddit'];
+    if (ids.includes(labelOrId)) return labelOrId;
+    return '';
+}
+
+/**
+ * Markdown export (bold, headings, lists) with per-platform cleanup.
+ * Preview renders this; Copy uses rich HTML + plain for apps that support formatting.
+ */
+function buildLongformMarkdownExport(article, platformId = '') {
     if (!article) return '';
+    const isSocial =
+        platformId === 'reddit' ||
+        platformId === 'linkedin' ||
+        platformId === 'twitter' ||
+        platformId === 'instagram';
+    const omitSeoAppendix = isSocial;
+
+    const body = (article.content || '').trim();
     const lines = [];
     if (article.title) lines.push(`# ${article.title}`, '');
     if (article.metaDescription) lines.push(`*${article.metaDescription}*`, '');
@@ -87,43 +120,48 @@ function buildLongformMarkdownExport(article) {
         lines.push('');
     }
     lines.push('---', '');
-    const body = (article.content || '').trim();
     if (body) lines.push(body, '');
     const contentLower = body.toLowerCase();
     const faqInBody = /\n##\s*faq\b/.test(contentLower) || /^##\s*faq\b/m.test(contentLower);
-    if (!faqInBody && article.faq?.length) {
+    if (!faqInBody && article.faq?.length && !omitSeoAppendix) {
         lines.push('## FAQ', '');
         article.faq.forEach(({ q, a }) => {
             lines.push(`**Q:** ${q}`, '', `${a}`, '');
         });
     }
-    if (article.sources?.length) {
+    if (!omitSeoAppendix && article.sources?.length) {
         lines.push('---', '', '## Sources', '');
         article.sources.forEach((s) => {
             lines.push(`- **${s.name}**${s.description ? ` — ${s.description}` : ''}`);
         });
         lines.push('');
     }
-    if (article.suggestedKeywords?.length) {
+    if (!omitSeoAppendix && article.suggestedKeywords?.length) {
         lines.push(`*Keywords:* ${article.suggestedKeywords.join(', ')}`);
     }
-    return lines.join('\n').trim();
+    let out = lines.join('\n').trim();
+    out = formatMarkdownForPasteByPlatform(out, platformId);
+    return out;
 }
 
-function buildExportDraftForArticle(article) {
+/** Formatted Markdown draft per platform (used for preview + rich copy). */
+function buildExportDraftForArticle(article, platformId = '') {
     if (!article) return '';
-    return buildLongformMarkdownExport(article);
+    return buildLongformMarkdownExport(article, platformId);
 }
 
-function ContentExportPanel({ value, onChange }) {
+function ContentExportPanel({ value, onChange, onCopyFormatted, onCopyPlain, copiedMode }) {
     const [tab, setTab] = useState('preview');
 
     return (
         <div className="p-4 sm:p-6 space-y-4">
             <p className="text-[#888] text-[12px] leading-relaxed">
-                Preview shows formatted content. Switch to Markdown to edit. Copy uses rich formatting for Word / CMS and social schedulers that accept Markdown — same workflow for blog, email, LinkedIn, X, Instagram, and Reddit/Quora.
+                <strong className="text-[#aaa] font-medium">Preview</strong> shows bold topics, headings, and lists.{' '}
+                <strong className="text-[#aaa] font-medium">Copy formatted</strong> pastes rich text into Word, Gmail, and many composers;{' '}
+                <strong className="text-[#aaa] font-medium">Copy plain</strong> is for apps that only accept unstyled text. Edit uses Markdown (<code className="text-[11px] text-[#888]">**bold**</code>, <code className="text-[11px] text-[#888]">##</code> headings).
             </p>
-            <div className="flex gap-1 p-1 bg-[#111] border border-[#333] rounded-lg w-fit">
+            <div className="flex flex-wrap items-center gap-2">
+                <div className="flex gap-1 p-1 bg-[#111] border border-[#333] rounded-lg w-fit">
                     <button
                         type="button"
                         onClick={() => setTab('preview')}
@@ -136,18 +174,35 @@ function ContentExportPanel({ value, onChange }) {
                         onClick={() => setTab('edit')}
                         className={`px-4 py-1.5 rounded-md text-[12px] font-semibold transition-all ${tab === 'edit' ? 'bg-[#E92A15] text-white' : 'text-[#888] hover:text-white'}`}
                     >
-                        Markdown
+                        Edit Markdown
                     </button>
                 </div>
+                <div className="flex flex-wrap gap-2 sm:ml-auto">
+                    <button
+                        type="button"
+                        onClick={onCopyFormatted}
+                        className="px-4 py-1.5 rounded-lg text-[12px] font-semibold bg-[#1A1A1A] border border-[#333] text-white hover:border-[#E92A15]/50 transition-all"
+                    >
+                        {copiedMode === 'rich' ? 'Copied!' : 'Copy formatted'}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={onCopyPlain}
+                        className="px-4 py-1.5 rounded-lg text-[12px] font-semibold bg-transparent border border-[#333] text-[#ccc] hover:border-[#555] transition-all"
+                    >
+                        {copiedMode === 'plain' ? 'Copied!' : 'Copy plain'}
+                    </button>
+                </div>
+            </div>
             {tab === 'preview' ? (
                 <div
                     className="min-h-[min(60vh,480px)] max-h-[min(70vh,560px)] overflow-y-auto rounded-xl border border-[#333] bg-[#0B0B0B] px-6 py-5 prose prose-invert max-w-none text-[#ccc] leading-relaxed text-[15px]
                     [&_h1]:text-[26px] [&_h1]:font-bold [&_h1]:text-white [&_h1]:mb-4
                     [&_h2]:text-[17px] [&_h2]:font-bold [&_h2]:text-white [&_h2]:mt-8 [&_h2]:mb-3
                     [&_h3]:text-[15px] [&_h3]:font-bold [&_h3]:text-white [&_h3]:mt-6 [&_h3]:mb-2
-                    [&_p]:my-3 [&_strong]:text-white [&_li]:my-1"
+                    [&_p]:my-3 [&_strong]:text-white [&_li]:my-1 [&_blockquote]:border-l-[#E92A15]/50"
                 >
-                    <ReactMarkdown>{value || '*Nothing to preview*'}</ReactMarkdown>
+                    <ReactMarkdown>{value?.trim() ? value : '*Nothing to preview yet.*'}</ReactMarkdown>
                 </div>
             ) : (
                 <textarea
@@ -208,7 +263,8 @@ export default function ContentStudioPage({ user }) {
     const [activeTab, setActiveTab] = useState(null);
     const [generating, setGenerating] = useState(false);
     const [generatedContent, setGeneratedContent] = useState({});
-    const [copied, setCopied] = useState(null);
+    const [createExportCopyMode, setCreateExportCopyMode] = useState(null);
+    const [libExportCopyMode, setLibExportCopyMode] = useState(null);
     const [activeView, setActiveView] = useState('create'); // 'create' or 'library'
     const [contentLibrary, setContentLibrary] = useState([]);
     const [suggestedTopics, setSuggestedTopics] = useState([]);
@@ -324,7 +380,7 @@ export default function ContentStudioPage({ user }) {
 
     useEffect(() => {
         if (step === 4 && activeTab && generatedContent[activeTab]) {
-            setExportDraft(buildExportDraftForArticle(generatedContent[activeTab]));
+            setExportDraft(buildExportDraftForArticle(generatedContent[activeTab], activeTab));
         }
     }, [step, activeTab, generatedContent]);
 
@@ -332,7 +388,8 @@ export default function ContentStudioPage({ user }) {
         if (!selectedLibraryItem?.id) return;
         const art = getArticleFromItem(selectedLibraryItem);
         if (!art) return;
-        setLibExportDraft(buildExportDraftForArticle(art));
+        const pid = getPlatformExportId(selectedLibraryItem.platform);
+        setLibExportDraft(buildExportDraftForArticle(art, pid));
     }, [selectedLibraryItem]);
 
     useEffect(() => {
@@ -464,19 +521,38 @@ export default function ContentStudioPage({ user }) {
         setStep(4); // Review State
     };
 
-    const handleCopy = async (text, id) => {
+    const handleCopyFormattedExport = useCallback(async (markdown, setMode) => {
+        const md = (markdown || '').trim();
+        if (!md) return;
         try {
-            await copyMarkdownToClipboard(text);
+            await copyMarkdownToClipboard(md);
         } catch {
             try {
-                await navigator.clipboard.writeText(stripPasteMetaNoise((text || '').trim()));
+                await navigator.clipboard.writeText(stripPasteMetaNoise(md));
             } catch {
                 /* ignore */
             }
         }
-        setCopied(id);
-        setTimeout(() => setCopied(null), 2000);
-    };
+        setMode('rich');
+        setTimeout(() => setMode(null), 2000);
+    }, []);
+
+    const handleCopyPlainExport = useCallback(async (markdown, platformId, setMode) => {
+        const md = (markdown || '').trim();
+        if (!md) return;
+        try {
+            const plain = markdownToReadyPostPlain(md, platformId || '');
+            await copyPlainTextToClipboard(plain);
+        } catch {
+            try {
+                await navigator.clipboard.writeText(stripPasteMetaNoise(markdownToReadyPostPlain(md, platformId || '')));
+            } catch {
+                /* ignore */
+            }
+        }
+        setMode('plain');
+        setTimeout(() => setMode(null), 2000);
+    }, []);
 
     const renderStepper = () => (
         <div className="flex items-center justify-center max-w-3xl mx-auto my-12">
@@ -527,7 +603,7 @@ export default function ContentStudioPage({ user }) {
                     </div>
                     <div>
                         <h1 className="text-[19px] font-semibold text-white tracking-tight">Content Studio</h1>
-                        <p className="text-[#888] text-[13px] mt-0.5">Every format — blog, email newsletter, LinkedIn, X, Instagram, Reddit/Quora — uses the same Preview + Markdown flow and CMS-style copy as the blog. AEO/GEO blocks in the model. Brand Hub when you attach context.</p>
+                        <p className="text-[#888] text-[13px] mt-0.5">Review uses a <strong className="text-[#aaa] font-medium">formatted preview</strong> (bold, headings, lists). Copy formatted for rich paste (Word, Gmail, etc.) or copy plain when the app only accepts unstyled text. Attach Brand Hub context when you need it.</p>
                     </div>
                 </div>
                 <div className="flex items-center bg-[#111] border border-[#222] rounded-full p-1.5">
@@ -585,13 +661,6 @@ export default function ContentStudioPage({ user }) {
                                         </button>
                                         <button
                                             type="button"
-                                            onClick={() => handleCopy(libExportDraft, 'lib')}
-                                            className="px-3 py-2 text-[12px] font-medium text-white bg-[#1A1A1A] border border-[#333] hover:bg-[#222] rounded-xl transition-all"
-                                        >
-                                            {copied === 'lib' ? 'Copied!' : 'Copy for CMS'}
-                                        </button>
-                                        <button
-                                            type="button"
                                             onClick={() => setSelectedLibraryItem(null)}
                                             className="px-3 py-2 text-[12px] font-medium text-white bg-[#E92A15] hover:bg-[#D12512] rounded-xl transition-all"
                                         >
@@ -604,6 +673,15 @@ export default function ContentStudioPage({ user }) {
                                         key={selectedLibraryItem?.id}
                                         value={libExportDraft}
                                         onChange={setLibExportDraft}
+                                        onCopyFormatted={() => handleCopyFormattedExport(libExportDraft, setLibExportCopyMode)}
+                                        onCopyPlain={() =>
+                                            handleCopyPlainExport(
+                                                libExportDraft,
+                                                getPlatformExportId(selectedLibraryItem?.platform),
+                                                setLibExportCopyMode,
+                                            )
+                                        }
+                                        copiedMode={libExportCopyMode}
                                     />
                                 </div>
                             </div>
@@ -1071,7 +1149,7 @@ export default function ContentStudioPage({ user }) {
                                 </div>
                                 <h2 className="text-white font-bold text-[24px] mt-8 mb-2">Synthesizing Content...</h2>
                                 <p className="text-[#888] text-[15px] max-w-sm text-center leading-relaxed">
-                                    Building Markdown-ready drafts for each selected format — same structure as blog (headings, FAQ block, discoverability notes) so Preview and Copy for CMS work everywhere.
+                                    Generating each selected format; review shows formatted Markdown with a rich-text preview. Social exports omit internal AEO/FAQ appendices.
                                 </p>
                             </div>
                         )}
@@ -1139,17 +1217,13 @@ export default function ContentStudioPage({ user }) {
                                                         <span className="text-white text-[14px] font-bold tracking-wide">{activeP?.name}</span>
                                                     </div>
                                                     <div className="w-1 h-1 rounded-full bg-[#444]"></div>
-                                                    <span className="text-[#888] text-[12px] font-medium">Markdown · CMS-ready</span>
+                                                    <span className="text-[#888] text-[12px] font-medium">Formatted preview · Markdown</span>
                                                     <div className="w-1 h-1 rounded-full bg-[#444]"></div>
                                                     <span className="text-[#888] text-[12px] font-medium">AEO / GEO</span>
                                                 </div>
                                                 <div className="flex items-center gap-3">
                                                     <button onClick={handleGenerate} className="flex items-center gap-2 px-4 py-2 bg-transparent border border-[#333] hover:border-[#555] text-white rounded-lg text-[12px] font-semibold transition-all">
                                                         <Settings2 className="w-3.5 h-3.5" /> Regenerate
-                                                    </button>
-                                                    <button onClick={() => handleCopy(exportDraft, activeTab)} className="flex items-center gap-2 px-4 py-2 bg-transparent border border-[#333] hover:border-[#555] text-white rounded-lg text-[12px] font-semibold transition-all">
-                                                        {copied === activeTab ? <Check className="w-3.5 h-3.5 text-[#00D26A]" /> : <Copy className="w-3.5 h-3.5" />}
-                                                        Copy for CMS
                                                     </button>
                                                     <button className="flex items-center gap-2 px-4 py-2 bg-[#E92A15] hover:bg-[#D12512] text-white rounded-lg text-[12px] font-semibold transition-all shadow-lg">
                                                         <Library className="w-3.5 h-3.5" /> Save to Library
@@ -1161,6 +1235,11 @@ export default function ContentStudioPage({ user }) {
                                                 key={activeTab}
                                                 value={exportDraft}
                                                 onChange={setExportDraft}
+                                                onCopyFormatted={() => handleCopyFormattedExport(exportDraft, setCreateExportCopyMode)}
+                                                onCopyPlain={() =>
+                                                    handleCopyPlainExport(exportDraft, activeTab, setCreateExportCopyMode)
+                                                }
+                                                copiedMode={createExportCopyMode}
                                             />
                                         </div>
                                     )

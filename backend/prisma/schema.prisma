@@ -62,10 +62,10 @@ model Project {
   companySize      String?
   location         String?
   /// JSON array of up to 3 market labels (e.g. "Austin, TX", "India") for visibility prompts + Infatica region hint
-  trackingLocations String?         @db.Text
+  trackingLocations String?
   language         String?
   reach            String?
-  competitors      String?          @db.Text
+  competitors      String?
   target_audience  String?
   social_linkedin  String?
   social_instagram String?
@@ -75,8 +75,8 @@ model Project {
   social_youtube   String?
   social_quora     String?
   social_tiktok    String?
-  /// Last synced public social feed snapshot (YouTube / Substack / Reddit + OAuth hints for others)
-  socialIngestSnapshot Json?
+  /// Last extract: platform fetch metadata + inferred writingStyle (read-only; never used to post)
+  socialIngestSnapshot String?
   created_at       DateTime?        @default(now())
   updated_at       DateTime?        @default(now())
   user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -96,7 +96,7 @@ model Content {
   topic      String
   platform   String   @default("Blog")
   title      String
-  payload    String   @db.Text
+  payload    String
   status     String   @default("draft")
   created_at DateTime @default(now())
   updated_at DateTime @default(now())
@@ -114,9 +114,9 @@ model AuditJob {
   projectId  Int?
   url        String
   status     String   @default("pending")
-  progress   String?  @db.Text
-  results    String?  @db.Text
-  error      String?  @db.Text
+  progress   String?
+  results    String?
+  error      String?
   created_at DateTime @default(now())
   updated_at DateTime @default(now())
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -135,10 +135,10 @@ model VisibilityScan {
   domain     String
   industry   String?
   status     String   @default("pending")
-  progress   String?  @db.Text
-  allRuns    String?  @db.Text
-  results    String?  @db.Text
-  error      String?  @db.Text
+  progress   String?
+  allRuns    String?
+  results    String?
+  error      String?
   created_at DateTime @default(now())
   updated_at DateTime @default(now())
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)

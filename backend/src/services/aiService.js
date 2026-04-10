@@ -1,14 +1,7 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
-
-let genAI = null;
+import { getGoogleGenerativeAI } from '../lib/geminiClient.js';
 
 function getClient() {
-    if (!genAI) {
-        const apiKey = process.env.GEMINI_API_KEY;
-        if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
-        genAI = new GoogleGenerativeAI(apiKey);
-    }
-    return genAI;
+    return getGoogleGenerativeAI();
 }
 
 // PROMPT 1 — Onboarding: Competitor Suggestions

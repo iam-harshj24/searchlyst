@@ -1,12 +1,10 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { prisma } from '../lib/prisma.js';
+import { getGeminiGenerativeModel, formatGeminiErrorMessage } from '../lib/geminiClient.js';
 import { getPromptForPlatform } from '../services/contentPrompts.js';
 import { sanitizeArticleObject } from '../utils/contentArticleSanitize.js';
 
-let genAI = null;
 function getModel() {
-    if (!genAI) genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    return genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    return getGeminiGenerativeModel();
 }
 
 export async function listContent(req, res) {
@@ -69,7 +67,12 @@ export async function generateArticle(req, res) {
         if (!topic) return res.status(400).json({ success: false, message: 'Topic is required' });
         const userId = req.user.id;
 
-        const model = getModel();
+        let model;
+        try {
+            model = getModel();
+        } catch (e) {
+            return res.status(503).json({ success: false, message: formatGeminiErrorMessage(e) });
+        }
         const prompt = getPromptForPlatform({
             platform,
             topic,
@@ -123,7 +126,7 @@ export async function generateArticle(req, res) {
         res.json({ success: true, article, id: saved.id });
     } catch (error) {
         console.error('Content generation error:', error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: formatGeminiErrorMessage(error) });
     }
 }
 
@@ -140,7 +143,12 @@ export async function suggestTopics(req, res) {
             day: 'numeric',
         });
 
-        const model = getModel();
+        let model;
+        try {
+            model = getModel();
+        } catch (e) {
+            return res.status(503).json({ success: false, message: formatGeminiErrorMessage(e) });
+        }
         const prompt = `ROLE: You are an expert SEO content strategist.
 TASK: Suggest 8 high-performing content topics for a company.
 CONTEXT:
@@ -190,7 +198,7 @@ Example (illustrative only — adapt to the brand's industry and location):
         res.json({ success: true, topics: mappedTopics });
     } catch (error) {
         console.error('Topic suggestion error:', error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: formatGeminiErrorMessage(error) });
     }
 }
 

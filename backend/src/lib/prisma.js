@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import '../loadEnv.js'; // Same .env as server (cwd-independent; avoids dotenv/config loading wrong path)
 import { PrismaClient } from '@prisma/client';
 
 const globalForPrisma = globalThis;

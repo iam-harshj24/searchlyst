@@ -50,6 +50,19 @@ function parseTrackingLocations(raw) {
     return [];
 }
 
+function parseSocialIngestSnapshot(raw) {
+    if (raw == null || raw === '') return null;
+    if (typeof raw === 'object') return raw;
+    if (typeof raw === 'string') {
+        try {
+            return JSON.parse(raw);
+        } catch {
+            return null;
+        }
+    }
+    return null;
+}
+
 function deserializeProject(project) {
     if (!project) return project;
     return {
@@ -58,6 +71,7 @@ function deserializeProject(project) {
             ? (typeof project.competitors === 'string' ? JSON.parse(project.competitors) : project.competitors)
             : null,
         trackingLocations: parseTrackingLocations(project.trackingLocations),
+        socialIngestSnapshot: parseSocialIngestSnapshot(project.socialIngestSnapshot),
     };
 }
 

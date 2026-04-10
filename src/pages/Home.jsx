@@ -5,6 +5,7 @@ import Navbar from '@/components/landing/Navbar';
 import HeroSection from '@/components/landing/HeroSection';
 import Footer from '@/components/landing/Footer';
 import CookieConsent from '@/components/CookieConsent';
+import HomeVideoPopup from '@/components/landing/HomeVideoPopup';
 import MarketGrowthSection from '@/components/landing/MarketGrowthSection';
 import IndustryInsightSection from '@/components/landing/IndustryInsightSection';
 import GrowthTrajectorySection from '@/components/landing/GrowthTrajectorySection';
@@ -38,6 +39,7 @@ export default function Home() {
                 <FAQSection />
                 <Footer />
                 <CookieConsent />
+                <HomeVideoPopup />
             </div>
         </ThemeProvider>
     );
