@@ -2,6 +2,29 @@ import { projectService } from '../services/projectService.js';
 import { prisma } from '../lib/prisma.js';
 import { buildSocialIngestSnapshot } from '../services/socialIngestService.js';
 
+const SOCIAL_PROJECT_KEYS = [
+    'social_linkedin',
+    'social_instagram',
+    'social_substack',
+    'social_reddit',
+    'social_twitter',
+    'social_youtube',
+    'social_quora',
+    'social_tiktok',
+];
+
+/** Merge optional social URLs from the request body over the DB project (trimmed strings). */
+function mergeProjectSocialFromBody(project, body) {
+    if (!body || typeof body !== 'object') return project;
+    const merged = { ...project };
+    for (const k of SOCIAL_PROJECT_KEYS) {
+        if (body[k] === undefined) continue;
+        const v = body[k];
+        merged[k] = typeof v === 'string' ? v.trim() : v == null ? null : String(v).trim() || null;
+    }
+    return merged;
+}
+
 export async function createProject(req, res) {
     try {
         const userId = req.user.id; // From authenticateToken middleware
@@ -177,6 +200,13 @@ export async function ingestSocialSnapshot(req, res) {
                             items: [{ title: 'Example post', url: 'https://example.com' }],
                         },
                     },
+                    writingStyle: {
+                        extractedAt: new Date().toISOString(),
+                        source: 'none',
+                        sampleCount: 1,
+                        summary: 'Dev mode: real sync infers writing style from public titles only (read-only, never posts).',
+                        traits: [],
+                    },
                 },
             });
         }
@@ -186,16 +216,30 @@ export async function ingestSocialSnapshot(req, res) {
             return res.status(404).json({ success: false, message: 'Project not found' });
         }
 
-        const snapshot = await buildSocialIngestSnapshot(project);
+        const projectForIngest = mergeProjectSocialFromBody(project, req.body);
+        const snapshot = await buildSocialIngestSnapshot(projectForIngest);
+
+        const persistSocial = {};
+        for (const k of SOCIAL_PROJECT_KEYS) {
+            if (req.body?.[k] !== undefined) persistSocial[k] = projectForIngest[k];
+        }
+
         const updated = await prisma.project.update({
             where: { id: projectId },
-            data: { socialIngestSnapshot: snapshot, updated_at: new Date() },
+            data: {
+                socialIngestSnapshot: JSON.stringify(snapshot),
+                updated_at: new Date(),
+                ...persistSocial,
+            },
         });
 
         res.json({
             success: true,
             snapshot,
-            project: updated,
+            project: {
+                ...updated,
+                socialIngestSnapshot: snapshot,
+            },
         });
     } catch (error) {
         console.error('Social ingest error:', error);

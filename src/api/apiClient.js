@@ -290,9 +290,12 @@ export const apiClient = {
     async update(projectId, data) {
       return apiClient.put(`/projects/${projectId}`, data);
     },
-    /** Fetch public posts from YouTube (API key), Substack (RSS), Reddit (.json); stores snapshot on project */
-    async ingestSocial(projectId) {
-      return apiClient.post(`/projects/${projectId}/social-ingest`, {});
+    /**
+     * Read-only: sample public titles (YouTube / Substack / Reddit), infer writing style, store on project — never posts.
+     * Pass current `social_*` fields from the form so extract works without a separate save (they are persisted with the snapshot).
+     */
+    async ingestSocial(projectId, socialFields = {}) {
+      return apiClient.post(`/projects/${projectId}/social-ingest`, socialFields);
     },
   },
 

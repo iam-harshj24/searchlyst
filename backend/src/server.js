@@ -86,7 +86,10 @@ app.use((err, req, res, next) => {
 const startServer = async () => {
   try {
     console.log('🚀 Starting Searchlyst Backend...\n');
-    console.log(`✓ GEMINI_API_KEY: ${process.env.GEMINI_API_KEY ? 'configured' : 'NOT SET (AI features will fail)'}`);
+    const geminiOk = Boolean(
+      process.env.GEMINI_API_KEY?.trim() || process.env.GOOGLE_GENERATIVE_AI_API_KEY?.trim()
+    );
+    console.log(`✓ GEMINI_API_KEY: ${geminiOk ? 'configured' : 'NOT SET (AI features will fail)'}`);
 
     // Require JWT_SECRET in production
     const defaultSecret = 'your-secret-key-change-this-in-production';

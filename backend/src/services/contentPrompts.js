@@ -78,6 +78,11 @@ OUTPUT HYGIENE (critical for Blog and Email):
 - Never use a body line that is only hashtags (#a #b #c). Put hashtags in "suggestedKeywords" OR under "## Hashtags" as bullets "- #tag".
 - For email newsletters: put subject line options under "## Subject line options" as a numbered Markdown list (1. ... 2. ...), never one comma-separated line.
 - Use real ## / ### headings and "- " bullets; avoid CSV-style lists in the narrative body.
+
+EMAIL + REDDIT / QUORA — PASTE-READY (must follow for those platforms):
+- Do NOT use #hashtags anywhere inside JSON "content" (no "#marketing", no trailing hashtag lines). Put discoverability terms only in JSON "suggestedKeywords" as plain words without #.
+- Do NOT output comma-separated subject lines, preview lines, or keyword blobs on a single line. Always use numbered lists or separate lines.
+- Do NOT add a "## Hashtags" or "### Hashtags" block in "content" for Email or Reddit/Quora.
 `;
 
     // 1. Email Newsletter
@@ -104,13 +109,10 @@ TONE: Professional but Conversational Expert${safeKeywords}
 ## CONTENT STRUCTURE — Generate the full post using this EXACT framework:
 
 ### 1. SUBJECT LINE OPTIONS (Give 5)
-- Create 5 email subject lines that are curiosity-driven, specific, and under 60 characters.
-- At least 2 should be question-based (AEO-friendly).
-- At least 1 should contain a number/statistic.
+- In the Markdown "content", render these ONLY under "## Subject line options" as a numbered list with five lines: "1. ..." through "5. ..." (one subject per line). Never put all subjects on one line separated by commas.
 
 ### 2. PREVIEW TEXT (Give 3 options)
-- 90-140 characters each.
-- Complements the subject line without repeating it.
+- Under "## Preview text options" use a numbered list "1." "2." "3." — one line each (90-140 characters). Never comma-separated on one line.
 
 ### 3. HOOK / OPENING PARAGRAPH
 - Start with a bold, definitive statement OR a surprising statistic OR a direct answer to the core question the topic addresses.
@@ -319,6 +321,7 @@ TONE: Helpful, honest, non-salesy${safeKeywords}
 
 ## REDDIT / QUORA — MARKDOWN inside JSON "content"
 
+- Write so the user can copy the post text and paste it into Reddit or Quora as-is: short paragraphs, **bold**, numbered/bullet lists — no hashtag lines, no "#keyword" tokens, no comma-separated keyword dumps at the end.
 - ## The short answer — direct answer first.
 - ## Why it matters — brief context.
 - ## Breakdown — 3–7 numbered or bulleted points with **bold** lead-ins.

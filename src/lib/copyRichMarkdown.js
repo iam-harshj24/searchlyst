@@ -2,6 +2,62 @@ import { marked } from 'marked';
 
 marked.setOptions({ gfm: true });
 
+/**
+ * Per-platform markdown cleanup before converting to plain text for paste.
+ * Strips internal AEO blocks where users post only the human-facing copy on social.
+ * @param {string} md
+ * @param {string} [platformId] — blog | newsletter | linkedin | twitter | instagram | reddit
+ */
+export function formatMarkdownForPasteByPlatform(md, platformId = '') {
+    if (!md || typeof md !== 'string') return '';
+    const id = platformId || '';
+    let s = md;
+
+    // Social handles: post body only — no AEO appendix, no FAQ block
+    if (['reddit', 'linkedin', 'twitter', 'instagram'].includes(id)) {
+        s = (s.split(/\n###\s*AI search & discoverability notes\b/i)[0] || s).trim();
+        s = (s.split(/\n##\s*FAQ\b/i)[0] || s).trim();
+    } else if (id === 'newsletter') {
+        s = s.replace(/\n###\s*AI search & discoverability notes\b[\s\S]*?(?=\n##\s*FAQ\b|\z)/i, '\n').trim();
+    } else if (id === 'blog') {
+        s = s.replace(
+            /\n###\s*AI search & discoverability notes\b[\s\S]*?(?=\n##\s*FAQ\b|\n## [^#]|\z)/i,
+            '\n',
+        ).trim();
+    }
+
+    // Remove ## Hashtags / ## Keywords appendix sections
+    s = s.replace(/\n##\s*Hashtags\b[\s\S]*?(?=\n##[^#]|\n###\s|[\r\n]*\z)/gi, '\n');
+    s = s.replace(/\n##\s*Keywords\b[\s\S]*?(?=\n##[^#]|\n###\s|[\r\n]*\z)/gi, '\n');
+
+    // Drop lines that are only #tokens (not markdown headings ##)
+    s = s
+        .split('\n')
+        .filter((line) => {
+            const t = line.trim();
+            if (!t) return true;
+            if (t.startsWith('##')) return true;
+            if (/^(#[\w\u00C0-\u024F-]+\s*)+$/i.test(t)) return false;
+            if (/^\*\*Hashtags:\*\*/i.test(t)) return false;
+            return true;
+        })
+        .join('\n');
+
+    // Trailing *Keywords:* comma lines (export footer)
+    s = s.replace(/\n\*Keywords:\*[^\n]*$/gim, '');
+    s = s.replace(/\n\*Keywords:\*\*[^\n]*$/gim, '');
+
+    return s.replace(/\n{3,}/g, '\n\n').trim();
+}
+
+/**
+ * Full pipeline: markdown export → platform cleanup → plain text for native apps (no .md file).
+ */
+export function markdownToReadyPostPlain(md, platformId = '') {
+    const formatted = formatMarkdownForPasteByPlatform(md, platformId);
+    return stripSocialPasteArtifacts(markdownToPlainClean(formatted));
+}
+
 /** Drop lines that are only social-style hashtags (paste-friendly plain text). */
 function stripHashtagOnlyLines(plain) {
     return plain

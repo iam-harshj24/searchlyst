@@ -12,7 +12,8 @@ export const createAnonymous = async (req, res) => {
   } catch (error) {
     console.error('Anonymous auth error:', error);
     const isDbUnreachable = error?.name === 'PrismaClientInitializationError' ||
-      /Can't reach database server|Connection refused|ECONNREFUSED/i.test(error?.message || '');
+      error?.code === 'P1001' ||
+      /Can't reach database server|Connection refused|ECONNREFUSED|timeout|ETIMEDOUT|ENOTFOUND/i.test(error?.message || '');
     const message = isDbUnreachable
       ? 'Database unavailable. Check DATABASE_URL and ensure PostgreSQL is running and reachable.'
       : 'Failed to create anonymous user';
@@ -104,7 +105,8 @@ export const verifyOtp = async (req, res) => {
   } catch (error) {
     console.error('Verify OTP error:', error);
     const isDbUnreachable = error?.name === 'PrismaClientInitializationError' ||
-      /Can't reach database server|Connection refused|ECONNREFUSED/i.test(error?.message || '');
+      error?.code === 'P1001' ||
+      /Can't reach database server|Connection refused|ECONNREFUSED|timeout|ETIMEDOUT|ENOTFOUND/i.test(error?.message || '');
     const message = isDbUnreachable
       ? 'Database unavailable. Check DATABASE_URL and ensure PostgreSQL is running and reachable.'
       : 'Verification failed. Could not create user.';
@@ -143,7 +145,8 @@ export const login = async (req, res) => {
   } catch (error) {
     console.error('Login error:', error);
     const isDbUnreachable = error?.name === 'PrismaClientInitializationError' ||
-      /Can't reach database server|Connection refused|ECONNREFUSED/i.test(error?.message || '');
+      error?.code === 'P1001' ||
+      /Can't reach database server|Connection refused|ECONNREFUSED|timeout|ETIMEDOUT|ENOTFOUND/i.test(error?.message || '');
     const message = isDbUnreachable
       ? 'Database unavailable. Check DATABASE_URL and ensure PostgreSQL is running and reachable.'
       : 'Login failed';
