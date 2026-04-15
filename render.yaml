@@ -1,5 +1,9 @@
-# Render.com Blueprint - Deploy Searchlyst Backend
+# Render.com Blueprint - Deploy Searchlyst Backend (Prisma + SQLite)
 # https://render.com/docs/blueprint-spec
+#
+# SQLite file lives under backend/. On free web services the filesystem is ephemeral; data can
+# reset on redeploy. For durable storage, add a Render Disk and set DATABASE_URL to
+# file:/path/on/disk/prod.db (see https://render.com/docs/disks).
 services:
   - type: web
     name: searchlyst-api
@@ -7,13 +11,14 @@ services:
     rootDir: backend
 
     buildCommand: npm install && npx prisma generate
-    startCommand: npm start
+    startCommand: mkdir -p prisma/data && npx prisma migrate deploy && npm start
+    healthCheckPath: /health
 
     envVars:
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
-        sync: false
+        value: file:./prisma/data/prod.db
       - key: JWT_SECRET
         generateValue: true
       - key: GEMINI_API_KEY
@@ -22,7 +27,10 @@ services:
         sync: false
       - key: FIRECRAWL_API_KEY
         sync: false
+      # Must match the browser Origin of your deployed frontend (e.g. https://youruser.github.io).
       - key: FRONTEND_URL
+        sync: false
+      - key: GOOGLE_CLIENT_ID
         sync: false
       - key: SEND_WELCOME_EMAIL
         value: "false"

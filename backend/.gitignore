@@ -1,5 +1,11 @@
 node_modules/
 .env
+
+# Local SQLite — single file holds all app data (users, projects, scans, etc.)
+prisma/dev.db
+prisma/dev.db-journal
+prisma/data/
+*.db-journal
 *.log
 .DS_Store
 *.md
