@@ -27,6 +27,58 @@ function withGeminiDeadline(promise, label) {
     return Promise.race([promise, deadline]).finally(() => clearTimeout(t));
 }
 
+/**
+ * Max citation rows stored per engine × prompt run (URLs in dashboard Sources).
+ * Default 80; cap 200. Set MAX_CITATIONS_PER_RUN in env.
+ */
+const MAX_CITATIONS_PER_RUN = Math.min(
+    200,
+    Math.max(15, Number(process.env.MAX_CITATIONS_PER_RUN) || 80),
+);
+
+/**
+ * Merge Infatica JSON + text + HTML link lists: dedupe by canonical URL, normalize href/domain.
+ */
+function dedupeSourcesForRun(sources) {
+    if (!Array.isArray(sources)) return [];
+    const seen = new Set();
+    const out = [];
+    for (const s of sources) {
+        if (!s || typeof s !== 'object') continue;
+        let raw = String(s.url || '').trim();
+        if (!raw) continue;
+        raw = raw.replace(/[.,;:!?]+$/, '');
+        if (raw.startsWith('//')) raw = `https:${raw}`;
+        if (!/^https?:\/\//i.test(raw)) continue;
+        let href;
+        let dedupeKey;
+        try {
+            const u = new URL(raw);
+            u.hash = '';
+            href = u.href;
+            dedupeKey = `${u.hostname}${u.pathname}${u.search}`.toLowerCase();
+        } catch {
+            continue;
+        }
+        if (seen.has(dedupeKey)) continue;
+        seen.add(dedupeKey);
+        let domain = String(s.domain || '').trim().replace(/^www\./i, '');
+        if (!domain) {
+            try {
+                domain = new URL(href).hostname.replace(/^www\./i, '');
+            } catch {
+                domain = '';
+            }
+        }
+        out.push({
+            url: href,
+            domain,
+            title: String(s.title || s.text || '').trim().slice(0, 500),
+        });
+    }
+    return out;
+}
+
 // ── Domain Categorization ────────────────────────────────────────────────────
 
 const DOMAIN_CATEGORIES = {
@@ -42,13 +94,33 @@ const DOMAIN_CATEGORIES = {
     ]
 };
 
+/** Subdomain or exact host match — avoids false positives from `includes(firstLabel)`. */
+function hostMatchesBrandDomain(citationHost, brandDomain) {
+    if (!citationHost || !brandDomain) return false;
+    const h = String(citationHost).replace(/^www\./, '').toLowerCase();
+    const b = String(brandDomain).replace(/^www\./, '').toLowerCase();
+    if (h === b) return true;
+    if (b.length > 2 && h.endsWith(`.${b}`)) return true;
+    return false;
+}
+
+function hostMatchesCompetitorDomain(citationHost, compDomain) {
+    if (!citationHost || !compDomain) return false;
+    const h = String(citationHost).replace(/^www\./, '').toLowerCase();
+    const c = String(compDomain).replace(/^www\./, '').toLowerCase();
+    if (c.length < 2) return false;
+    if (h === c) return true;
+    if (h.endsWith(`.${c}`)) return true;
+    return false;
+}
+
 function categorizeDomain(domain, brandDomain, competitorDomains = []) {
     const d = domain.toLowerCase();
     const brandD = brandDomain?.toLowerCase().replace('www.', '') || '';
-    if (brandD && (d === brandD || d.includes(brandD.split('.')[0]))) return 'owned';
+    if (brandD && hostMatchesBrandDomain(d, brandD)) return 'owned';
     for (const comp of competitorDomains) {
         const c = comp.toLowerCase().replace('www.', '');
-        if (d === c || d.includes(c.split('.')[0])) return 'competitor';
+        if (hostMatchesCompetitorDomain(d, c)) return 'competitor';
     }
     for (const pattern of DOMAIN_CATEGORIES.forum) { if (d.includes(pattern)) return 'forum'; }
     for (const pattern of DOMAIN_CATEGORIES.social) { if (d.includes(pattern)) return 'social'; }
@@ -125,6 +197,42 @@ function decodeGoogleResultHref(href) {
     return null;
 }
 
+/** Match infaticaService: ChatGPT/OpenAI often wrap the real publisher URL in a chatgpt.com redirect. */
+function decodeOpenAiChatgptWrappedUrl(href) {
+    if (!href || typeof href !== 'string') return null;
+    let t = href.trim();
+    if (t.startsWith('//')) t = `https:${t}`;
+    if (!/^https?:\/\//i.test(t)) return null;
+    try {
+        const u = new URL(t);
+        const host = u.hostname.toLowerCase();
+        if (!host.endsWith('openai.com') && !host.endsWith('chatgpt.com')) return null;
+        for (const key of ['url', 'q', 'u', 'destination', 'to', 'target', 'link', 'src']) {
+            const inner = u.searchParams.get(key);
+            if (!inner) continue;
+            let dec = inner;
+            try {
+                dec = decodeURIComponent(inner.replace(/\+/g, ' '));
+            } catch { /* keep */ }
+            if (/^https?:\/\//i.test(dec)) return dec;
+        }
+    } catch {
+        return null;
+    }
+    return null;
+}
+
+function resolveCitationAnchorHref(raw) {
+    if (!raw || typeof raw !== 'string') return '';
+    const t = raw.trim();
+    if (!t) return '';
+    let href = t.startsWith('http') ? t : decodeGoogleResultHref(t);
+    if (!href && t.startsWith('//')) href = `https:${t}`;
+    if (!href) return '';
+    const unwrapped = decodeOpenAiChatgptWrappedUrl(href);
+    return unwrapped || href;
+}
+
 function extractLinksFromHtml(html) {
     if (!html) return [];
     try {
@@ -134,7 +242,7 @@ function extractLinksFromHtml(html) {
         $('a[href]').each((_, el) => {
             const raw = $(el).attr('href');
             const text = $(el).text().trim();
-            const href = raw?.startsWith('http') ? raw : decodeGoogleResultHref(raw || '');
+            const href = resolveCitationAnchorHref(raw || '');
             if (!href) return;
             try {
                 const url = new URL(href);
@@ -492,7 +600,8 @@ const PERPLEXITY_ANSWER_SELECTORS = [
 ].join(', ');
 
 const GEMINI_CHATGPT_SELECTORS = [
-    '[class*="response"]', '[class*="answer"]', '[class*="markdown"]', '[class*="model-response"]',
+    '[data-message-author-role="assistant"]',
+    '[class*="response"]', '[class*="answer"]', '[class*="markdown"]', '[class*="model-response"]', '[class*="prose"]',
     '.response-content', 'main article', '[class*="message-content"]', '[class*="conversation-turn"]',
 ].join(', ');
 
@@ -687,7 +796,7 @@ function extractSourcesFromAIText(text) {
         }
     }
 
-    return sources.slice(0, 30);
+    return sources.slice(0, 120);
 }
 
 // ── Brand / Competitor Mention Detection ─────────────────────────────────────
@@ -768,26 +877,33 @@ function capRawTextForStorage(text, maxLen = 12_000) {
     return text.slice(0, headLen) + sep + text.slice(-tailLen);
 }
 
-function buildRunData(text, sources, brandName, domain, competitors, engine) {
-    const textLower = text.toLowerCase();
+/**
+ * @param {object} [options]
+ * @param {string} [options.mentionContextText] — superset for mention/sentiment (e.g. answer + full page plain text)
+ * @param {string} [options.displayText] — body shown/stored as rawText when answer extractor is thin but page has content
+ */
+function buildRunData(text, sources, brandName, domain, competitors, engine, options = {}) {
+    const mentionBlock = (options.mentionContextText ?? text ?? '').trim();
+    const mentionLower = mentionBlock.toLowerCase();
+    const snippetSource = (options.displayText ?? text ?? '').trim() || mentionBlock;
     const domainClean = (domain || '').replace(/^www\./, '').toLowerCase();
     const competitorDomains = competitors.map(c => typeof c === 'string' ? c : c.domain || '').filter(Boolean);
 
     const brandAliases = getAliases(brandName, domain);
-    const brandMatch = checkMentions(textLower, brandAliases);
+    const brandMatch = checkMentions(mentionLower, brandAliases);
     const brandMentioned = brandMatch.count > 0;
 
     // Build entity list
     const allEntities = [];
     if (brandMentioned) {
-        const brandScore = lexicalSentiment0to100(textLower, brandName);
+        const brandScore = lexicalSentiment0to100(mentionLower, brandName);
         allEntities.push({
             name: brandName, domain,
             mentions: brandMatch.count,
             firstPosition: brandMatch.firstPos,
             sentiment: sentimentScoreToLabel(brandScore),
             sentimentScore: brandScore,
-            snippet: getSnippet(text, brandMatch.snippetTerm),
+            snippet: getSnippet(snippetSource, brandMatch.snippetTerm),
             isTargetBrand: true, isCompetitor: false,
         });
     }
@@ -797,16 +913,16 @@ function buildRunData(text, sources, brandName, domain, competitors, engine) {
         const cDomain = typeof comp === 'string' ? comp : comp.domain || '';
         if (!name) continue;
         const compAliases = getAliases(name, cDomain);
-        const compMatch = checkMentions(textLower, compAliases);
+        const compMatch = checkMentions(mentionLower, compAliases);
         if (compMatch.count > 0) {
-            const compScore = lexicalSentiment0to100(textLower, name);
+            const compScore = lexicalSentiment0to100(mentionLower, name);
             allEntities.push({
                 name, domain: cDomain.replace(/^www\./, ''),
                 mentions: compMatch.count,
                 firstPosition: compMatch.firstPos,
                 sentiment: sentimentScoreToLabel(compScore),
                 sentimentScore: compScore,
-                snippet: getSnippet(text, compMatch.snippetTerm),
+                snippet: getSnippet(snippetSource, compMatch.snippetTerm),
                 isTargetBrand: false, isCompetitor: true,
             });
         }
@@ -821,15 +937,16 @@ function buildRunData(text, sources, brandName, domain, competitors, engine) {
 
     const brandEntity = entities.find(e => e.isTargetBrand) || null;
 
-    // Build citations from sources
-    const citations = sources.slice(0, 15).map((s, idx) => ({
+    // Build citations from merged sources (deduped URLs, domains filled from URL when missing)
+    const mergedSources = dedupeSourcesForRun(sources);
+    const citations = mergedSources.slice(0, MAX_CITATIONS_PER_RUN).map((s, idx) => ({
         url: s.url,
         domain: s.domain,
         title: s.title || s.text || '',
         citationPosition: idx + 1,
         category: categorizeDomain(s.domain, domainClean, competitorDomains),
-        isTargetBrand: domainClean ? s.domain.includes(domainClean.split('.')[0]) : false,
-        isCompetitor: competitorDomains.some(cd => s.domain.includes(cd.replace(/^www\./, '').split('.')[0])),
+        isTargetBrand: domainClean ? hostMatchesBrandDomain(s.domain, domainClean) : false,
+        isCompetitor: competitorDomains.some((cd) => hostMatchesCompetitorDomain(s.domain, cd)),
     }));
 
     const citationStats = {
@@ -842,6 +959,7 @@ function buildRunData(text, sources, brandName, domain, competitors, engine) {
         citationStats.byCategory[c.category] = (citationStats.byCategory[c.category] || 0) + 1;
     }
 
+    const bodyForStorage = (options.displayText ?? text ?? '').trim() || mentionBlock;
     return {
         engine,
         brandMentioned,
@@ -849,8 +967,8 @@ function buildRunData(text, sources, brandName, domain, competitors, engine) {
         entities,
         citations,
         citationStats,
-        textLength: text.length,
-        rawText: capRawTextForStorage(text, 12_000),
+        textLength: bodyForStorage.length,
+        rawText: capRawTextForStorage(bodyForStorage, 12_000),
     };
 }
 
@@ -901,8 +1019,39 @@ export function parseResponse(infaticaResult, brandName, domain, competitors, en
                 seenUrls.add(key);
             }
         }
+        // JSON `sources` is sometimes empty while the same payload includes HTML with real links
+        if (html && html.length > 200) {
+            for (const l of extractLinksFromHtml(html)) {
+                let key = l.url;
+                try {
+                    key = new URL(l.url).href;
+                } catch { /* keep */ }
+                if (!seenUrls.has(key)) {
+                    seenUrls.add(key);
+                    structuredSources.push({
+                        url: l.url,
+                        domain: l.domain,
+                        title: (l.text || '').slice(0, 500),
+                    });
+                }
+            }
+        }
+        let mentionContext = text;
+        let displayText = text;
+        if (html && html.length > 200) {
+            const plain = stripHtmlToPlain(html, 28000);
+            if (plain.length > 60) {
+                mentionContext = `${text}\n\n${plain}`;
+                if (text.length < 120 && plain.length > text.length) {
+                    displayText = plain;
+                }
+            }
+        }
         console.log(`[Parser/${engine}] TEXT path: ${text.length}ch, ${structuredSources.length} sources`);
-        return buildRunData(text, structuredSources, brandName, domain, competitors, engine);
+        return buildRunData(text, structuredSources, brandName, domain, competitors, engine, {
+            mentionContextText: mentionContext.slice(0, 120000),
+            displayText,
+        });
     }
 
     if (html && html.length > 0) {
@@ -930,7 +1079,13 @@ export function parseResponse(infaticaResult, brandName, domain, competitors, en
                         seen.add(key);
                     }
                 }
-                const fallback = buildRunData(stripped, merged, brandName, domain, competitors, engine);
+                const mentionCtx =
+                    stripped.length > 0 && html.length > 200
+                        ? `${stripped}\n\n${stripHtmlToPlain(html, 20000)}`
+                        : stripped;
+                const fallback = buildRunData(stripped, merged, brandName, domain, competitors, engine, {
+                    mentionContextText: mentionCtx.slice(0, 120000),
+                });
                 fallback.citations = result.citations.length > 0 ? result.citations : fallback.citations;
                 return fallback;
             }
@@ -1020,15 +1175,19 @@ export function fastParse(html, brandName, domain, competitors, engine, extraSou
     if (!text) {
         const lastChance = html && html.length > 200 ? stripHtmlToPlain(html, 8000) : '';
         console.warn(`[Parser/${engine}] Thin HTML text (${html?.length || 0} chars HTML, ${linkSources.length} links); lastChance=${lastChance.length}ch`);
-        const citations = linkSources.slice(0, 15).map((s, idx) => ({
+        const dedupedThin = dedupeSourcesForRun(linkSources.map((l) => ({ url: l.url, domain: l.domain, title: l.title || l.text })));
+        const citations = dedupedThin.slice(0, MAX_CITATIONS_PER_RUN).map((s, idx) => ({
             url: s.url, domain: s.domain, title: s.title || '',
             citationPosition: idx + 1,
             category: categorizeDomain(s.domain, domainClean, competitorDomains),
-            isTargetBrand: domainClean ? s.domain.includes(domainClean.split('.')[0]) : false,
-            isCompetitor: competitorDomains.some(cd => s.domain.includes(cd.replace(/^www\./, '').split('.')[0])),
+            isTargetBrand: domainClean ? hostMatchesBrandDomain(s.domain, domainClean) : false,
+            isCompetitor: competitorDomains.some((cd) => hostMatchesCompetitorDomain(s.domain, cd)),
         }));
         if (lastChance.length >= 80) {
-            return buildRunData(lastChance, linkSources.map(l => ({ url: l.url, domain: l.domain, title: l.text })), brandName, domain, competitors, engine);
+            const mentionCtx = `${lastChance}\n\n${stripHtmlToPlain(html, 20000)}`.slice(0, 120000);
+            return buildRunData(lastChance, linkSources.map((l) => ({ url: l.url, domain: l.domain, title: l.text || '' })), brandName, domain, competitors, engine, {
+                mentionContextText: mentionCtx,
+            });
         }
         const fallbackMsg =
             linkSources.length > 0
@@ -1043,17 +1202,11 @@ export function fastParse(html, brandName, domain, competitors, engine, extraSou
         };
     }
 
-    const runData = buildRunData(text, linkSources, brandName, domain, competitors, engine);
-
-    const citations = linkSources.slice(0, 15).map((l, idx) => ({
-        url: l.url, domain: l.domain, title: l.title || '',
-        citationPosition: idx + 1,
-        category: categorizeDomain(l.domain, domainClean, competitorDomains),
-        isTargetBrand: domainClean ? l.domain.includes(domainClean.split('.')[0]) : false,
-        isCompetitor: competitorDomains.some(cd => l.domain.includes(cd.replace(/^www\./, '').split('.')[0])),
-    }));
-
-    return { ...runData, citations };
+    const plainForMentions = stripHtmlToPlain(html, 32000);
+    const mentionCtx = `${text}\n\n${plainForMentions}`.trim().slice(0, 120000);
+    return buildRunData(text, linkSources, brandName, domain, competitors, engine, {
+        mentionContextText: mentionCtx,
+    });
 }
 
 // ── Per-prompt Gemini sentiment (0–100), batched by promptId ─────────────────
@@ -1130,8 +1283,10 @@ function coalesceEnginesFromBatchJson(scores) {
  * One Gemini call per promptId: all engine excerpts in one request → JSON scores per engine.
  * Mutates run.brandEntity.sentimentScore and .sentiment in place.
  * Skips when GEMINI_API_KEY is unset or VISIBILITY_SKIP_LLM_SENTIMENT=1.
+ *
+ * @param {Function} [onProgress] — optional `( { done, total } ) => void | Promise` after each prompt-group (fixes “stuck” UI during long sequential sentiment phase).
  */
-export async function batchApplyGeminiSentimentByPrompt(allRuns, brandName) {
+export async function batchApplyGeminiSentimentByPrompt(allRuns, brandName, onProgress) {
     if (!process.env.GEMINI_API_KEY?.trim()) return;
     if (process.env.VISIBILITY_SKIP_LLM_SENTIMENT === '1') return;
     if (!brandName || !Array.isArray(allRuns) || allRuns.length === 0) return;
@@ -1144,9 +1299,22 @@ export async function batchApplyGeminiSentimentByPrompt(allRuns, brandName) {
         byPrompt.get(id).push(run);
     }
 
+    const jobs = [];
     for (const [, runs] of byPrompt) {
         if (!runs.some((r) => r.brandMentioned && r.brandEntity)) continue;
+        jobs.push(runs);
+    }
 
+    const totalJobs = jobs.length;
+    if (totalJobs === 0) return;
+
+    /** Run up to N prompt-groups in parallel per chunk — avoids counter races and speeds up vs strict sequential. */
+    const chunkSize = Math.min(
+        4,
+        Math.max(1, Number(process.env.VISIBILITY_SENTIMENT_CONCURRENCY) || 3),
+    );
+
+    async function processOneJob(runs) {
         const blocks = runs.map((r) => {
             const excerpt = String(r.rawText || '').replace(/\s+/g, ' ').trim().slice(0, 1400);
             return `${r.engine}:\n"""${excerpt || '(no text)'}"""`;
@@ -1162,7 +1330,7 @@ export async function batchApplyGeminiSentimentByPrompt(allRuns, brandName) {
             );
             const raw = result.response?.text?.() ?? '';
             const scores = parseJsonObjectLoose(raw);
-            if (!scores || typeof scores !== 'object') continue;
+            if (!scores || typeof scores !== 'object') return;
 
             const engines = coalesceEnginesFromBatchJson(scores);
             for (const r of runs) {
@@ -1178,6 +1346,25 @@ export async function batchApplyGeminiSentimentByPrompt(allRuns, brandName) {
         } catch (err) {
             console.warn('[GeminiSentiment] batch failed:', err.message);
         }
+    }
+
+    const report = async (done) => {
+        if (typeof onProgress !== 'function') return;
+        try {
+            await Promise.resolve(onProgress({ done, total: totalJobs }));
+        } catch {
+            /* ignore progress handler errors */
+        }
+    };
+
+    await report(0);
+
+    let done = 0;
+    for (let i = 0; i < jobs.length; i += chunkSize) {
+        const chunk = jobs.slice(i, i + chunkSize);
+        await Promise.all(chunk.map((runs) => processOneJob(runs)));
+        done += chunk.length;
+        await report(done);
     }
 }
 

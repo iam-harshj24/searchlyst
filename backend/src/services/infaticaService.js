@@ -217,10 +217,55 @@ function expandGoogleRedirectUrl(raw) {
     return '';
 }
 
+/**
+ * ChatGPT / OpenAI UIs and JSON often wrap the real source in a chatgpt.com or openai.com redirect.
+ * Without unwrapping, citations look like "openai" instead of the publisher URL.
+ */
+function unwrapOpenAiChatRedirectUrl(raw) {
+    if (raw == null || typeof raw !== 'string') return '';
+    let t = raw.trim();
+    if (t.startsWith('//')) t = `https:${t}`;
+    if (!/^https?:\/\//i.test(t)) return '';
+    try {
+        const u = new URL(t);
+        const host = u.hostname.toLowerCase();
+        if (!host.endsWith('openai.com') && !host.endsWith('chatgpt.com')) return '';
+        for (const key of ['url', 'q', 'u', 'destination', 'to', 'target', 'link', 'src']) {
+            const inner = u.searchParams.get(key);
+            if (!inner) continue;
+            let dec = inner;
+            try {
+                dec = decodeURIComponent(inner.replace(/\+/g, ' '));
+            } catch { /* keep inner */ }
+            if (/^https?:\/\//i.test(dec)) {
+                const n = normalizeSourceUrl(dec);
+                if (n) return n;
+            }
+        }
+    } catch {
+        return '';
+    }
+    return '';
+}
+
+/** Normalize a citation URL from JSON (Google redirects + OpenAI chat wrappers). */
+function chainUnwrapCitationUrl(s) {
+    if (!s || typeof s !== 'string') return '';
+    let u = expandGoogleRedirectUrl(s);
+    if (!u) u = normalizeSourceUrl(s);
+    if (!u) return '';
+    const inner = unwrapOpenAiChatRedirectUrl(u);
+    return inner || u;
+}
+
 /** Pull a citation/source URL from a string or object (Infatica and scrapers vary widely). */
 function urlFromSourceEntry(entry) {
-    if (typeof entry === 'string') return expandGoogleRedirectUrl(entry) || normalizeSourceUrl(entry);
+    if (typeof entry === 'string') return chainUnwrapCitationUrl(entry);
     if (!entry || typeof entry !== 'object') return '';
+    if (entry.url_citation && typeof entry.url_citation === 'object' && typeof entry.url_citation.url === 'string') {
+        const n = chainUnwrapCitationUrl(entry.url_citation.url);
+        if (n) return n;
+    }
     const direct =
         entry.url ??
         entry.href ??
@@ -230,15 +275,15 @@ function urlFromSourceEntry(entry) {
         entry.page_url ??
         entry.canonical_url;
     if (typeof direct === 'string') {
-        const n = expandGoogleRedirectUrl(direct) || normalizeSourceUrl(direct);
+        const n = chainUnwrapCitationUrl(direct);
         if (n) return n;
     }
     const src = entry.source;
     if (typeof src === 'string' && src.trim()) {
-        return expandGoogleRedirectUrl(src) || normalizeSourceUrl(src);
+        return chainUnwrapCitationUrl(src);
     }
     if (entry.metadata && typeof entry.metadata === 'object' && typeof entry.metadata.url === 'string') {
-        return expandGoogleRedirectUrl(entry.metadata.url) || normalizeSourceUrl(entry.metadata.url);
+        return chainUnwrapCitationUrl(entry.metadata.url);
     }
     return '';
 }
@@ -261,6 +306,8 @@ const SOURCE_ARRAY_KEYS = [
     'items', 'documents', 'chunks', 'footnotes', 'source_list', 'urls', 'results',
     'serp_results', 'annotations', 'citation_sources', 'used_sources', 'source_urls',
     'search_results_web', 'related_links', 'supporting_documents',
+    /** OpenAI / ChatGPT-style response metadata */
+    'content_references', 'tool_results', 'url_citation_results',
 ];
 
 /** Recurse into common LLM / Perplexity JSON nests that hold citations. */
@@ -279,7 +326,7 @@ function collectSourcesFromJson(obj) {
 
     const pushUrl = (url, title = '') => {
         if (typeof url !== 'string' || !url.trim()) return;
-        const u = expandGoogleRedirectUrl(url) || normalizeSourceUrl(url);
+        const u = chainUnwrapCitationUrl(url);
         if (!u || seen.has(u)) return;
         // Filter out tracking URLs and ad networks
         if (isTrackingOrAdUrl(u)) {
@@ -358,7 +405,7 @@ function collectSourcesFromJson(obj) {
         const link = node.link || node.url || node.href;
         const title = node.title || node.name || node.snippet || node.description || node.text || '';
         if (typeof link === 'string') {
-            const u = expandGoogleRedirectUrl(link) || normalizeSourceUrl(link);
+            const u = chainUnwrapCitationUrl(link);
             if (u) pushUrl(u, typeof title === 'string' ? title : '');
         }
         for (const v of Object.values(node)) {

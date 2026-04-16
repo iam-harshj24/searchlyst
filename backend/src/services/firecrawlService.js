@@ -28,7 +28,13 @@ export async function startCrawl(url, options = {}) {
         throw new Error(`Firecrawl error: ${response.status}`);
     }
 
-    return await response.json();
+    const json = await response.json();
+    const id = json.id || json.jobId;
+    if (!id) {
+        console.error('Firecrawl crawl start: missing job id in response', JSON.stringify(json).slice(0, 500));
+        throw new Error('Firecrawl did not return a crawl job id');
+    }
+    return { ...json, id };
 }
 
 export async function getCrawlStatus(jobId) {
@@ -43,6 +49,29 @@ export async function getCrawlStatus(jobId) {
     }
 
     return await response.json();
+}
+
+/**
+ * Firecrawl may split crawl results across pages (response.next). Merge all chunks before analysis.
+ */
+export async function getCrawlStatusWithAllData(jobId) {
+    const key = getApiKey();
+    let status = await getCrawlStatus(jobId);
+    let data = [...(status.data || [])];
+    let next = status.next;
+    let guard = 0;
+    while (next && guard++ < 30) {
+        const r = await fetch(next, { headers: { Authorization: `Bearer ${key}` } });
+        if (!r.ok) {
+            console.error('Firecrawl next-page error:', r.status, await r.text());
+            break;
+        }
+        const chunk = await r.json();
+        data = data.concat(chunk.data || []);
+        next = chunk.next || null;
+        if (chunk.status) status = { ...status, ...chunk, data };
+    }
+    return { ...status, data };
 }
 
 export async function fetchRobotsTxt(domain) {

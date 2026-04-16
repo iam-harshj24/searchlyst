@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -23,7 +23,7 @@ model User {
   visibilityScans VisibilityScan[]
   contents        Content[]
 
-  @@index([email], map: "idx_user_email")
+  @@index([email])
   @@map("users")
 }
 
@@ -35,7 +35,7 @@ model AdminUser {
   created_at    DateTime? @default(now())
   last_login    DateTime?
 
-  @@index([email], map: "idx_admin_email")
+  @@index([email])
   @@map("admin_users")
 }
 
@@ -49,8 +49,8 @@ model waitlist {
   created_at  DateTime? @default(now())
   updated_at  DateTime? @default(now())
 
-  @@index([email], map: "idx_waitlist_email")
-  @@index([status], map: "idx_waitlist_status")
+  @@index([email])
+  @@index([status])
 }
 
 model Project {
@@ -61,7 +61,6 @@ model Project {
   industry         String?
   companySize      String?
   location         String?
-  /// JSON array of up to 3 market labels (e.g. "Austin, TX", "India") for visibility prompts + Infatica region hint
   trackingLocations String?
   language         String?
   reach            String?
@@ -75,7 +74,6 @@ model Project {
   social_youtube   String?
   social_quora     String?
   social_tiktok    String?
-  /// Last extract: platform fetch metadata + inferred writingStyle (read-only; never used to post)
   socialIngestSnapshot String?
   created_at       DateTime?        @default(now())
   updated_at       DateTime?        @default(now())
@@ -84,8 +82,8 @@ model Project {
   auditJobs        AuditJob[]
   contents         Content[]
 
-  @@unique([userId, domain], map: "unique_user_domain")
-  @@index([userId], map: "idx_project_user")
+  @@unique([userId, domain])
+  @@index([userId])
   @@map("projects")
 }
 
@@ -103,8 +101,8 @@ model Content {
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   project    Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
-  @@index([userId], map: "idx_content_user")
-  @@index([projectId], map: "idx_content_project")
+  @@index([userId])
+  @@index([projectId])
   @@map("contents")
 }
 
@@ -122,8 +120,8 @@ model AuditJob {
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   project    Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
-  @@index([userId], map: "idx_audit_user")
-  @@index([projectId], map: "idx_audit_project")
+  @@index([userId])
+  @@index([projectId])
   @@map("audit_jobs")
 }
 
@@ -144,8 +142,204 @@ model VisibilityScan {
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   project    Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
-  @@index([userId], map: "idx_scan_user")
-  @@index([projectId], map: "idx_scan_project")
-  @@index([projectId, created_at], map: "idx_scan_project_date")
+  @@index([userId])
+  @@index([projectId])
+  @@index([projectId, created_at])
   @@map("visibility_scans")
+}
+
+model VisibilityDailySnapshot {
+  id                    Int      @id @default(autoincrement())
+  scanId                String   @unique
+  userId                Int
+  projectId             Int?
+  brandName             String
+  domain                String
+  scanDate              DateTime
+  
+  overallScore          Float?
+  visibilityScore       Float?
+  sovScore              Float?
+  positionScore         Float?
+  sentimentScore        Float?
+  
+  totalRuns             Int?
+  uniquePrompts         Int?
+  mentionedIn           Int?
+  
+  promptCoverage        Float?
+  promptsReached        Int?
+  totalPrompts          Int?
+  industryRank          Int?
+  sentimentTrendPct     Float?
+  effortTrendPct        Float?
+  
+  brandSov              Float?
+  brandMentions         Int?
+  brandAvgPosition      Float?
+  brandSentiment        Float?
+  totalEntityMentions   Int?
+  
+  sentimentPositivePct  Float?
+  sentimentNeutralPct   Float?
+  sentimentNegativePct  Float?
+  sentimentPositiveCount Int?
+  sentimentNeutralCount  Int?
+  sentimentNegativeCount Int?
+  sentimentIndex         Float?
+  sentimentTotal         Int?
+  
+  perplexityScore       Float?
+  perplexityRuns        Int?
+  perplexityMentions    Int?
+  geminiScore           Float?
+  geminiRuns            Int?
+  geminiMentions        Int?
+  chatgptScore          Float?
+  chatgptRuns           Int?
+  chatgptMentions       Int?
+  googleAIScore         Float?
+  googleAIRuns          Int?
+  googleAIMentions      Int?
+  
+  totalCitations        Int?
+  totalCitedUrls        Int?
+  
+  created_at            DateTime @default(now())
+  
+  @@index([userId, scanDate])
+  @@index([projectId, scanDate])
+  @@index([domain, scanDate])
+  @@index([scanDate])
+  @@map("visibility_daily_snapshots")
+}
+
+model CompetitorDailySnapshot {
+  id               Int      @id @default(autoincrement())
+  scanId           String
+  userId           Int
+  projectId        Int?
+  brandDomain      String
+  scanDate         DateTime
+  
+  competitorName   String
+  competitorDomain String?
+  isTargetBrand    Boolean  @default(false)
+  
+  sov              Float?
+  mentions         Int?
+  avgPosition      Float?
+  sentiment        Float?
+  promptCoverage   Float?
+  industryRank     Int?
+  sentimentIndex   Float?
+  
+  created_at       DateTime @default(now())
+  
+  @@index([scanId])
+  @@index([userId, scanDate])
+  @@index([projectId, scanDate])
+  @@index([brandDomain, competitorName, scanDate])
+  @@map("competitor_daily_snapshots")
+}
+
+model EngineDailySnapshot {
+  id         Int      @id @default(autoincrement())
+  scanId     String
+  userId     Int
+  projectId  Int?
+  domain     String
+  scanDate   DateTime
+  engine     String
+  score      Float?
+  runs       Int?
+  mentions   Int?
+  created_at DateTime @default(now())
+
+  @@index([scanId])
+  @@index([userId, engine, scanDate])
+  @@index([projectId, engine, scanDate])
+  @@map("engine_daily_snapshots")
+}
+
+model CategoryDailySnapshot {
+  id          Int      @id @default(autoincrement())
+  scanId      String
+  userId      Int
+  projectId   Int?
+  domain      String
+  scanDate    DateTime
+  category    String
+  score       Float?
+  mentioned   Int?
+  total       Int?
+  created_at  DateTime @default(now())
+
+  @@index([scanId])
+  @@index([userId, category, scanDate])
+  @@index([projectId, category, scanDate])
+  @@map("category_daily_snapshots")
+}
+
+model CitationDailySnapshot {
+  id              Int      @id @default(autoincrement())
+  scanId          String
+  userId          Int
+  projectId       Int?
+  brandDomain     String
+  scanDate        DateTime
+  citedDomain     String
+  category        String?
+  count           Int      @default(0)
+  uniqueUrls      Int?
+  isTargetBrand   Boolean  @default(false)
+  isCompetitor    Boolean  @default(false)
+  created_at      DateTime @default(now())
+
+  @@index([scanId])
+  @@index([userId, scanDate])
+  @@index([projectId, scanDate])
+  @@index([brandDomain, citedDomain, scanDate])
+  @@map("citation_daily_snapshots")
+}
+
+model AuditDailySnapshot {
+  id           Int      @id @default(autoincrement())
+  auditId      String   @unique
+  userId       Int
+  projectId    Int?
+  url          String
+  domain       String
+  auditDate    DateTime
+  overallScore Float?
+  seoScore     Float?
+  perfScore    Float?
+  a11yScore    Float?
+  issuesTotal  Int?
+  crawledPages Int?
+  created_at   DateTime @default(now())
+
+  @@index([userId, auditDate])
+  @@index([projectId, auditDate])
+  @@index([domain, auditDate])
+  @@map("audit_daily_snapshots")
+}
+
+model ContentDailyStat {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  projectId  Int?
+  statDate   DateTime
+  platform   String   @default("Blog")
+  itemsCount Int      @default(0)
+  published  Int      @default(0)
+  draft      Int      @default(0)
+  archived   Int      @default(0)
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+
+  @@unique([userId, projectId, statDate, platform])
+  @@index([userId, statDate])
+  @@index([projectId, statDate])
+  @@map("content_daily_stats")
 }

@@ -1,10 +1,10 @@
 # Deploy frontend to GitHub Pages
-# Requires: Add VITE_API_BASE_URL as a repository secret (Settings → Secrets)
+# Repository secrets: VITE_API_BASE_URL (backend /api base URL), VITE_GOOGLE_CLIENT_ID (optional, same as backend GOOGLE_CLIENT_ID)
 name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [main, update-prompts-and-feature-for-launch]
+    branches: [main, production, update-prompts-and-feature-for-launch]
   workflow_dispatch:
 
 permissions:
@@ -29,6 +29,7 @@ jobs:
         env:
           GITHUB_PAGES: "true"
           VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+          VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3

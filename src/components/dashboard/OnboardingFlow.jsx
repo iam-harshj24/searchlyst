@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     ArrowRight, ArrowLeft, Globe, Building2, Users, MapPin,
     Languages, Target, Loader2, Sparkles, CheckCircle2, Search,
@@ -124,7 +124,13 @@ export default function OnboardingFlow({ userId, onComplete, mode = 'firstTime' 
     const [competitors, setCompetitors] = useState(['', '', '']);
     const [suggestedCompetitors, setSuggestedCompetitors] = useState([]);
     const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+    const [suggestError, setSuggestError] = useState('');
     const [reSuggestTimer, setReSuggestTimer] = useState(null);
+    /** Dedupe prefetch requests while step 3 fields are filled (same key = one in-flight call). */
+    const competitorSuggestKeyRef = useRef(null);
+    /** One backup fetch when landing on step 4 if suggestions are still empty (prefetch missed or failed). */
+    const step4BackupFetchDoneRef = useRef(false);
+    const suggestInFlightRef = useRef(false);
 
     // Step 5: Source (skipped in addProject mode)
     const [source, setSource] = useState('');
@@ -143,27 +149,60 @@ export default function OnboardingFlow({ userId, onComplete, mode = 'firstTime' 
         return () => clearInterval(interval);
     }, []);
 
-    // Fetch competitor suggestions when entering step 4
+    const competitorParamsReady =
+        Boolean(
+            domain?.trim() && brandName?.trim() && industry?.trim() && companySize
+            && location?.trim() && language && reach,
+        );
+
+    // Prefetch competitor suggestions as soon as step 3 is complete (loads during step 3 so step 4 feels instant)
     useEffect(() => {
-        if (step === 4 && domain && brandName && industry && suggestedCompetitors.length === 0) {
-            fetchCompetitorSuggestions();
+        if (step !== 3 || !competitorParamsReady) return;
+
+        const key = [domain, brandName, industry, companySize, location, language, reach].join('\x1e');
+        if (key === competitorSuggestKeyRef.current) return;
+        competitorSuggestKeyRef.current = key;
+        fetchCompetitorSuggestions();
+    }, [step, domain, brandName, industry, companySize, location, language, reach, competitorParamsReady]);
+
+    // If prefetch did not populate the list (never ran, failed, or user advanced before completion), fetch on step 4 once
+    useEffect(() => {
+        if (step !== 4 || !competitorParamsReady) {
+            if (step !== 4) step4BackupFetchDoneRef.current = false;
+            return;
         }
-    }, [step, domain, brandName, industry]);
+        if (suggestedCompetitors.length > 0 || loadingSuggestions) return;
+        if (step4BackupFetchDoneRef.current) return;
+        step4BackupFetchDoneRef.current = true;
+        fetchCompetitorSuggestions();
+    }, [step, competitorParamsReady, domain, brandName, industry, companySize, location, language, reach, suggestedCompetitors.length, loadingSuggestions]);
 
     const fetchCompetitorSuggestions = async () => {
+        if (suggestInFlightRef.current) return;
+        suggestInFlightRef.current = true;
         setLoadingSuggestions(true);
+        setSuggestError('');
         try {
             const response = await apiClient.onboarding.suggestCompetitors({
-                domain, brandName, industry, companySize, location, language
+                domain, brandName, industry, companySize, location, language, reach,
             });
             if (response.competitors && Array.isArray(response.competitors)) {
                 setSuggestedCompetitors(response.competitors);
             }
         } catch (error) {
+            competitorSuggestKeyRef.current = null;
+            setSuggestError(error?.message || 'Could not load suggestions. Check that the API is running and try again.');
             console.error('Failed to fetch competitor suggestions:', error);
         } finally {
+            suggestInFlightRef.current = false;
             setLoadingSuggestions(false);
         }
+    };
+
+    const retryCompetitorSuggestions = () => {
+        step4BackupFetchDoneRef.current = false;
+        competitorSuggestKeyRef.current = null;
+        fetchCompetitorSuggestions();
     };
 
     const addCompetitor = (competitor) => {
@@ -234,6 +273,9 @@ export default function OnboardingFlow({ userId, onComplete, mode = 'firstTime' 
                     competitors: comps, location: ud.location || '', language: ud.language || 'English',
                     country: ud.location?.toLowerCase().includes('india') ? 'IN' : '',
                     projectId: ud.projectId || undefined,
+                    companySize: ud.companySize,
+                    reach: ud.reach,
+                    isAgency: ud.isAgency,
                 });
                 if (res.scanId) {
                     const key = activeScanStorageKey(uid, ud.domain, ud.projectId);
@@ -622,10 +664,21 @@ export default function OnboardingFlow({ userId, onComplete, mode = 'firstTime' 
                                         );
                                     })}
                                 </div>
+                            ) : suggestError ? (
+                                <div className="flex flex-col gap-2 p-3 bg-[#111]/40 rounded-xl border border-[#331111]">
+                                    <p className="text-[12px] text-[#ccc] leading-relaxed">{suggestError}</p>
+                                    <button
+                                        type="button"
+                                        onClick={retryCompetitorSuggestions}
+                                        className="self-start text-[12px] font-medium text-[#E92A15] hover:underline"
+                                    >
+                                        Try again
+                                    </button>
+                                </div>
                             ) : (
                                 <div className="flex items-start gap-3 p-3 bg-[#111]/40 rounded-xl border border-[#222]">
                                     <p className="text-[12px] text-[#888] leading-relaxed italic">
-                                        Enter your domain and industry to get AI-powered competitor suggestions.
+                                        AI suggestions will appear here. If this stays empty, use &quot;Try again&quot; or add competitors manually above.
                                     </p>
                                 </div>
                             )}

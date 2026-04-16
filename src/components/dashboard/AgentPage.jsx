@@ -27,7 +27,7 @@ function buildAnalyticsSnapshot(user, scanResult) {
     if (r.score?.components) {
         const c = r.score.components;
         lines.push(
-            `Score components (0–100 scale): visibility ${c.visibility}, share of voice ${c.shareOfVoice}, position ${c.position}, sentiment ${c.sentiment}`,
+            `Score components (0–100 scale): visibility ${c.visibility}, share of voice ${c.shareOfVoice}, position ${c.position}${c.avgPositionRank != null ? ` (avg rank ${c.avgPositionRank}, lower is better)` : ''}, sentiment ${c.sentiment}`,
         );
     }
     if (r.shareOfVoice?.brand) {

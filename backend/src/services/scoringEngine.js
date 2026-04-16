@@ -2,14 +2,15 @@ import { createHash } from 'crypto';
 import { attachGeoBriefsToGaps } from './geoPlaybook.js';
 
 /**
- * Scoring Engine — AI Visibility & Share of Voice
+ * Scoring Engine — AI Visibility & Share of Voice (Peec-style metrics)
  *
  * Methodology:
- *   1. Visibility Score  = (prompts where brand appeared / total prompts) × 100
- *   2. Share of Voice     = (brand mentions / total mentions across all brands) × 100
- *   3. Position Score     = avg(1/rank) on runs with positionRank, / MAX_RECIPROCAL_RANK → 0-100
- *   4. Sentiment Score    = average of run-level brandEntity sentiment (one vote per engine run where brand appears), same labels as sentiment breakdown, mapped to 0-100
- *   5. AI Presence Index  = Vis×0.30 + SOV×0.30 + Pos×0.20 + Sent×0.20
+ *   1. Visibility        = (responses mentioning brand ÷ total responses) × 100 (here: engine runs with data)
+ *   2. Share of Voice    = (your mentions ÷ your mentions + listed competitor mentions) × 100 — tracked pool only
+ *   3. Position (Peec)   = average rank when brand appears (1 = best; lower is better)
+ *   4. Position (composite) = maps avg rank to 0–100 for the index via min(100, 100 / avgRank); higher = better
+ *   5. Sentiment Score   = average of run-level brandEntity sentiment (one vote per run where brand appears), mapped to 0–100
+ *   6. AI Presence Index = Vis×0.30 + SOV×0.30 + Pos×0.20 + Sent×0.20
  */
 
 /**
@@ -19,9 +20,6 @@ import { attachGeoBriefsToGaps } from './geoPlaybook.js';
  * Missing keys are not neutral — use getSentimentWeight (0) vs getSentimentBucket (neutral for charts).
  */
 const SENTIMENT_VALUES = { positive: 1, neutral: 0.25, negative: -1 };
-
-/** Rank 1 ⇒ reciprocal 1.0 ⇒ 100 after scaling. */
-const MAX_RECIPROCAL_RANK = 1.0;
 
 function getSentimentWeight(label) {
     return SENTIMENT_VALUES[label] ?? 0;
@@ -39,45 +37,51 @@ function humanizeCategory(cat) {
     return String(cat).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
-export function computeVisibilityScore(allRunResults, brandName) {
+export function computeVisibilityScore(allRunResults, brandName, competitors = []) {
     const totalResults = allRunResults.length;
     if (totalResults === 0) return { overall: 0, components: {}, totalRuns: 0, uniquePrompts: 0, mentionedIn: 0 };
 
-    // 1. AI Visibility Score — binary appearance rate
+    const brandKey = normEntityKey(brandName);
+    const trackedCompetitorKeys = new Set(
+        (competitors || []).map((c) => normEntityKey(typeof c === 'string' ? c : c.name)).filter(Boolean),
+    );
+
+    // 1. Visibility — responses (runs) where brand is mentioned
     const mentionedCount = allRunResults.filter(r => r.brandMentioned).length;
     const visibilityScore = (mentionedCount / totalResults) * 100;
 
-    // 2. AI Share of Voice — brand mentions / total mentions
+    // 2. Share of Voice — brand mentions ÷ (brand + listed competitor mentions) only
     let brandMentionCount = 0;
-    let totalMentionCount = 0;
+    let trackedPoolMentions = 0;
     for (const run of allRunResults) {
-        for (const entity of (run.entities || [])) {
+        for (const entity of run.entities || []) {
+            if (!entity.name) continue;
             const mentions = entity.mentions || 1;
-            totalMentionCount += mentions;
-            if (entity.isTargetBrand) brandMentionCount += mentions;
+            const k = normEntityKey(entity.name);
+            const isBrand = entity.isTargetBrand || k === brandKey;
+            const isTrackedCompetitor = !isBrand && trackedCompetitorKeys.has(k);
+            if (!isBrand && !isTrackedCompetitor) continue;
+            if (isBrand) brandMentionCount += mentions;
+            trackedPoolMentions += mentions;
         }
     }
-    const sovScore = totalMentionCount > 0 ? (brandMentionCount / totalMentionCount) * 100 : 0;
+    const sovScore = trackedPoolMentions > 0 ? (brandMentionCount / trackedPoolMentions) * 100 : 0;
 
-    // 3. Position Score — avg reciprocal rank, scaled by MAX_RECIPROCAL_RANK (rank 1 → 100)
-    //    positionRank 1 = mentioned first → reciprocal 1.0 → score 100
-    //    positionRank 2 = mentioned second → reciprocal 0.5 → score 50
-    //    positionRank 3 → reciprocal 0.33 → score 33, etc.
-    let positionWeightedSum = 0;
+    // 3. Position — average rank across responses where brand appears (Peec); composite uses 100/rank (higher = better)
+    let positionRankSum = 0;
     let positionCount = 0;
     for (const run of allRunResults) {
         if (!run.brandMentioned) continue;
-        // Defensive: ensure positionRank is a positive number (handles string, null, 0, negative)
         const posRank = Number(run.brandEntity?.positionRank);
         if (posRank > 0 && Number.isFinite(posRank)) {
-            positionWeightedSum += 1 / posRank;
+            positionRankSum += posRank;
             positionCount++;
         }
     }
-    const avgReciprocalRank = positionCount > 0 ? positionWeightedSum / positionCount : 0;
+    const avgPositionRank = positionCount > 0 ? positionRankSum / positionCount : null;
     const positionScore =
-        positionCount > 0
-            ? Math.min((avgReciprocalRank / MAX_RECIPROCAL_RANK) * 100, 100)
+        avgPositionRank != null && avgPositionRank > 0
+            ? Math.min(100, Math.round(100 / avgPositionRank))
             : 0;
 
     // 4. Sentiment Score — one sample per run from brandEntity (same basis as computeSentimentBreakdown + SOV target row)
@@ -109,6 +113,9 @@ export function computeVisibilityScore(allRunResults, brandName) {
             shareOfVoice: Math.round(sovScore),
             position: Math.round(positionScore),
             sentiment: Math.round(Math.min(100, Math.max(0, sentimentScore))),
+            ...(avgPositionRank != null
+                ? { avgPositionRank: Math.round(avgPositionRank * 10) / 10 }
+                : {}),
         },
         totalRuns: totalResults,
         uniquePrompts,
@@ -177,25 +184,38 @@ export function computeShareOfVoice(allRunResults, brandName, competitors, brand
         touchDisplay(row, name);
     }
 
+    /** Peec SoV pool: brand + listed competitors only (not every extracted entity). */
+    const trackedNormKeys = new Set([brandKey]);
+    for (const comp of competitors) {
+        const name = typeof comp === 'string' ? comp : comp.name;
+        const nk = normEntityKey(name);
+        if (nk) trackedNormKeys.add(nk);
+    }
+
     for (const run of allRunResults) {
         for (const entity of run.entities || []) {
             const raw = entity.name;
             if (!raw) continue;
             const k = normEntityKey(raw);
-            const row = ensure(raw, { isTarget: k === brandKey });
-            if (k === brandKey) row.isTarget = true;
+            const row = entity.isTargetBrand
+                ? byKey[brandKey]
+                : k === brandKey
+                  ? byKey[brandKey]
+                  : trackedNormKeys.has(k)
+                    ? byKey[k]
+                    : null;
+            if (!row) continue;
+            if (k === brandKey || entity.isTargetBrand) row.isTarget = true;
             touchDisplay(row, raw);
             if (entity.domain && !row.domain) {
                 row.domain = String(entity.domain).replace(/^www\./, '');
             }
             row.mentions += entity.mentions || 1;
-            // Defensive: ensure positionRank is a positive number
             const posRank = Number(entity.positionRank);
             if (posRank > 0 && Number.isFinite(posRank)) {
                 row.totalPosition += posRank;
                 row.positionCount++;
             }
-            // Competitor sentiment: one vote per run from dominant entity row (see loop below).
         }
     }
 
@@ -450,8 +470,13 @@ export function computeSourceDomains(allRunResults) {
         byCategory[d.category] = (byCategory[d.category] || 0) + d.count;
     }
 
+    /** Full sorted list (desc by count). Optional cap via SOURCE_DOMAINS_MAX for very large scans. */
+    const maxRows = Number(process.env.SOURCE_DOMAINS_MAX);
+    const capped =
+        Number.isFinite(maxRows) && maxRows > 0 ? domains.slice(0, maxRows) : domains;
+
     return {
-        topDomains: domains.slice(0, 20),
+        topDomains: capped,
         byCategory,
         totalCitations: domains.reduce((sum, d) => sum + d.count, 0),
     };

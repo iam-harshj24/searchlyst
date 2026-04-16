@@ -175,3 +175,23 @@ export function readVisibilityCache(authUserId, domain, projectId) {
         return null;
     }
 }
+
+/**
+ * Removes all `searchlyst_*` localStorage keys for this origin (visibility, audits, active scans, brand hub, etc.).
+ * Does not remove `authToken` / `user` — you stay signed in. DevTools: `__clearSearchlystCache?.()` when exposed.
+ */
+export function clearAllSearchlystLocalStorageCaches() {
+    const removed = [];
+    try {
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+            const k = localStorage.key(i);
+            if (k && k.startsWith('searchlyst')) {
+                localStorage.removeItem(k);
+                removed.push(k);
+            }
+        }
+    } catch {
+        /* ignore */
+    }
+    return { removedCount: removed.length, keys: removed };
+}

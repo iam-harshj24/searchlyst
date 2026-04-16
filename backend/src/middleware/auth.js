@@ -1,7 +1,5 @@
 import jwt from 'jsonwebtoken';
-import dotenv from 'dotenv';
-
-dotenv.config();
+import '../loadEnv.js';
 
 const defaultSecret = 'your-secret-key-change-this-in-production';
 const JWT_SECRET = process.env.JWT_SECRET || defaultSecret;

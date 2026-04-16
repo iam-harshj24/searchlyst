@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+!.env.production.example
 
 # Deployment (contains secrets)
 deploy.config
@@ -19,6 +20,7 @@ lerna-debug.log*
 
 node_modules
 dist
+backend/exports
 test-results
 playwright-report
 dist-ssr

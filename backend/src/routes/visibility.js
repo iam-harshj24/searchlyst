@@ -11,6 +11,8 @@ import {
     suggestCompetitors,
     postCitationIntelligence,
     postCitationUrlInsights,
+    getVisibilitySnapshots,
+    getCompetitorSnapshots
 } from '../controllers/visibilityController.js';
 import { authenticateToken } from '../middleware/auth.js';
 
@@ -26,6 +28,8 @@ router.post('/suggest-competitors', suggestCompetitors);
 router.post('/citation-intelligence', postCitationIntelligence);
 router.post('/citation-url-insights', postCitationUrlInsights);
 router.get('/scans', listScans);
+router.get('/snapshots', getVisibilitySnapshots);
+router.get('/competitor-snapshots', getCompetitorSnapshots);
 router.get('/latest', getLatestScan);
 router.get('/history', getScanHistory);
 router.get('/:id/status', getScanStatus);

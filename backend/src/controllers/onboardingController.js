@@ -2,7 +2,16 @@ import { suggestCompetitors } from '../services/aiService.js';
 
 export async function getCompetitorSuggestions(req, res) {
     try {
-        const { domain, brandName, industry, companySize, location, language, reach } = req.body;
+        const {
+            domain,
+            brandName,
+            industry,
+            companySize,
+            location,
+            language,
+            reach,
+            grounding,
+        } = req.body;
 
         if (!domain || !brandName || !industry) {
             return res.status(400).json({
@@ -19,6 +28,7 @@ export async function getCompetitorSuggestions(req, res) {
             location,
             language,
             reach,
+            grounding: grounding === true,
         });
 
         res.json({ success: true, competitors });

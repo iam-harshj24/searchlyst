@@ -33,16 +33,16 @@ try {
     assert(Array.isArray(prompts), 'Returns array');
     assert(prompts.length === 20, 'Returns exactly 20 Super prompts');
     assert(prompts.every(p => p.core && p.category && p.id && p.intent), 'Each prompt has core, category, id, intent');
-    const cats = new Set(prompts.map(p => p.category));
-    assert(cats.has('visibility'), 'Has visibility');
+    const cats = new Set(prompts.map((p) => p.category));
     assert(cats.has('ranking'), 'Has ranking');
     assert(cats.has('share_of_voice'), 'Has share_of_voice');
-    assert(cats.has('geo_context'), 'Has geo_context');
-    assert(cats.has('deep_probe'), 'Has deep_probe');
-    assert(prompts[0].id === 'P01' && prompts[19].id === 'P20', 'P01–P20 ids');
-    assert(prompts.every(p => typeof p.weight === 'number' && p.weight > 0), 'Each prompt has a numeric weight > 0');
-    assert(prompts.every(p => typeof p.includesBrand === 'boolean'), 'Each prompt has boolean includesBrand');
-    pass('generateFallbackPrompts: 20 prompts, 5 layer categories, weights + includesBrand set');
+    assert(cats.has('competitor_tracking'), 'Has competitor_tracking');
+    assert(cats.has('geo_location'), 'Has geo_location');
+    assert(cats.has('trust_sentiment'), 'Has trust_sentiment');
+    assert(prompts[0].id === 'P1' && prompts[19].id === 'P20', 'P1–P20 ids');
+    assert(prompts.every((p) => typeof p.weight === 'number' && p.weight > 0), 'Each prompt has a numeric weight > 0');
+    assert(prompts.every((p) => typeof p.includesBrand === 'boolean'), 'Each prompt has boolean includesBrand');
+    pass('generateFallbackPrompts: 20 prompts, matrix categories, weights + includesBrand set');
 } catch (e) {
     console.error('  ✗', e.message);
 }

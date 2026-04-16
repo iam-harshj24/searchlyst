@@ -7,6 +7,36 @@ function getModel() {
     return getGeminiGenerativeModel();
 }
 
+async function upsertContentStat(userId, projectId, platform, statusDelta) {
+    try {
+        const statDate = new Date();
+        statDate.setUTCHours(0, 0, 0, 0);
+        const pId = projectId ? parseInt(projectId, 10) : null;
+        const existingInfo = await prisma.contentDailyStat.findFirst({
+            where: { userId, projectId: pId, statDate, platform }
+        });
+
+        const data = { updated_at: new Date() };
+        if (statusDelta === 'draft') { data.draft = { increment: 1 }; data.itemsCount = { increment: 1 }; }
+        else if (statusDelta === 'published') { data.draft = { decrement: 1 }; data.published = { increment: 1 }; }
+        else if (statusDelta === 'archived') { data.draft = { decrement: 1 }; data.archived = { increment: 1 }; } 
+
+        if (existingInfo) {
+            await prisma.contentDailyStat.update({ where: { id: existingInfo.id }, data });
+        } else {
+            await prisma.contentDailyStat.create({
+                data: {
+                    userId, projectId: pId, statDate, platform,
+                    draft: statusDelta === 'draft' ? 1 : 0,
+                    published: statusDelta === 'published' ? 1 : 0,
+                    archived: statusDelta === 'archived' ? 1 : 0,
+                    itemsCount: statusDelta === 'draft' ? 1 : 0
+                }
+            });
+        }
+    } catch(err) { console.error('content stat error', err); }
+}
+
 export async function listContent(req, res) {
     try {
         const userId = req.user.id;
@@ -123,6 +153,8 @@ export async function generateArticle(req, res) {
             },
         });
 
+        await upsertContentStat(userId, projectId, platformName, 'draft');
+
         res.json({ success: true, article, id: saved.id });
     } catch (error) {
         console.error('Content generation error:', error);
@@ -223,6 +255,10 @@ export async function updateContent(req, res) {
             where: { id },
             data: { status, updated_at: new Date() },
         });
+        
+        if (row.status === 'draft' && (status === 'published' || status === 'archived')) {
+            await upsertContentStat(userId, row.projectId, row.platform, status);
+        }
         return res.json({ success: true });
     } catch (error) {
         console.error('Update content error:', error);
@@ -247,4 +283,17 @@ export async function deleteContent(req, res) {
         console.error('Delete content error:', error);
         return res.status(500).json({ success: false, message: error.message });
     }
+}
+
+export async function getContentStats(req, res) {
+    try {
+        const userId = req.user.id;
+        const { projectId } = req.query;
+        if (!projectId) return res.status(400).json({ success: false, message: 'projectId is required' });
+        const data = await prisma.contentDailyStat.findMany({
+            where: { userId, projectId: parseInt(projectId, 10) },
+            orderBy: { statDate: 'asc' },
+        });
+        res.json({ success: true, data });
+    } catch(err) { res.status(500).json({ success: false, message: err.message }); }
 }

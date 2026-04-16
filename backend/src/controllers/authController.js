@@ -15,7 +15,7 @@ export const createAnonymous = async (req, res) => {
       error?.code === 'P1001' ||
       /Can't reach database server|Connection refused|ECONNREFUSED|timeout|ETIMEDOUT|ENOTFOUND/i.test(error?.message || '');
     const message = isDbUnreachable
-      ? 'Database unavailable. Check DATABASE_URL and ensure PostgreSQL is running and reachable.'
+      ? 'Database unavailable. Check DATABASE_URL in backend/.env (SQLite file path or server URL) and that the database is reachable.'
       : 'Failed to create anonymous user';
     res.status(500).json({
       success: false,
@@ -108,7 +108,7 @@ export const verifyOtp = async (req, res) => {
       error?.code === 'P1001' ||
       /Can't reach database server|Connection refused|ECONNREFUSED|timeout|ETIMEDOUT|ENOTFOUND/i.test(error?.message || '');
     const message = isDbUnreachable
-      ? 'Database unavailable. Check DATABASE_URL and ensure PostgreSQL is running and reachable.'
+      ? 'Database unavailable. Check DATABASE_URL in backend/.env (SQLite file path or server URL) and that the database is reachable.'
       : 'Verification failed. Could not create user.';
     res.status(500).json({
       success: false,
@@ -148,7 +148,7 @@ export const login = async (req, res) => {
       error?.code === 'P1001' ||
       /Can't reach database server|Connection refused|ECONNREFUSED|timeout|ETIMEDOUT|ENOTFOUND/i.test(error?.message || '');
     const message = isDbUnreachable
-      ? 'Database unavailable. Check DATABASE_URL and ensure PostgreSQL is running and reachable.'
+      ? 'Database unavailable. Check DATABASE_URL in backend/.env (SQLite file path or server URL) and that the database is reachable.'
       : 'Login failed';
     res.status(500).json({
       success: false,
@@ -193,9 +193,16 @@ export const loginWithGoogle = async (req, res) => {
 };
 
 export const verifyToken = async (req, res) => {
+  const { id, email, name, role, onboarded } = req.user;
   res.json({
     success: true,
-    user: req.user,
+    user: {
+      id,
+      email,
+      name,
+      role,
+      onboarded: onboarded !== undefined ? onboarded : role === 'admin',
+    },
   });
 };
 

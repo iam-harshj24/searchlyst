@@ -1339,7 +1339,7 @@ export default function AIVisibilityPage({ user, scanManager, onTabChange }) {
                                     <div>
                                         <h3 className="text-white font-semibold text-[15px] mb-0.5">Source domains</h3>
                                         <p className="text-white text-[12px] leading-snug">
-                                            {filteredRows.length} domain{filteredRows.length !== 1 ? 's' : ''} · Per row: which{' '}
+                                            {filteredRows.length} domain{filteredRows.length !== 1 ? 's' : ''} (all from this scan, by citation volume) · Per row: which{' '}
                                             <span className="text-white/90">models cited that domain</span>, share of volume, and format hints.
                                         </p>
                                     </div>
@@ -1399,6 +1399,7 @@ export default function AIVisibilityPage({ user, scanManager, onTabChange }) {
                                                 const engineKeys = collectEnginesForCitationRow(c, r?.prompts || [], normDom);
                                                 const byEngine = buildStackStatesFromEngineKeyList(engineKeys);
                                                 const contentFormat = classifyDomainContentType(c.domain);
+                                                const roleLabel = c.isTargetBrand ? 'Your brand' : c.isCompetitor ? 'Competitor' : null;
                                                 return (
                                                 <tr key={i} className={`border-b border-[#1f1f1f] transition-colors hover:bg-[#141414]/80 ${c.isTargetBrand ? 'bg-emerald-500/[0.04]' : ''}`}>
                                                     <td className="py-3.5 pl-4 align-top">
@@ -1411,9 +1412,6 @@ export default function AIVisibilityPage({ user, scanManager, onTabChange }) {
                                                                     <span className="truncate max-w-[200px]">{c.domain}</span>
                                                                     <ExternalLink className="w-3 h-3 opacity-50 shrink-0" />
                                                                 </a>
-                                                                <p className="text-[11px] text-white mt-0.5 tabular-nums">
-                                                                    {sharePct.toFixed(1)}% of citation volume in this list
-                                                                </p>
                                                             </div>
                                                         </div>
                                                     </td>
@@ -1432,9 +1430,11 @@ export default function AIVisibilityPage({ user, scanManager, onTabChange }) {
                                                     </td>
                                                     <td className="py-3.5 px-2 align-top">
                                                         <div className="flex flex-col gap-1.5">
-                                                            <span className="inline-flex w-fit rounded-full px-2.5 py-0.5 text-[11px] font-medium bg-[#2a2a2a] border border-[#3a3a3a] text-white">
-                                                                {classifyCitationRow(c)}
-                                                            </span>
+                                                            {roleLabel && (
+                                                                <span className="inline-flex w-fit rounded-full px-2.5 py-0.5 text-[11px] font-medium bg-[#2a2a2a] border border-[#3a3a3a] text-white">
+                                                                    {roleLabel}
+                                                                </span>
+                                                            )}
                                                             <span className="inline-flex w-fit rounded-md px-2 py-0.5 text-[10px] font-medium bg-[#1a1a1a] text-white/90 border border-[#333]" title="Inferred site format from domain">
                                                                 {contentFormat}
                                                             </span>

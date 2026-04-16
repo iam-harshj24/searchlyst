@@ -179,7 +179,7 @@ export function buildPlatformResults(allRuns, prompts, brandName, competitors, d
             engine,
             platformName: PLATFORM_NAMES[engine],
             allRuns: engineRuns,
-            score: computeVisibilityScore(dataRuns, brandName),
+            score: computeVisibilityScore(dataRuns, brandName, competitors),
             shareOfVoice: computeShareOfVoice(dataRuns, brandName, competitors, domain),
             perCategory: computePerCategory(dataRuns),
             sentiment: computeSentimentBreakdown(dataRuns),
@@ -205,23 +205,39 @@ export function buildPlatformResults(allRuns, prompts, brandName, competitors, d
  * all prompts with its own concurrency level.
  */
 export async function runAllAgentsInParallel(agentConfig, onAgentProgress, onEarlyResults) {
-    const { brandName, domain, industry, competitors, location, country, language, trackingLocations } = agentConfig;
+    const {
+        brandName,
+        domain,
+        industry,
+        competitors,
+        location,
+        country,
+        language,
+        trackingLocations,
+        companySize,
+        reach,
+        isAgency,
+    } = agentConfig;
+
+    const brandForPrompts = {
+        brandName,
+        domain,
+        industry,
+        competitors,
+        location,
+        language,
+        trackingLocations,
+        companySize,
+        reach,
+        isAgency,
+    };
 
     let prompts;
     try {
-        prompts = await generatePromptMatrixForPlatform(
-            { brandName, domain, industry, competitors, location, language, trackingLocations }, 'general',
-        );
+        prompts = await generatePromptMatrixForPlatform(brandForPrompts, 'general');
     } catch (err) {
         console.warn('[Agents] Prompt generation failed, using fallback:', err.message);
-        prompts = generateFallbackPrompts({
-            brandName,
-            domain,
-            industry,
-            competitors,
-            location,
-            trackingLocations,
-        });
+        prompts = generateFallbackPrompts(brandForPrompts);
     }
 
     const totalCalls = prompts.length * ENGINES.length;
@@ -278,22 +294,22 @@ export async function runAllAgentsInParallel(agentConfig, onAgentProgress, onEar
 
     const mergedRuns = [...perplexityRuns, ...geminiRuns, ...chatgptRuns, ...googleRuns];
 
-    // Infatica calls are done — UI otherwise looked "stuck" with no new progress until final save.
-    if (onAgentProgress) {
-        await Promise.resolve(
-            onAgentProgress({
+    try {
+        await batchApplyGeminiSentimentByPrompt(mergedRuns, brandName, async ({ done, total }) => {
+            if (!onAgentProgress) return;
+            const detail =
+                done === 0
+                    ? 'Engine calls finished. Starting Gemini sentiment scoring (per prompt group)…'
+                    : `Scoring brand sentiment with Gemini (${done}/${total} prompt groups)…`;
+            await onAgentProgress({
                 completed: totalCalls,
                 total: totalCalls,
                 successful: successCalls,
                 phase: 'gemini_sentiment',
-                detail: 'Engine calls finished. Scoring brand sentiment with Gemini (per prompt)...',
+                detail,
                 force: true,
-            }),
-        );
-    }
-
-    try {
-        await batchApplyGeminiSentimentByPrompt(mergedRuns, brandName);
+            });
+        });
     } catch (sentErr) {
         console.error('[Agents] Gemini sentiment batch failed — continuing with unscored runs:', sentErr.message);
     }

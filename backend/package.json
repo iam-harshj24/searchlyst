@@ -11,8 +11,17 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
+    "db:init": "prisma migrate deploy && prisma db seed",
+    "db:setup": "prisma migrate deploy && prisma db seed && node scripts/verify-database.mjs",
+    "db:verify": "node scripts/verify-database.mjs",
+    "db:show": "node scripts/show-database.mjs",
+    "db:seed": "prisma db seed",
+    "db:reset": "prisma migrate reset --force",
     "db:diff": "prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --script",
     "db:status": "prisma migrate status",
+    "db:export": "node scripts/export-database.mjs",
+    "db:export:html": "node scripts/export-database-html.mjs",
+    "db:studio": "prisma studio",
     "test:visibility": "node scripts/test-visibility.mjs",
     "test:infatica": "node scripts/test-infatica-live.mjs",
     "test:user-flow": "node scripts/test-user-flow.mjs"
@@ -24,6 +33,9 @@
   ],
   "author": "",
   "license": "ISC",
+  "prisma": {
+    "seed": "node prisma/seed.mjs"
+  },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "@prisma/adapter-better-sqlite3": "^7.6.0",
@@ -36,14 +48,14 @@
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
+    "express-rate-limit": "^8.3.2",
     "google-auth-library": "^10.6.2",
+    "helmet": "^8.1.0",
     "ioredis": "^5.10.0",
     "jsonwebtoken": "^9.0.3",
     "nodemailer": "^6.9.7",
     "pg": "^8.18.0",
+    "prisma": "^5.22.0",
     "zod": "^4.3.6"
-  },
-  "devDependencies": {
-    "prisma": "^5.22.0"
   }
 }

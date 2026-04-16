@@ -21,6 +21,11 @@ setInterval(() => {
 
 const generateOtp = () => String(Math.floor(100000 + Math.random() * 900000));
 
+/** Single canonical form for emails (DB + OTP store + login). */
+function normalizeEmail(email) {
+  return typeof email === 'string' ? email.trim().toLowerCase() : '';
+}
+
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 export const authService = {
@@ -40,6 +45,7 @@ export const authService = {
         email: user.email,
         name: user.name,
         role: 'user',
+        onboarded: false,
       });
       return { success: true, user, token };
     }
@@ -59,6 +65,7 @@ export const authService = {
       email: user.email,
       name: user.name,
       role: 'user',
+      onboarded: user.onboarded,
     });
 
     return { success: true, user, token };
@@ -69,8 +76,9 @@ export const authService = {
    * The User record is NOT created here.
    */
   async sendOtp(email, password, name) {
-    const existingUser = await authRepository.findUserByEmail(email);
-    const existingAdmin = await authRepository.findAdminByEmail(email);
+    const emailKey = normalizeEmail(email);
+    const existingUser = await authRepository.findUserByEmail(emailKey);
+    const existingAdmin = await authRepository.findAdminByEmail(emailKey);
 
     if (existingUser || existingAdmin) {
       return { success: false, conflict: true };
@@ -80,16 +88,16 @@ export const authService = {
     const passwordHash = await bcrypt.hash(password, salt);
     const otp = generateOtp();
 
-    otpStore.set(email, {
+    otpStore.set(emailKey, {
       name,
       passwordHash,
       otp,
       expiresAt: Date.now() + OTP_TTL_MS,
     });
 
-    const emailResult = await sendOtpEmail({ name, email, otp });
+    const emailResult = await sendOtpEmail({ name, email: emailKey, otp });
     if (!emailResult.success) {
-      otpStore.delete(email);
+      otpStore.delete(emailKey);
       return { success: false, emailFailed: true };
     }
 
@@ -100,7 +108,8 @@ export const authService = {
    * Step 2 of signup: verify OTP, create user, return token.
    */
   async verifyOtp(email, otp) {
-    const entry = otpStore.get(email);
+    const emailKey = normalizeEmail(email);
+    const entry = otpStore.get(emailKey);
 
     // Ensure we are processing a signup OTP, not a reset OTP
     if (!entry || entry.type === 'reset') {
@@ -108,7 +117,7 @@ export const authService = {
     }
 
     if (Date.now() > entry.expiresAt) {
-      otpStore.delete(email);
+      otpStore.delete(emailKey);
       return { success: false, expired: true };
     }
 
@@ -118,27 +127,29 @@ export const authService = {
 
     // OTP is valid — create the user now
     const user = await authRepository.createUser({
-      email,
+      email: emailKey,
       password_hash: entry.passwordHash,
       auth_provider: 'local',
       name: entry.name,
     });
 
-    otpStore.delete(email);
+    otpStore.delete(emailKey);
 
     const token = generateToken({
       id: user.id,
       email: user.email,
       name: user.name,
       role: 'user',
+      onboarded: user.onboarded,
     });
 
     return { success: true, user, token };
   },
 
   async sendPasswordResetOtp(email) {
-    const existingUser = await authRepository.findUserByEmail(email);
-    const existingAdmin = await authRepository.findAdminByEmail(email);
+    const emailKey = normalizeEmail(email);
+    const existingUser = await authRepository.findUserByEmail(emailKey);
+    const existingAdmin = await authRepository.findAdminByEmail(emailKey);
 
     if (!existingUser && !existingAdmin) {
       return { success: false, notFound: true };
@@ -147,16 +158,16 @@ export const authService = {
     const name = existingAdmin ? existingAdmin.name : existingUser.name;
     const otp = generateOtp();
 
-    otpStore.set(email, {
+    otpStore.set(emailKey, {
       type: 'reset',
       name,
       otp,
       expiresAt: Date.now() + OTP_TTL_MS,
     });
 
-    const emailResult = await sendPasswordResetOtpEmail({ name, email, otp });
+    const emailResult = await sendPasswordResetOtpEmail({ name, email: emailKey, otp });
     if (!emailResult.success) {
-      otpStore.delete(email);
+      otpStore.delete(emailKey);
       return { success: false, emailFailed: true };
     }
 
@@ -164,10 +175,12 @@ export const authService = {
   },
 
   async login(email, password) {
+    const emailNorm = normalizeEmail(email);
+
     // Dev-only bypass admin login (works when DB is down)
     if (
       process.env.NODE_ENV === 'development' &&
-      email === 'harsh@searchlyst.com' &&
+      emailNorm === 'harsh@searchlyst.com' &&
       password === 'Harsh@?search#'
     ) {
       const token = generateToken({
@@ -175,6 +188,7 @@ export const authService = {
         email: 'harsh@searchlyst.com',
         name: 'Harsh',
         role: 'admin',
+        onboarded: true,
       });
       return {
         success: true,
@@ -190,11 +204,11 @@ export const authService = {
     }
 
     // Check admin first so admin credentials take precedence if email exists in both tables
-    let user = await authRepository.findAdminByEmail(email);
+    let user = await authRepository.findAdminByEmail(emailNorm);
     let isAdmin = !!user;
 
     if (!user) {
-      user = await authRepository.findUserByEmail(email);
+      user = await authRepository.findUserByEmail(emailNorm);
     }
 
     if (!user) {
@@ -210,11 +224,13 @@ export const authService = {
       return { success: false, invalidCredentials: true };
     }
 
+    const onboarded = isAdmin ? true : user.onboarded;
     const token = generateToken({
       id: user.id,
       email: user.email,
       name: user.name,
       role: isAdmin ? 'admin' : 'user',
+      onboarded,
     });
 
     if (isAdmin) {
@@ -229,7 +245,7 @@ export const authService = {
         email: user.email,
         name: user.name,
         role: isAdmin ? 'admin' : 'user',
-        onboarded: isAdmin ? true : user.onboarded,
+        onboarded,
       },
     };
   },
@@ -280,6 +296,7 @@ export const authService = {
       email: user.email,
       name: user.name,
       role: 'user',
+      onboarded: user.onboarded,
     });
 
     return {
@@ -296,14 +313,15 @@ export const authService = {
   },
 
   async resetPassword(email, otp, newPassword) {
-    const entry = otpStore.get(email);
+    const emailKey = normalizeEmail(email);
+    const entry = otpStore.get(emailKey);
 
     if (!entry || entry.type !== 'reset') {
       return { success: false, notFound: true };
     }
 
     if (Date.now() > entry.expiresAt) {
-      otpStore.delete(email);
+      otpStore.delete(emailKey);
       return { success: false, expired: true };
     }
 
@@ -314,20 +332,21 @@ export const authService = {
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(newPassword, salt);
 
-    const existingAdmin = await authRepository.findAdminByEmail(email);
+    const existingAdmin = await authRepository.findAdminByEmail(emailKey);
     if (existingAdmin) {
-      await authRepository.updateAdminPassword(email, passwordHash);
+      await authRepository.updateAdminPassword(emailKey, passwordHash);
     } else {
-      await authRepository.updateUserPassword(email, passwordHash);
+      await authRepository.updateUserPassword(emailKey, passwordHash);
     }
 
-    otpStore.delete(email);
+    otpStore.delete(emailKey);
 
     return { success: true };
   },
 
   async createAdmin(email, password, name) {
-    const existing = await authRepository.findAdminByEmail(email);
+    const emailKey = normalizeEmail(email);
+    const existing = await authRepository.findAdminByEmail(emailKey);
     if (existing) {
       return { success: false, conflict: true };
     }
@@ -336,7 +355,7 @@ export const authService = {
     const passwordHash = await bcrypt.hash(password, salt);
 
     const admin = await authRepository.createAdmin({
-      email,
+      email: emailKey,
       password_hash: passwordHash,
       name,
     });

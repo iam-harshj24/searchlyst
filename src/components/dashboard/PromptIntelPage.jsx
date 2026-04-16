@@ -145,6 +145,11 @@ function formatDetailDate(iso) {
     }
 }
 
+/**
+ * "Mentions & sources" chips (Prompt detail modal):
+ * 1) Brand name + your domain — from the signed-in user / project.
+ * 2) Every distinct hostname from citation URLs across engines (`prompt.engines[*].citations[]`), same data as Infatica + parser.
+ */
 function collectMentionLabels(prompt, brandName, domain) {
     const out = [];
     const seen = new Set();
@@ -161,11 +166,12 @@ function collectMentionLabels(prompt, brandName, domain) {
         const cites = Array.isArray(prompt.engines?.[ek]?.citations) ? prompt.engines[ek].citations : [];
         for (const c of cites) {
             if (!isValidCitation(c)) continue;
-            const label = citationHostLabel(c);
+            const dom = citationDomainForFavicon(c);
+            const label = dom || citationHostLabel(c);
             add(label);
         }
     }
-    return out.slice(0, 32);
+    return out;
 }
 
 function firstBrandSnippet(prompt) {
@@ -228,9 +234,9 @@ function formatPromptTrackingDisplay(u) {
     return parts.join(' · ');
 }
 
-const CITATION_STACK_MAX = 5;
+const CITATION_STACK_MAX = 24;
 
-/** Unique source domains in first-seen order across all engines. */
+/** Unique source domains in first-seen order across all engines (for stacked favicons; total count shown separately). */
 function collectOrderedUniqueCitationDomains(prompt) {
     const seen = new Set();
     const out = [];
@@ -708,13 +714,16 @@ function PromptDetailModal({ prompt, displayId, user, scanScannedAt, onClose }) 
 
                     {mentionLabels.length > 0 && (
                         <div>
-                            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white mb-2">Mentions &amp; sources</p>
-                            <div className="flex flex-wrap gap-2">
-                                {mentionLabels.map((label) => {
+                            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white mb-1">Mentions &amp; sources</p>
+                            <p className="text-[11px] text-white/45 mb-2 leading-snug max-w-[52rem]">
+                                Your brand and domain, then every distinct hostname found in citation URLs for this prompt (all engines). Per-model link cards are under Sources below.
+                            </p>
+                            <div className="flex flex-wrap gap-2 max-h-[min(40vh,360px)] overflow-y-auto pr-0.5">
+                                {mentionLabels.map((label, mi) => {
                                     const brand = isBrandMentionPill(label);
                                     return (
                                         <span
-                                            key={label}
+                                            key={`${label}-${mi}`}
                                             className={`text-[11px] px-2.5 py-1 rounded-lg max-w-full truncate inline-flex items-center gap-1.5 border ${
                                                 brand
                                                     ? 'bg-emerald-500/[0.12] border-emerald-500/45 text-emerald-100'
@@ -1052,7 +1061,7 @@ export default function PromptIntelPage({ user, scanManager, scanId, applyScanRe
                                         </th>
                                         <th
                                             className="py-3 px-2 text-[10px] font-semibold text-white uppercase tracking-wider text-center whitespace-nowrap"
-                                            title="Up to five source domains (favicons) and +N total citations for this prompt."
+                                            title="Up to 24 source domains (favicons) and +N total citations for this prompt."
                                         >
                                             Citations
                                         </th>

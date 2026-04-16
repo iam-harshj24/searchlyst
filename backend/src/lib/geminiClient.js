@@ -21,6 +21,11 @@ export function getDefaultGeminiModelName() {
     return process.env.GEMINI_MODEL?.trim() || 'gemini-2.5-flash';
 }
 
+/** Onboarding competitor suggestions only — set e.g. gemini-2.0-flash for lower latency; falls back to GEMINI_MODEL / default. */
+export function getCompetitorSuggestionModelName() {
+    return process.env.GEMINI_ONBOARDING_MODEL?.trim() || getDefaultGeminiModelName();
+}
+
 /** @returns {import('@google/generative-ai').GoogleGenerativeAI} */
 export function getGoogleGenerativeAI() {
     const key = getGeminiApiKey();

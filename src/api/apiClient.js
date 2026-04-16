@@ -6,6 +6,10 @@ const getApiBaseUrl = () => {
   if (import.meta.env.VITE_API_BASE_URL) {
     return import.meta.env.VITE_API_BASE_URL;
   }
+  // Dev + no explicit URL: call /api on the Vite origin (see vite.config.js proxy → backend)
+  if (import.meta.env.DEV) {
+    return '/api';
+  }
   if (import.meta.env.PROD && typeof window !== 'undefined') {
     return `${window.location.origin}/api`;
   }
@@ -13,6 +17,21 @@ const getApiBaseUrl = () => {
 };
 
 const API_BASE_URL = getApiBaseUrl();
+
+function logApiFailure(method, endpoint, error) {
+    if (import.meta.env.DEV) {
+        console.error(`${method} ${endpoint} failed:`, error);
+    }
+}
+
+async function parseJsonBody(response) {
+  const text = await response.text();
+  try {
+    return text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error(response.statusText || `HTTP error! status: ${response.status}`);
+  }
+}
 
 // Helper to get auth token
 const getAuthHeaders = () => {
@@ -34,7 +53,7 @@ export const apiClient = {
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         headers: getAuthHeaders()
       });
-      const data = await response.json();
+      const data = await parseJsonBody(response);
 
       if (!response.ok) {
         throw new Error(data.message || `HTTP error! status: ${response.status}`);
@@ -42,7 +61,7 @@ export const apiClient = {
 
       return data;
     } catch (error) {
-      console.error(`GET ${endpoint} failed:`, error);
+      logApiFailure('GET', endpoint, error);
       throw error;
     }
   },
@@ -55,7 +74,7 @@ export const apiClient = {
         body: JSON.stringify(data),
       });
 
-      const responseData = await response.json();
+      const responseData = await parseJsonBody(response);
 
       if (!response.ok) {
         throw new Error(responseData.message || `HTTP error! status: ${response.status}`);
@@ -63,7 +82,7 @@ export const apiClient = {
 
       return responseData;
     } catch (error) {
-      console.error(`POST ${endpoint} failed:`, error);
+      logApiFailure('POST', endpoint, error);
       throw error;
     }
   },
@@ -76,7 +95,7 @@ export const apiClient = {
         body: JSON.stringify(data),
       });
 
-      const responseData = await response.json();
+      const responseData = await parseJsonBody(response);
 
       if (!response.ok) {
         throw new Error(responseData.message || `HTTP error! status: ${response.status}`);
@@ -84,7 +103,7 @@ export const apiClient = {
 
       return responseData;
     } catch (error) {
-      console.error(`PUT ${endpoint} failed:`, error);
+      logApiFailure('PUT', endpoint, error);
       throw error;
     }
   },
@@ -96,7 +115,7 @@ export const apiClient = {
         headers: getAuthHeaders(),
       });
 
-      const data = await response.json();
+      const data = await parseJsonBody(response);
 
       if (!response.ok) {
         throw new Error(data.message || `HTTP error! status: ${response.status}`);
@@ -104,7 +123,7 @@ export const apiClient = {
 
       return data;
     } catch (error) {
-      console.error(`DELETE ${endpoint} failed:`, error);
+      logApiFailure('DELETE', endpoint, error);
       throw error;
     }
   },

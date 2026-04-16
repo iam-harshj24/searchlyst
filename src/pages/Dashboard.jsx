@@ -315,6 +315,9 @@ function useScanManager(user) {
                 country: inferredCountry,
                 trackingLocations: tl,
                 projectId: user?.projectId || undefined,
+                companySize: user?.companySize,
+                reach: user?.reach,
+                isAgency: user?.isAgency,
             });
             setScanId(res.scanId);
             localStorage.setItem(activeScanKey, JSON.stringify({ scanId: res.scanId, startedAt: new Date().toISOString() }));

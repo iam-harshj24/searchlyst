@@ -237,7 +237,7 @@ function normalizeGaps(gaps) {
 }
 
 function buildOverviewFromPlatforms(platformResults, allRuns, brandName, domain, industry, competitors, previousRuns = null) {
-    const score = computeVisibilityScore(allRuns, brandName);
+    const score = computeVisibilityScore(allRuns, brandName, competitors);
     const sov = computeShareOfVoice(allRuns, brandName, competitors, domain);
     const perEngine = computePerEngine(allRuns);
     const perCategory = computePerCategory(allRuns);
@@ -373,11 +373,41 @@ function assembleResult(overview, platformResults, intelligence, brandName, doma
  * Early results fire at ~50% completion so the frontend can start rendering.
  * Final results saved after all pipelines finish + deep analysis.
  */
-async function executeScan(scanId, userId, projectId, brandName, domain, industry, competitors, location, country, language, trackingLocationsRaw) {
+async function executeScan(
+    scanId,
+    userId,
+    projectId,
+    brandName,
+    domain,
+    industry,
+    competitors,
+    location,
+    country,
+    language,
+    trackingLocationsRaw,
+    scanExtras = {},
+) {
     const expandedCompetitors = (competitors || []).map(c => typeof c === 'string' ? { name: c, domain: c } : c);
     const trackingLocations = normalizeTrackingLocations(trackingLocationsRaw);
     const effectiveCountry =
         (country && String(country).trim()) || inferCountryFromMarkets(trackingLocations, location || '') || '';
+
+    let companySize = scanExtras.companySize != null ? String(scanExtras.companySize) : '';
+    let reach = scanExtras.reach != null ? String(scanExtras.reach) : '';
+    let isAgency = scanExtras.isAgency;
+
+    if (projectId) {
+        try {
+            const proj = await prisma.project.findUnique({ where: { id: projectId } });
+            if (proj) {
+                if (!companySize && proj.companySize) companySize = proj.companySize;
+                if (!reach && proj.reach) reach = proj.reach;
+            }
+        } catch (_) { /* ignore */ }
+    }
+    if (isAgency === undefined || isAgency === null) {
+        isAgency = false;
+    }
 
     try {
         await prisma.visibilityScan.update({
@@ -394,6 +424,9 @@ async function executeScan(scanId, userId, projectId, brandName, domain, industr
             country: effectiveCountry,
             language,
             trackingLocations,
+            companySize,
+            reach,
+            isAgency: Boolean(isAgency),
         };
 
         let lastProgressUpdate = 0;
@@ -539,6 +572,109 @@ async function executeScan(scanId, userId, projectId, brandName, domain, industr
                 progress: JSON.stringify({ phase: 'done', detail: 'Scan completed', completed: completedCalls, total: completedCalls }),
             },
         });
+
+        // --- Date-wise Snapshots ---
+        try {
+            const scanDate = new Date();
+            scanDate.setUTCHours(0, 0, 0, 0); // truncate to day
+            
+            const pId = projectId != null && projectId !== '' ? parseInt(projectId, 10) : null;
+
+            await prisma.visibilityDailySnapshot.create({
+                data: {
+                    scanId, userId, projectId: pId, brandName, domain, scanDate,
+                    overallScore: finalResult.score?.overall,
+                    visibilityScore: finalResult.score?.components?.visibility,
+                    sovScore: finalResult.score?.components?.shareOfVoice,
+                    positionScore: finalResult.score?.components?.position,
+                    sentimentScore: finalResult.score?.components?.sentiment,
+                    totalRuns: finalResult.score?.totalRuns,
+                    uniquePrompts: finalResult.score?.uniquePrompts,
+                    mentionedIn: finalResult.score?.mentionedIn,
+                    promptCoverage: finalResult.industryRanking?.find(r => r.isTargetBrand)?.promptCoverage,
+                    promptsReached: finalResult.industryRanking?.find(r => r.isTargetBrand)?.promptsReached,
+                    totalPrompts: finalResult.totalPrompts,
+                    industryRank: finalResult.industryRanking?.find(r => r.isTargetBrand)?.rank,
+                    sentimentTrendPct: finalResult.industryRanking?.find(r => r.isTargetBrand)?.sentimentTrendPct,
+                    effortTrendPct: finalResult.industryRanking?.find(r => r.isTargetBrand)?.effortTrendPct,
+                    brandSov: finalResult.shareOfVoice?.brand?.sov,
+                    brandMentions: finalResult.shareOfVoice?.brand?.mentions,
+                    brandAvgPosition: finalResult.shareOfVoice?.brand?.avgPosition !== '-' ? parseFloat(finalResult.shareOfVoice.brand.avgPosition) : null,
+                    brandSentiment: finalResult.shareOfVoice?.brand?.sentiment,
+                    totalEntityMentions: finalResult.shareOfVoice?.total,
+                    sentimentPositivePct: finalResult.sentiment?.summary?.positive,
+                    sentimentNeutralPct: finalResult.sentiment?.summary?.neutral,
+                    sentimentNegativePct: finalResult.sentiment?.summary?.negative,
+                    sentimentPositiveCount: finalResult.sentiment?.summary?.rawCounts?.positive,
+                    sentimentNeutralCount: finalResult.sentiment?.summary?.rawCounts?.neutral,
+                    sentimentNegativeCount: finalResult.sentiment?.summary?.rawCounts?.negative,
+                    sentimentIndex: finalResult.sentiment?.summary?.sentimentIndex,
+                    sentimentTotal: finalResult.sentiment?.total,
+                    perplexityScore: finalResult.perEngine?.perplexity?.score,
+                    perplexityRuns: finalResult.perEngine?.perplexity?.runs,
+                    perplexityMentions: finalResult.perEngine?.perplexity?.mentions,
+                    geminiScore: finalResult.perEngine?.gemini?.score,
+                    geminiRuns: finalResult.perEngine?.gemini?.runs,
+                    geminiMentions: finalResult.perEngine?.gemini?.mentions,
+                    chatgptScore: finalResult.perEngine?.chatgpt?.score,
+                    chatgptRuns: finalResult.perEngine?.chatgpt?.runs,
+                    chatgptMentions: finalResult.perEngine?.chatgpt?.mentions,
+                    googleAIScore: finalResult.perEngine?.googleAI?.score,
+                    googleAIRuns: finalResult.perEngine?.googleAI?.runs,
+                    googleAIMentions: finalResult.perEngine?.googleAI?.mentions,
+                    totalCitations: finalResult.sourceDomains?.totalCitations,
+                    totalCitedUrls: finalResult.urlRanking?.totalUrls,
+                }
+            });
+
+            const compData = [];
+            const allComps = [(finalResult.shareOfVoice?.brand ? { ...finalResult.shareOfVoice.brand, isTargetBrand: true } : null)]
+                                .concat(finalResult.shareOfVoice?.competitors || []).filter(Boolean);
+            
+            for (const c of allComps) {
+                const rankRow = finalResult.industryRanking?.find(r => r.name === c.name);
+                compData.push({
+                    scanId, userId, projectId: pId, brandDomain: domain, scanDate,
+                    competitorName: c.name, competitorDomain: c.domain,
+                    isTargetBrand: c.isTargetBrand || false,
+                    sov: c.sov, mentions: c.mentions,
+                    avgPosition: c.avgPosition !== '-' ? parseFloat(c.avgPosition) : null,
+                    sentiment: c.sentiment, promptCoverage: rankRow?.promptCoverage,
+                    industryRank: rankRow?.rank, sentimentIndex: rankRow?.sentimentIndex,
+                });
+            }
+            if (compData.length) await prisma.competitorDailySnapshot.createMany({ data: compData });
+
+            const engData = [];
+            for (const [eng, d] of Object.entries(finalResult.perEngine || {})) {
+                engData.push({
+                    scanId, userId, projectId: pId, domain, scanDate,
+                    engine: eng, score: d.score, runs: d.runs, mentions: d.mentions
+                });
+            }
+            if (engData.length) await prisma.engineDailySnapshot.createMany({ data: engData });
+
+            const catData = [];
+            for (const [cat, d] of Object.entries(finalResult.perCategory || {})) {
+                catData.push({
+                    scanId, userId, projectId: pId, domain, scanDate,
+                    category: cat, score: d.score, mentioned: d.mentioned, total: d.total
+                });
+            }
+            if (catData.length) await prisma.categoryDailySnapshot.createMany({ data: catData });
+
+            const citData = [];
+            for (const d of finalResult.sourceDomains?.topDomains || []) {
+                citData.push({
+                    scanId, userId, projectId: pId, brandDomain: domain, scanDate,
+                    citedDomain: d.domain, category: d.category, count: d.count, uniqueUrls: d.uniqueUrls,
+                    isTargetBrand: d.isTargetBrand, isCompetitor: d.isCompetitor
+                });
+            }
+            if (citData.length) await prisma.citationDailySnapshot.createMany({ data: citData });
+        } catch(snapshotErr) {
+            console.error('[Scan] Snapshot save failed:', snapshotErr);
+        }
     } catch (err) {
         console.error('[Scan] Fatal:', err);
         const msg = String(err?.message || err || 'Unknown error').slice(0, 2000);
@@ -571,7 +707,20 @@ export async function cleanupOrphanedScans() {
 
 export async function startVisibilityScan(req, res) {
     try {
-        const { brandName, domain, industry, competitors, location, country, language, projectId, trackingLocations } = req.body;
+        const {
+            brandName,
+            domain,
+            industry,
+            competitors,
+            location,
+            country,
+            language,
+            projectId,
+            trackingLocations,
+            isAgency,
+            companySize: companySizeBody,
+            reach: reachBody,
+        } = req.body;
         const userId = req.user.id;
         if (!brandName || !domain) return res.status(400).json({ success: false, message: 'brandName and domain are required' });
         if (!process.env.INFATICA_API_KEY?.trim()) {
@@ -640,6 +789,11 @@ export async function startVisibilityScan(req, res) {
             country || '',
             language || 'English',
             trackingLocations,
+            {
+                isAgency,
+                companySize: companySizeBody,
+                reach: reachBody,
+            },
         );
         trackVisibilityScanPromise(scanPromise);
         res.json({ success: true, scanId, status: 'scanning' });
@@ -1641,4 +1795,30 @@ export async function postCitationUrlInsights(req, res) {
         console.error('[postCitationUrlInsights]', msg);
         res.status(500).json({ success: false, message: msg });
     }
+}
+
+export async function getVisibilitySnapshots(req, res) {
+    try {
+        const userId = req.user.id;
+        const { projectId } = req.query;
+        if (!projectId) return res.status(400).json({ success: false, message: 'projectId is required' });
+        const data = await prisma.visibilityDailySnapshot.findMany({
+            where: { userId, projectId: parseInt(projectId, 10) },
+            orderBy: { scanDate: 'asc' },
+        });
+        res.json({ success: true, data });
+    } catch(err) { res.status(500).json({ success: false, message: err.message }); }
+}
+
+export async function getCompetitorSnapshots(req, res) {
+    try {
+        const userId = req.user.id;
+        const { projectId } = req.query;
+        if (!projectId) return res.status(400).json({ success: false, message: 'projectId is required' });
+        const data = await prisma.competitorDailySnapshot.findMany({
+            where: { userId, projectId: parseInt(projectId, 10) },
+            orderBy: { scanDate: 'asc' },
+        });
+        res.json({ success: true, data });
+    } catch(err) { res.status(500).json({ success: false, message: err.message }); }
 }
