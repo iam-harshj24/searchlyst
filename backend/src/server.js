@@ -1,6 +1,7 @@
 import './loadEnv.js'; // Must be first: loads .env from backend root regardless of cwd
 import express from 'express';
 import cors from 'cors';
+import prisma from './lib/prisma.js';
 import { verifyEmailConfig } from './config/email.js';
 import waitlistRoutes from './routes/waitlist.js';
 import authRoutes from './routes/auth.js';
@@ -46,11 +47,19 @@ app.use((req, res, next) => {
 });
 
 // Health check endpoint
-app.get('/health', (req, res) => {
+app.get('/health', async (req, res) => {
+  let database = 'disconnected';
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    database = 'connected';
+  } catch {
+    // leave as 'disconnected'
+  }
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    service: 'searchlyst-backend'
+    service: 'searchlyst-backend',
+    database,
   });
 });
 
@@ -91,10 +100,8 @@ const startServer = async () => {
     );
     console.log(`✓ GEMINI_API_KEY: ${geminiOk ? 'configured' : 'NOT SET (AI features will fail)'}`);
 
-    // Require JWT_SECRET in production
-    const defaultSecret = 'your-secret-key-change-this-in-production';
-    if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || process.env.JWT_SECRET === defaultSecret)) {
-      console.error('FATAL: JWT_SECRET must be set to a secure value in production');
+    if (!process.env.JWT_SECRET) {
+      console.error('FATAL: JWT_SECRET is not set');
       process.exit(1);
     }
 

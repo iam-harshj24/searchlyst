@@ -15,7 +15,8 @@
     "db:status": "prisma migrate status",
     "test:visibility": "node scripts/test-visibility.mjs",
     "test:infatica": "node scripts/test-infatica-live.mjs",
-    "test:user-flow": "node scripts/test-user-flow.mjs"
+    "test:user-flow": "node scripts/test-user-flow.mjs",
+    "test:integration": "vitest run --config vitest.config.integration.js"
   },
   "keywords": [
     "api",
@@ -44,6 +45,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "prisma": "^5.22.0"
+    "prisma": "^5.22.0",
+    "vitest": "^3.1.1"
   }
 }
