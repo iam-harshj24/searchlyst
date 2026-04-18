@@ -1,0 +1,333 @@
+// API client for Searchlyst backend
+// In production: set VITE_API_BASE_URL to your backend URL (e.g. https://api.searchlyst.com/api)
+// If unset in production, uses same-origin /api (works when frontend & backend share a domain via reverse proxy)
+
+const getApiBaseUrl = () => {
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL;
+  }
+  if (import.meta.env.PROD && typeof window !== 'undefined') {
+    return `${window.location.origin}/api`;
+  }
+  return 'http://localhost:3000/api';
+};
+
+const API_BASE_URL = getApiBaseUrl();
+
+// Helper to get auth token
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('authToken');
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  return headers;
+};
+
+export const apiClient = {
+  async get(endpoint) {
+    try {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        headers: getAuthHeaders()
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || `HTTP error! status: ${response.status}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error(`GET ${endpoint} failed:`, error);
+      throw error;
+    }
+  },
+
+  async post(endpoint, data) {
+    try {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(data),
+      });
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        throw new Error(responseData.message || `HTTP error! status: ${response.status}`);
+      }
+
+      return responseData;
+    } catch (error) {
+      console.error(`POST ${endpoint} failed:`, error);
+      throw error;
+    }
+  },
+
+  async put(endpoint, data) {
+    try {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(data),
+      });
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        throw new Error(responseData.message || `HTTP error! status: ${response.status}`);
+      }
+
+      return responseData;
+    } catch (error) {
+      console.error(`PUT ${endpoint} failed:`, error);
+      throw error;
+    }
+  },
+
+  async delete(endpoint) {
+    try {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || `HTTP error! status: ${response.status}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error(`DELETE ${endpoint} failed:`, error);
+      throw error;
+    }
+  },
+
+  // Authentication methods
+  auth: {
+    async anonymous() {
+      const response = await apiClient.post('/auth/anonymous', {});
+      return response;
+    },
+
+    async sendOtp(email, password, name) {
+      const response = await apiClient.post('/auth/register', { email, password, name });
+      return response;
+    },
+
+    async verifyOtp(email, otp) {
+      const response = await apiClient.post('/auth/verify-otp', { email, otp });
+      return response;
+    },
+
+    async login(email, password) {
+      const response = await apiClient.post('/auth/login', { email, password });
+      return response;
+    },
+
+    async google(idToken) {
+      const response = await apiClient.post('/auth/google', { idToken });
+      return response;
+    },
+
+    async verify() {
+      return apiClient.get('/auth/verify');
+    },
+
+    async forgotPassword(email) {
+      const response = await apiClient.post('/auth/forgot-password', { email });
+      return response;
+    },
+
+    async resetPassword(email, otp, newPassword) {
+      const response = await apiClient.post('/auth/reset-password', { email, otp, newPassword });
+      return response;
+    },
+
+    logout() {
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
+    }
+  },
+
+  // Onboarding methods
+  onboarding: {
+    async suggestCompetitors(data) {
+      return apiClient.post('/onboarding/competitors', data);
+    },
+  },
+
+  // Audit methods
+  audit: {
+    async start({ url, projectId }) {
+      return apiClient.post('/audit/start', { url, projectId });
+    },
+    async getStatus(auditId) {
+      return apiClient.get(`/audit/${auditId}/status`);
+    },
+    async getLatest({ url, projectId }) {
+      const params = new URLSearchParams();
+      if (url) params.set('url', url);
+      if (projectId != null) params.set('projectId', projectId);
+      const q = params.toString() ? `?${params}` : '';
+      const res = await apiClient.get(`/audit/latest${q}`);
+      return res?.result ?? null;
+    },
+    async getHistory({ url, projectId }) {
+      const params = new URLSearchParams();
+      if (url) params.set('url', url);
+      if (projectId != null) params.set('projectId', projectId);
+      const q = params.toString() ? `?${params}` : '';
+      const res = await apiClient.get(`/audit/history${q}`);
+      return res?.history ?? [];
+    },
+  },
+
+  // Visibility scan methods
+  visibility: {
+    async startScan(data) {
+      return apiClient.post('/visibility/scan', data);
+    },
+    async getScanStatus(scanId) {
+      return apiClient.get(`/visibility/${scanId}/status`);
+    },
+    async listScans(projectId) {
+      const q = projectId ? `?projectId=${projectId}` : '';
+      return apiClient.get(`/visibility/scans${q}`);
+    },
+    async getLatestScan(projectId, domain) {
+      const params = new URLSearchParams();
+      if (projectId) params.set('projectId', projectId);
+      if (domain) params.set('domain', domain);
+      const q = params.toString() ? `?${params}` : '';
+      return apiClient.get(`/visibility/latest${q}`);
+    },
+    async getScanHistory(projectId, domain, opts = {}) {
+      const params = new URLSearchParams();
+      if (projectId) params.set('projectId', projectId);
+      if (domain) params.set('domain', domain);
+      if (opts.days != null && opts.days > 0) params.set('days', String(opts.days));
+      if (opts.limit != null) params.set('limit', String(opts.limit));
+      const q = params.toString() ? `?${params}` : '';
+      return apiClient.get(`/visibility/history${q}`);
+    },
+    async runCustomPrompt(data) {
+      return apiClient.post('/visibility/run-prompt', data);
+    },
+    async runCustomPromptsBatch(data) {
+      return apiClient.post('/visibility/run-prompts', data);
+    },
+    /** Merge custom prompts into latest scan: only selected engines queried; full scores recomputed & DB updated */
+    async appendCustomPromptsToScan(data) {
+      return apiClient.post('/visibility/append-custom-prompts', data);
+    },
+    async suggestCompetitors(data) {
+      return apiClient.post('/visibility/suggest-competitors', data);
+    },
+    async getCitationIntelligence(scanId) {
+      return apiClient.post('/visibility/citation-intelligence', { scanId });
+    },
+    async getCitationUrlInsights(scanId, urls) {
+      const body = { scanId };
+      if (Array.isArray(urls) && urls.length > 0) body.urls = urls;
+      return apiClient.post('/visibility/citation-url-insights', body);
+    },
+  },
+
+  // Waitlist specific methods
+  waitlist: {
+    async create(data) {
+      return apiClient.post('/waitlist', data);
+    },
+
+    async bulkCreate(entries) {
+      return apiClient.post('/waitlist/bulk', { entries });
+    },
+
+    async sendWelcomeBulk(entryIds) {
+      return apiClient.post('/waitlist/send-welcome-bulk', { entryIds });
+    },
+
+    async getWelcomeJobStatus(jobId) {
+      return apiClient.get(`/waitlist/welcome-job/${jobId}`);
+    },
+
+    async list() {
+      return apiClient.get('/waitlist');
+    },
+
+    async update(id, data) {
+      return apiClient.put(`/waitlist/${id}`, data);
+    },
+
+    async getStats() {
+      return apiClient.get('/waitlist/stats');
+    }
+  },
+
+  // Project management methods
+  projects: {
+    async list() {
+      return apiClient.get('/projects');
+    },
+    async create(data) {
+      return apiClient.post('/projects', data);
+    },
+    async delete(id) {
+      return apiClient.delete(`/projects/${id}`);
+    },
+    async getMetrics(projectId) {
+      const q = projectId ? `?projectId=${projectId}` : '';
+      const res = await apiClient.get(`/projects/metrics${q}`);
+      return res?.metrics ?? null;
+    },
+    async update(projectId, data) {
+      return apiClient.put(`/projects/${projectId}`, data);
+    },
+    /**
+     * Read-only: sample public titles (YouTube / Substack / Reddit), infer writing style, store on project — never posts.
+     * Pass current `social_*` fields from the form so extract works without a separate save (they are persisted with the snapshot).
+     */
+    async ingestSocial(projectId, socialFields = {}) {
+      return apiClient.post(`/projects/${projectId}/social-ingest`, socialFields);
+    },
+  },
+
+  // Content generation methods
+  content: {
+    async generate(data) {
+      return apiClient.post('/content/generate', data);
+    },
+    async suggestTopics(data) {
+      return apiClient.post('/content/suggest-topics', data);
+    },
+    async list(projectId, { archive = 'exclude' } = {}) {
+      const params = new URLSearchParams();
+      if (projectId != null && projectId !== '') params.set('projectId', String(projectId));
+      if (archive) params.set('archive', archive);
+      const qs = params.toString();
+      const res = await apiClient.get(`/content${qs ? `?${qs}` : ''}`);
+      return res?.contents ?? [];
+    },
+    async updateStatus(id, status) {
+      return apiClient.patch(`/content/${id}`, { status });
+    },
+    async remove(id) {
+      return apiClient.delete(`/content/${id}`);
+    },
+  },
+
+  // AI Assistant / Agent chat
+  agent: {
+    async chat(messages, brandContext, analyticsSnapshot) {
+      const res = await apiClient.post('/agent/chat', { messages, brandContext, analyticsSnapshot });
+      return res?.reply ?? '';
+    },
+  },
+};

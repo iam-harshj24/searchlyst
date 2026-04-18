@@ -1,6 +1,7 @@
+// @ts-nocheck
 import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
+import { apiClient } from '@/api/apiClient';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { 
@@ -26,19 +27,27 @@ import {
     Globe, 
     Calendar,
     Filter,
-    RefreshCw
+    RefreshCw,
+    LogOut
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { toast } from 'sonner';
 
 export default function AdminPanel() {
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
     const [sourceFilter, setSourceFilter] = useState('all');
 
-    const { data: waitlistEntries = [], isLoading, refetch } = useQuery({
+    // Fetch waitlist data from API
+    const { data: response, isLoading, refetch } = useQuery({
         queryKey: ['waitlist'],
-        queryFn: () => base44.entities.Waitlist.list('-created_date'),
+        queryFn: async () => {
+            const result = await apiClient.waitlist.list();
+            return result;
+        },
     });
+
+    const waitlistEntries = response?.data || [];
 
     const filteredEntries = waitlistEntries.filter(entry => {
         const matchesSearch = 
@@ -62,7 +71,7 @@ export default function AdminPanel() {
                 `"${entry.website_url || ''}"`,
                 `"${entry.source || ''}"`,
                 `"${entry.status || ''}"`,
-                `"${entry.created_date ? format(new Date(entry.created_date), 'yyyy-MM-dd HH:mm') : ''}"`
+                `"${entry.created_at ? format(new Date(entry.created_at), 'yyyy-MM-dd HH:mm') : ''}"`
             ].join(','))
         ].join('\n');
 
@@ -74,36 +83,35 @@ export default function AdminPanel() {
     };
 
     const updateStatus = async (id, newStatus) => {
-        await base44.entities.Waitlist.update(id, { status: newStatus });
-        refetch();
+        try {
+            await apiClient.waitlist.update(id, { status: newStatus });
+            toast.success('Status updated successfully');
+            refetch();
+        } catch (error) {
+            toast.error('Failed to update status: ' + error.message);
+            console.error('Error updating status:', error);
+        }
     };
 
     return (
-        <div className="min-h-screen bg-gray-950 p-6">
-            <div className="max-w-7xl mx-auto">
-                {/* Header */}
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-                    <div>
-                        <h1 className="text-3xl font-bold text-white">Waitlist Admin</h1>
-                        <p className="text-gray-400 mt-1">Manage and export waitlist submissions</p>
-                    </div>
-                    <div className="flex gap-3">
-                        <Button 
-                            variant="outline" 
-                            onClick={() => refetch()}
-                            className="border-gray-700 text-gray-300 hover:bg-gray-800"
-                        >
-                            <RefreshCw className="w-4 h-4 mr-2" />
-                            Refresh
-                        </Button>
-                        <Button 
-                            onClick={exportToCSV}
-                            className="bg-red-600 hover:bg-red-700 text-white"
-                        >
-                            <Download className="w-4 h-4 mr-2" />
-                            Export CSV
-                        </Button>
-                    </div>
+        <>
+                {/* Waitlist actions */}
+                <div className="flex justify-end gap-3 mb-6">
+                    <Button 
+                        variant="outline" 
+                        onClick={() => refetch()}
+                        className="border-gray-600 bg-gray-800/50 text-white hover:bg-gray-700 hover:text-white hover:border-gray-500"
+                    >
+                        <RefreshCw className="w-4 h-4 mr-2" />
+                        Refresh
+                    </Button>
+                    <Button 
+                        onClick={exportToCSV}
+                        className="bg-red-600 hover:bg-red-700 text-white"
+                    >
+                        <Download className="w-4 h-4 mr-2" />
+                        Export CSV
+                    </Button>
                 </div>
 
                 {/* Stats Cards */}
@@ -138,9 +146,9 @@ export default function AdminPanel() {
                                 <Globe className="w-6 h-6 text-blue-500" />
                             </div>
                             <div>
-                                <p className="text-gray-400 text-sm">Contacted</p>
+                                <p className="text-gray-400 text-sm">Welcome Email Sent</p>
                                 <p className="text-2xl font-bold text-white">
-                                    {waitlistEntries.filter(e => e.status === 'contacted').length}
+                                    {waitlistEntries.filter(e => e.status === 'welcome_email_sent').length}
                                 </p>
                             </div>
                         </div>
@@ -174,27 +182,29 @@ export default function AdminPanel() {
                         </div>
                         <div className="flex gap-4">
                             <Select value={statusFilter} onValueChange={setStatusFilter}>
-                                <SelectTrigger className="w-40 bg-gray-800 border-gray-700 text-white">
-                                    <Filter className="w-4 h-4 mr-2" />
+                                <SelectTrigger className="w-40 bg-gray-800 border-gray-600 text-white hover:bg-gray-700 hover:text-white data-[placeholder]:text-gray-400 [&>svg]:text-gray-400">
+                                    <Filter className="w-4 h-4 mr-2 text-gray-400" />
                                     <SelectValue placeholder="Status" />
                                 </SelectTrigger>
-                                <SelectContent className="bg-gray-800 border-gray-700">
-                                    <SelectItem value="all">All Status</SelectItem>
-                                    <SelectItem value="pending">Pending</SelectItem>
-                                    <SelectItem value="contacted">Contacted</SelectItem>
-                                    <SelectItem value="converted">Converted</SelectItem>
+                                <SelectContent className="bg-gray-800 border-gray-600 text-white [&>div]:bg-gray-800">
+                                    <SelectItem value="all" className="text-white focus:bg-gray-700 focus:text-white hover:bg-gray-700/80 cursor-pointer">All Status</SelectItem>
+                                    <SelectItem value="pending" className="text-white focus:bg-gray-700 focus:text-white hover:bg-gray-700/80 cursor-pointer">Pending</SelectItem>
+                                    <SelectItem value="welcome_email_sent" className="text-white focus:bg-gray-700 focus:text-white hover:bg-gray-700/80 cursor-pointer">Welcome Email Sent</SelectItem>
+                                    <SelectItem value="contacted" className="text-white focus:bg-gray-700 focus:text-white hover:bg-gray-700/80 cursor-pointer">Contacted</SelectItem>
+                                    <SelectItem value="converted" className="text-white focus:bg-gray-700 focus:text-white hover:bg-gray-700/80 cursor-pointer">Converted</SelectItem>
                                 </SelectContent>
                             </Select>
                             <Select value={sourceFilter} onValueChange={setSourceFilter}>
-                                <SelectTrigger className="w-40 bg-gray-800 border-gray-700 text-white">
-                                    <Filter className="w-4 h-4 mr-2" />
+                                <SelectTrigger className="w-40 bg-gray-800 border-gray-600 text-white hover:bg-gray-700 hover:text-white data-[placeholder]:text-gray-400 [&>svg]:text-gray-400">
+                                    <Filter className="w-4 h-4 mr-2 text-gray-400" />
                                     <SelectValue placeholder="Source" />
                                 </SelectTrigger>
-                                <SelectContent className="bg-gray-800 border-gray-700">
-                                    <SelectItem value="all">All Sources</SelectItem>
-                                    <SelectItem value="home">Home</SelectItem>
-                                    <SelectItem value="about">About</SelectItem>
-                                    <SelectItem value="pricing">Pricing</SelectItem>
+                                <SelectContent className="bg-gray-800 border-gray-600 text-white [&>div]:bg-gray-800">
+                                    <SelectItem value="all" className="text-white focus:bg-gray-700 focus:text-white hover:bg-gray-700/80 cursor-pointer">All Sources</SelectItem>
+                                    <SelectItem value="home" className="text-white focus:bg-gray-700 focus:text-white hover:bg-gray-700/80 cursor-pointer">Home</SelectItem>
+                                    <SelectItem value="about" className="text-white focus:bg-gray-700 focus:text-white hover:bg-gray-700/80 cursor-pointer">About</SelectItem>
+                                    <SelectItem value="pricing" className="text-white focus:bg-gray-700 focus:text-white hover:bg-gray-700/80 cursor-pointer">Pricing</SelectItem>
+                                    <SelectItem value="bulk_upload" className="text-white focus:bg-gray-700 focus:text-white hover:bg-gray-700/80 cursor-pointer">Bulk Upload</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -203,15 +213,16 @@ export default function AdminPanel() {
 
                 {/* Table */}
                 <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+                    <div className="max-h-[calc(100vh-320px)] min-h-[300px] overflow-y-auto">
                     <Table>
                         <TableHeader>
                             <TableRow className="border-gray-800 hover:bg-gray-800/50">
-                                <TableHead className="text-gray-400">Full Name</TableHead>
-                                <TableHead className="text-gray-400">Email</TableHead>
-                                <TableHead className="text-gray-400">Website URL</TableHead>
-                                <TableHead className="text-gray-400">Source</TableHead>
-                                <TableHead className="text-gray-400">Status</TableHead>
-                                <TableHead className="text-gray-400">Date</TableHead>
+                                <TableHead className="text-gray-400 bg-gray-900 sticky top-0 z-10">Full Name</TableHead>
+                                <TableHead className="text-gray-400 bg-gray-900 sticky top-0 z-10">Email</TableHead>
+                                <TableHead className="text-gray-400 bg-gray-900 sticky top-0 z-10">Website URL</TableHead>
+                                <TableHead className="text-gray-400 bg-gray-900 sticky top-0 z-10">Source</TableHead>
+                                <TableHead className="text-gray-400 bg-gray-900 sticky top-0 z-10">Status</TableHead>
+                                <TableHead className="text-gray-400 bg-gray-900 sticky top-0 z-10">Date</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -252,6 +263,7 @@ export default function AdminPanel() {
                                             <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                                                 entry.source === 'home' ? 'bg-blue-500/20 text-blue-400' :
                                                 entry.source === 'about' ? 'bg-purple-500/20 text-purple-400' :
+                                                entry.source === 'bulk_upload' ? 'bg-cyan-500/20 text-cyan-400' :
                                                 'bg-orange-500/20 text-orange-400'
                                             }`}>
                                                 {entry.source}
@@ -262,35 +274,37 @@ export default function AdminPanel() {
                                                 value={entry.status} 
                                                 onValueChange={(value) => updateStatus(entry.id, value)}
                                             >
-                                                <SelectTrigger className={`w-28 h-8 text-xs border-0 ${
-                                                    entry.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' :
-                                                    entry.status === 'contacted' ? 'bg-blue-500/20 text-blue-400' :
-                                                    'bg-green-500/20 text-green-400'
-                                                }`}>
+                                                <SelectTrigger className={`w-28 h-8 text-xs border-0 font-medium ${
+                                                    entry.status === 'pending' ? 'bg-amber-500/30 text-amber-200 hover:bg-amber-500/40' :
+                                                    entry.status === 'welcome_email_sent' ? 'bg-cyan-500/30 text-cyan-200 hover:bg-cyan-500/40' :
+                                                    entry.status === 'contacted' ? 'bg-blue-500/30 text-blue-200 hover:bg-blue-500/40' :
+                                                    'bg-emerald-500/30 text-emerald-200 hover:bg-emerald-500/40'
+                                                } [&>svg]:opacity-80`}>
                                                     <SelectValue />
                                                 </SelectTrigger>
-                                                <SelectContent className="bg-gray-800 border-gray-700">
-                                                    <SelectItem value="pending">Pending</SelectItem>
-                                                    <SelectItem value="contacted">Contacted</SelectItem>
-                                                    <SelectItem value="converted">Converted</SelectItem>
+                                                <SelectContent className="bg-gray-800 border-gray-600 text-white [&>div]:bg-gray-800">
+                                                    <SelectItem value="pending" className="text-white focus:bg-gray-700 focus:text-white hover:bg-gray-700/80 cursor-pointer">Pending</SelectItem>
+                                                    <SelectItem value="welcome_email_sent" className="text-white focus:bg-gray-700 focus:text-white hover:bg-gray-700/80 cursor-pointer">Welcome Email Sent</SelectItem>
+                                                    <SelectItem value="contacted" className="text-white focus:bg-gray-700 focus:text-white hover:bg-gray-700/80 cursor-pointer">Contacted</SelectItem>
+                                                    <SelectItem value="converted" className="text-white focus:bg-gray-700 focus:text-white hover:bg-gray-700/80 cursor-pointer">Converted</SelectItem>
                                                 </SelectContent>
                                             </Select>
                                         </TableCell>
                                         <TableCell className="text-gray-400 text-sm">
-                                            {entry.created_date ? format(new Date(entry.created_date), 'MMM d, yyyy') : '-'}
+                                            {entry.created_at ? format(new Date(entry.created_at), 'MMM d, yyyy') : '-'}
                                         </TableCell>
                                     </TableRow>
                                 ))
                             )}
                         </TableBody>
                     </Table>
+                    </div>
                 </div>
 
                 {/* Footer */}
                 <div className="mt-4 text-center text-gray-500 text-sm">
                     Showing {filteredEntries.length} of {waitlistEntries.length} entries
                 </div>
-            </div>
-        </div>
+        </>
     );
 }

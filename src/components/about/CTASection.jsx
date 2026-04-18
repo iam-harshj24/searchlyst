@@ -1,21 +1,19 @@
 import React, { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { motion } from 'framer-motion';
 import { User, Briefcase, ArrowRight, Mail, Globe, Loader2, CheckCircle, Linkedin, MapPin, Building } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { base44 } from '@/api/base44Client';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { apiClient } from '@/api/apiClient';
 import { toast } from 'sonner';
-import { isWorkEmail } from '@/components/emailValidation';
+import { waitlistSchema } from '@/validations/waitlist';
 
 export default function CTASection() {
     const [activeTab, setActiveTab] = useState('brand');
-    const [formData, setFormData] = useState({
-        fullName: '',
-        email: '',
-        website: ''
-    });
     const [investorData, setInvestorData] = useState({
         fullName: '',
         email: '',
@@ -29,30 +27,34 @@ export default function CTASection() {
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
 
-    const handleBrandSubmit = async (e) => {
-        e.preventDefault();
-        if (!formData.fullName || !formData.email || !formData.website) {
-            toast.error('Please fill in all fields');
-            return;
-        }
-        if (!isWorkEmail(formData.email)) {
-            toast.error('Please enter your work email. Personal emails (Gmail, Yahoo, Outlook, etc.) are not accepted.');
-            return;
-        }
+    const brandForm = useForm({
+        resolver: zodResolver(waitlistSchema),
+        defaultValues: {
+            full_name: '',
+            email: '',
+            website_url: '',
+            source: 'about',
+        },
+    });
+
+    const handleBrandSubmit = async (values) => {
         setLoading(true);
-        await base44.entities.Waitlist.create({
-            full_name: formData.fullName,
-            email: formData.email,
-            website_url: formData.website,
-            source: 'about'
-        });
-        setLoading(false);
-        setSuccess(true);
-        toast.success('Successfully joined the waitlist!');
-        setTimeout(() => {
-            setSuccess(false);
-            setFormData({ fullName: '', email: '', website: '' });
-        }, 3000);
+        try {
+            await apiClient.waitlist.create({
+                ...values,
+                source: 'about',
+            });
+            setSuccess(true);
+            toast.success('Successfully joined the waitlist!');
+            setTimeout(() => {
+                setSuccess(false);
+                brandForm.reset({ full_name: '', email: '', website_url: '', source: 'about' });
+            }, 3000);
+        } catch (error) {
+            toast.error(error.message || 'Failed to join waitlist. Please try again.');
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleInvestorSubmit = async (e) => {
@@ -62,16 +64,9 @@ export default function CTASection() {
             return;
         }
         setLoading(true);
-        await base44.entities.Investor.create({
-            full_name: investorData.fullName,
-            email: investorData.email,
-            linkedin_url: investorData.linkedinUrl,
-            firm_name: investorData.firmName,
-            location: investorData.location,
-            investor_type: investorData.investorType,
-            investment_interest: investorData.investmentInterest,
-            value_add: investorData.valueAdd
-        });
+        // Mock investor submission - can be connected to backend later
+        await new Promise(resolve => setTimeout(resolve, 500));
+        console.log('Investor submission:', investorData);
         setLoading(false);
         setSuccess(true);
         toast.success('Request submitted! We\'ll be in touch soon.');
@@ -143,62 +138,85 @@ export default function CTASection() {
                                 Secure early access to the Searchlyst Discovery Engine. Optimize your brand for ChatGPT, Perplexity, and Gemini.
                             </p>
 
-                            <form onSubmit={handleBrandSubmit} className="space-y-4">
-                                <div>
-                                    <label className="text-[var(--text-secondary)] text-sm mb-2 block">Full Name</label>
-                                    <div className="relative">
-                                        <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-secondary)]" />
-                                        <Input 
-                                            placeholder="John Smith"
-                                            value={formData.fullName}
-                                            onChange={(e) => setFormData({...formData, fullName: e.target.value})}
-                                            className="bg-[var(--bg-primary)] border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] pl-10"
-                                            required
-                                        />
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="text-[var(--text-secondary)] text-sm mb-2 block">Work Email</label>
-                                    <div className="relative">
-                                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-secondary)]" />
-                                        <Input 
-                                            type="email"
-                                            placeholder="john@company.com"
-                                            value={formData.email}
-                                            onChange={(e) => setFormData({...formData, email: e.target.value})}
-                                            className="bg-[var(--bg-primary)] border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] pl-10"
-                                            required
-                                        />
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="text-[var(--text-secondary)] text-sm mb-2 block">Company Website URL</label>
-                                    <div className="relative">
-                                        <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-secondary)]" />
-                                        <Input 
-                                            placeholder="https://yourcompany.com"
-                                            value={formData.website}
-                                            onChange={(e) => setFormData({...formData, website: e.target.value})}
-                                            className="bg-[var(--bg-primary)] border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] pl-10"
-                                            required
-                                        />
-                                    </div>
-                                </div>
-                                <Button 
-                                    type="submit"
-                                    disabled={loading}
-                                    className="w-full bg-red-600 hover:bg-red-700 text-white h-12 rounded-xl font-medium group"
-                                >
-                                    {loading ? (
-                                        <Loader2 className="w-5 h-5 animate-spin" />
-                                    ) : (
-                                        <>
-                                            Join Waitlist
-                                            <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                                        </>
-                                    )}
-                                </Button>
-                            </form>
+                            <Form {...brandForm}>
+                                <form onSubmit={brandForm.handleSubmit(handleBrandSubmit)} className="space-y-4">
+                                    <FormField
+                                        control={brandForm.control}
+                                        name="full_name"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-[var(--text-secondary)]">Full Name</FormLabel>
+                                                <FormControl>
+                                                    <div className="relative">
+                                                        <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-secondary)]" />
+                                                        <Input 
+                                                            placeholder="John Smith"
+                                                            className="bg-[var(--bg-primary)] border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] pl-10"
+                                                            {...field}
+                                                        />
+                                                    </div>
+                                                </FormControl>
+                                                <FormMessage className="text-red-400" />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={brandForm.control}
+                                        name="email"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-[var(--text-secondary)]">Email</FormLabel>
+                                                <FormControl>
+                                                    <div className="relative">
+                                                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-secondary)]" />
+                                                        <Input 
+                                                            type="email"
+                                                            placeholder="you@example.com"
+                                                            className="bg-[var(--bg-primary)] border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] pl-10"
+                                                            {...field}
+                                                        />
+                                                    </div>
+                                                </FormControl>
+                                                <FormMessage className="text-red-400" />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={brandForm.control}
+                                        name="website_url"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-[var(--text-secondary)]">Website</FormLabel>
+                                                <FormControl>
+                                                    <div className="relative">
+                                                        <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-secondary)]" />
+                                                        <Input 
+                                                            placeholder="Website link"
+                                                            className="bg-[var(--bg-primary)] border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] pl-10"
+                                                            {...field}
+                                                        />
+                                                    </div>
+                                                </FormControl>
+                                                <FormMessage className="text-red-400" />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <Button 
+                                        type="submit"
+                                        disabled={loading}
+                                        className="w-full bg-red-600 hover:bg-red-700 text-white h-12 rounded-xl font-medium group"
+                                    >
+                                        {loading ? (
+                                            <Loader2 className="w-5 h-5 animate-spin" />
+                                        ) : (
+                                            <>
+                                                Join Waitlist
+                                                <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                                            </>
+                                        )}
+                                    </Button>
+                                </form>
+                            </Form>
                         </>
                     ) : (
                         <>

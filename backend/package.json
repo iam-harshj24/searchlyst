@@ -1,0 +1,51 @@
+{
+  "name": "searchlyst-backend",
+  "version": "1.0.0",
+  "description": "Backend API for Searchlyst waitlist management",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch-path=./src src/server.js",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:diff": "prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --script",
+    "db:status": "prisma migrate status",
+    "test:visibility": "node scripts/test-visibility.mjs",
+    "test:infatica": "node scripts/test-infatica-live.mjs",
+    "test:user-flow": "node scripts/test-user-flow.mjs",
+    "test:integration": "vitest run --config vitest.config.integration.js"
+  },
+  "keywords": [
+    "api",
+    "waitlist",
+    "express"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "@prisma/adapter-better-sqlite3": "^7.6.0",
+    "@prisma/adapter-pg": "^7.4.0",
+    "@prisma/client": "^5.22.0",
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^12.8.0",
+    "bull": "^4.16.5",
+    "cheerio": "^1.2.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "google-auth-library": "^10.6.2",
+    "ioredis": "^5.10.0",
+    "jsonwebtoken": "^9.0.3",
+    "nodemailer": "^6.9.7",
+    "pg": "^8.18.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "prisma": "^5.22.0",
+    "vitest": "^3.1.1"
+  }
+}

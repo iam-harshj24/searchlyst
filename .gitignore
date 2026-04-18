@@ -1,7 +1,18 @@
 #env
 .env
 .env.*
+!.env.example
 
+# Deployment (contains secrets)
+deploy.config
+*.sh
+!backend/scripts/entrypoint.sh
+*.md
+!README.md
+!docs/PROJECT_AUDIT_REPORT.md
+
+# Integration test artifacts (produced by `make buildup-it`)
+.appdata/
 # Logs
 logs
 *.log
@@ -13,6 +24,8 @@ lerna-debug.log*
 
 node_modules
 dist
+test-results
+playwright-report
 dist-ssr
 *.local
 

@@ -1,28 +1,260 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { 
     UserCircle, Globe, Linkedin, Instagram, BookOpen, MessageCircle,
     Plus, CheckCircle, AlertCircle, Sparkles, PenTool, ChevronRight,
-    Save, Loader2
+    Save, Loader2, Box, Building2, MapPin, Users, Target, RefreshCw, BarChart3, Link2,
+    Twitter, Youtube, MessageSquareQuote, Music2, X,
 } from 'lucide-react';
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { base44 } from '@/api/base44Client';
+import { apiClient } from '../../api/apiClient.js';
+import { getDashboardUser, setDashboardUser, getBrandHubData, setBrandHubData } from '@/pages/Dashboard';
 
 const socialPlatforms = [
-    { id: 'linkedin', name: 'LinkedIn', icon: Linkedin, placeholder: 'linkedin.com/in/yourprofile', color: 'text-white/60' },
-    { id: 'instagram', name: 'Instagram', icon: Instagram, placeholder: '@yourhandle', color: 'text-white/60' },
-    { id: 'substack', name: 'Substack', icon: BookOpen, placeholder: 'yourname.substack.com', color: 'text-white/60' },
-    { id: 'reddit', name: 'Reddit', icon: MessageCircle, placeholder: 'u/yourprofile', color: 'text-red-400' },
+    { id: 'linkedin', name: 'LinkedIn', icon: Linkedin, placeholder: 'linkedin.com/in/yourprofile', color: 'text-[#888]' },
+    { id: 'twitter', name: 'X (Twitter)', icon: Twitter, placeholder: '@yourbrand or x.com/yourbrand', color: 'text-[#888]' },
+    { id: 'youtube', name: 'YouTube', icon: Youtube, placeholder: 'youtube.com/@yourchannel', color: 'text-[#888]' },
+    { id: 'instagram', name: 'Instagram', icon: Instagram, placeholder: '@yourhandle', color: 'text-[#888]' },
+    { id: 'quora', name: 'Quora', icon: MessageSquareQuote, placeholder: 'quora.com/profile/yourprofile', color: 'text-[#888]' },
+    { id: 'substack', name: 'Substack', icon: BookOpen, placeholder: 'yourname.substack.com', color: 'text-[#888]' },
+    { id: 'reddit', name: 'Reddit', icon: MessageCircle, placeholder: 'u/yourprofile', color: 'text-[#888]' },
+    { id: 'tiktok', name: 'TikTok', icon: Music2, placeholder: '@yourhandle', color: 'text-[#888]' },
 ];
 
-const styleTraits = [
-    { label: 'Tone', value: 'Professional & Authoritative', confidence: 92 },
-    { label: 'Vocabulary', value: 'Industry-Specific, Moderate Complexity', confidence: 87 },
-    { label: 'Sentence Style', value: 'Mix of Short & Medium, Active Voice', confidence: 85 },
-    { label: 'Personality', value: 'Thought Leader, Data-Driven', confidence: 78 },
-];
+/** Normalize snapshot from API or localStorage (object or JSON string). */
+function parseSocialSnapshot(raw) {
+    if (raw == null) return null;
+    if (typeof raw === 'object') return raw;
+    if (typeof raw === 'string') {
+        try {
+            return JSON.parse(raw);
+        } catch {
+            return null;
+        }
+    }
+    return null;
+}
 
-export default function BrandHubPage() {
+function parseCommaTags(str) {
+    if (str == null || typeof str !== 'string') return [];
+    return str.split(',').map((s) => s.trim()).filter(Boolean);
+}
+
+function serializeCommaTags(items) {
+    return items.join(', ');
+}
+
+/**
+ * One row of comma-separated values shown as removable capsules; still saves as a single comma-separated string.
+ */
+function CommaCapsuleField({ value, onChange, placeholder, icon: Icon, id }) {
+    const inputRef = useRef(null);
+    const [draft, setDraft] = useState('');
+    const tags = useMemo(() => parseCommaTags(value), [value]);
+
+    const commit = (next) => {
+        onChange(serializeCommaTags(next));
+    };
+
+    const pushUnique = (list, raw) => {
+        const t = raw.trim();
+        if (!t) return list;
+        if (list.some((x) => x.toLowerCase() === t.toLowerCase())) return list;
+        return [...list, t];
+    };
+
+    const addFromDraft = () => {
+        if (!draft.trim()) return;
+        commit(pushUnique(tags, draft));
+        setDraft('');
+    };
+
+    const onInputChange = (e) => {
+        const v = e.target.value;
+        if (v.includes(',')) {
+            const parts = v.split(',');
+            const completed = parts.slice(0, -1).map((p) => p.trim()).filter(Boolean);
+            const rest = parts[parts.length - 1] ?? '';
+            let next = [...tags];
+            for (const p of completed) {
+                next = pushUnique(next, p);
+            }
+            commit(next);
+            setDraft(rest);
+            return;
+        }
+        setDraft(v);
+    };
+
+    const onKeyDown = (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            addFromDraft();
+        } else if (e.key === 'Backspace' && draft === '' && tags.length > 0) {
+            e.preventDefault();
+            commit(tags.slice(0, -1));
+        }
+    };
+
+    const onBlur = () => {
+        if (draft.trim()) addFromDraft();
+    };
+
+    const removeAt = (index) => {
+        commit(tags.filter((_, i) => i !== index));
+    };
+
+    return (
+        <div className="relative">
+            <Icon className="w-[18px] h-[18px] text-[#666] shrink-0 absolute left-4 top-3.5 pointer-events-none z-[1]" aria-hidden />
+            <div
+                role="group"
+                className="min-h-[48px] w-full bg-[#111] border border-[#222] focus-within:border-[#E92A15]/50 focus-within:bg-[#1A1A1A] rounded-xl py-2 pl-12 pr-3 flex flex-wrap gap-2 items-center transition-all outline-none cursor-text"
+                onClick={() => inputRef.current?.focus()}
+            >
+                {tags.map((tag, i) => (
+                    <span
+                        key={`${tag}-${i}`}
+                        className="inline-flex items-center gap-1 max-w-full pl-2.5 pr-1 py-1 rounded-lg text-[13px] font-medium text-[#e5e5e5] bg-[#1a1a1a] border border-[#333] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+                        title={tag}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <span className="truncate max-w-[200px]">{tag}</span>
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                removeAt(i);
+                            }}
+                            className="p-0.5 rounded-md text-[#737373] hover:text-white hover:bg-[#2a2a2a] shrink-0"
+                            aria-label={`Remove ${tag}`}
+                        >
+                            <X className="w-3.5 h-3.5" strokeWidth={2.5} />
+                        </button>
+                    </span>
+                ))}
+                <input
+                    ref={inputRef}
+                    id={id}
+                    type="text"
+                    value={draft}
+                    onChange={onInputChange}
+                    onKeyDown={onKeyDown}
+                    onBlur={onBlur}
+                    placeholder={tags.length === 0 ? placeholder : 'Add another…'}
+                    className="flex-1 min-w-[140px] bg-transparent border-none outline-none text-white text-[14px] placeholder:text-[#555] py-1.5"
+                    autoComplete="off"
+                    onClick={(e) => e.stopPropagation()}
+                />
+            </div>
+        </div>
+    );
+}
+
+/** Up to 3 distinct market / region labels for AI visibility scans (stacked-style prompts). */
+function TrackingMarketsField({ value, onChange, id }) {
+    const inputRef = useRef(null);
+    const [draft, setDraft] = useState('');
+    const tags = Array.isArray(value) ? value.slice(0, 3) : [];
+
+    const commit = (next) => onChange(next.slice(0, 3));
+
+    const pushUnique = (list, raw) => {
+        const t = raw.trim();
+        if (!t || list.length >= 3) return list;
+        if (list.some((x) => x.toLowerCase() === t.toLowerCase())) return list;
+        return [...list, t];
+    };
+
+    const addFromDraft = () => {
+        if (!draft.trim() || tags.length >= 3) return;
+        commit(pushUnique(tags, draft));
+        setDraft('');
+    };
+
+    const onInputChange = (e) => {
+        const v = e.target.value;
+        if (v.includes(',')) {
+            const parts = v.split(',');
+            const completed = parts.slice(0, -1).map((p) => p.trim()).filter(Boolean);
+            const rest = parts[parts.length - 1] ?? '';
+            let next = [...tags];
+            for (const p of completed) {
+                if (next.length >= 3) break;
+                next = pushUnique(next, p);
+            }
+            commit(next);
+            setDraft(rest);
+            return;
+        }
+        setDraft(v);
+    };
+
+    const onKeyDown = (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            addFromDraft();
+        } else if (e.key === 'Backspace' && draft === '' && tags.length > 0) {
+            e.preventDefault();
+            commit(tags.slice(0, -1));
+        }
+    };
+
+    const onBlur = () => {
+        if (draft.trim() && tags.length < 3) addFromDraft();
+    };
+
+    const removeAt = (index) => {
+        commit(tags.filter((_, i) => i !== index));
+    };
+
+    return (
+        <div className="relative">
+            <MapPin className="w-[18px] h-[18px] text-[#666] shrink-0 absolute left-4 top-3.5 pointer-events-none z-[1]" aria-hidden />
+            <div
+                role="group"
+                className="min-h-[48px] w-full bg-[#111] border border-[#222] focus-within:border-[#E92A15]/50 focus-within:bg-[#1A1A1A] rounded-xl py-2 pl-12 pr-3 flex flex-wrap gap-2 items-center transition-all outline-none cursor-text"
+                onClick={() => inputRef.current?.focus()}
+            >
+                {tags.map((tag, i) => (
+                    <span
+                        key={`${tag}-${i}`}
+                        className="inline-flex items-center gap-1 max-w-full pl-2.5 pr-1 py-1 rounded-lg text-[13px] font-medium text-[#e5e5e5] bg-[#1a1a1a] border border-[#333] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+                        title={tag}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <span className="truncate max-w-[220px]">{tag}</span>
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                removeAt(i);
+                            }}
+                            className="p-0.5 rounded-md text-[#737373] hover:text-white hover:bg-[#2a2a2a] shrink-0"
+                            aria-label={`Remove ${tag}`}
+                        >
+                            <X className="w-3.5 h-3.5" strokeWidth={2.5} />
+                        </button>
+                    </span>
+                ))}
+                <input
+                    ref={inputRef}
+                    id={id}
+                    type="text"
+                    value={draft}
+                    onChange={onInputChange}
+                    onKeyDown={onKeyDown}
+                    onBlur={onBlur}
+                    placeholder={tags.length >= 3 ? 'Max 3 markets' : tags.length === 0 ? 'e.g. Texas, US · India · United Kingdom' : 'Add another…'}
+                    disabled={tags.length >= 3}
+                    className="flex-1 min-w-[160px] bg-transparent border-none outline-none text-white text-[14px] placeholder:text-[#555] py-1.5 disabled:opacity-40"
+                    autoComplete="off"
+                    onClick={(e) => e.stopPropagation()}
+                />
+            </div>
+        </div>
+    );
+}
+
+export default function BrandHubPage({ user: userProp, authUserId }) {
     const [user, setUser] = useState(null);
     const [profileData, setProfileData] = useState({
         role_type: 'founder',
@@ -30,206 +262,511 @@ export default function BrandHubPage() {
         target_audience: '',
         location: '',
         website_url: '',
+        companySize: '',
+        language: '',
+        reach: '',
+        trackingLocations: [],
         social_linkedin: '',
         social_instagram: '',
         social_substack: '',
         social_reddit: '',
+        social_twitter: '',
+        social_youtube: '',
+        social_quora: '',
+        social_tiktok: '',
     });
     const [saving, setSaving] = useState(false);
-    const [styleAnalyzed, setStyleAnalyzed] = useState(false);
+    const [socialSnapshot, setSocialSnapshot] = useState(null);
+    const [ingestLoading, setIngestLoading] = useState(false);
+    const [ingestError, setIngestError] = useState(null);
 
     useEffect(() => {
         loadUser();
-    }, []);
+    }, [authUserId, userProp?.projectId, userProp?.domain, userProp?.brandName, userProp?.socialIngestSnapshot]);
 
-    const loadUser = async () => {
-        const userData = await base44.auth.me();
-        setUser(userData);
-        if (userData) {
-            setProfileData(prev => ({
-                ...prev,
-                industry: userData.industry || '',
-                target_audience: userData.target_audience || '',
-                location: userData.location || '',
-                website_url: userData.website_url || '',
-                social_linkedin: userData.social_linkedin || '',
-                social_instagram: userData.social_instagram || '',
-                social_substack: userData.social_substack || '',
-                social_reddit: userData.social_reddit || '',
-                role_type: userData.role_type || 'founder',
-            }));
-            if (userData.social_linkedin || userData.social_instagram) {
-                setStyleAnalyzed(true);
-            }
-        }
+    const loadUser = () => {
+        const projectId = userProp?.projectId;
+        const stored = projectId != null
+            ? getBrandHubData(authUserId, projectId)
+            : getDashboardUser(authUserId);
+        // Server (userProp) must win over localStorage so fresh socialIngestSnapshot / profile fields are not overwritten by stale cache
+        const merged = { ...stored, ...userProp };
+        setUser(merged);
+        setProfileData(prev => ({
+            ...prev,
+            industry: merged?.industry || prev.industry || '',
+            target_audience: merged?.target_audience || prev.target_audience || '',
+            location: merged?.location || prev.location || '',
+            website_url: merged?.website_url || merged?.domain || prev.website_url || '',
+            companySize: merged?.companySize || prev.companySize || '',
+            language: merged?.language || prev.language || '',
+            reach: merged?.reach || prev.reach || '',
+            trackingLocations: Array.isArray(merged?.trackingLocations)
+                ? merged.trackingLocations.slice(0, 3)
+                : prev.trackingLocations || [],
+            social_linkedin: merged?.social_linkedin || prev.social_linkedin || '',
+            social_instagram: merged?.social_instagram || prev.social_instagram || '',
+            social_substack: merged?.social_substack || prev.social_substack || '',
+            social_reddit: merged?.social_reddit || prev.social_reddit || '',
+            social_twitter: merged?.social_twitter || prev.social_twitter || '',
+            social_youtube: merged?.social_youtube || prev.social_youtube || '',
+            social_quora: merged?.social_quora || prev.social_quora || '',
+            social_tiktok: merged?.social_tiktok || prev.social_tiktok || '',
+            role_type: merged?.role_type || prev.role_type || 'founder',
+        }));
+        const anySocial =
+            merged?.social_linkedin ||
+            merged?.social_instagram ||
+            merged?.social_substack ||
+            merged?.social_reddit ||
+            merged?.social_twitter ||
+            merged?.social_youtube ||
+            merged?.social_quora ||
+            merged?.social_tiktok;
+        const snap = parseSocialSnapshot(merged?.socialIngestSnapshot);
+        setSocialSnapshot(snap);
     };
+
+    const handleSyncSocial = useCallback(async () => {
+        const projectId = userProp?.projectId;
+        if (projectId == null) return;
+        setIngestError(null);
+        setIngestLoading(true);
+        try {
+            const socialPayload = {
+                social_linkedin: profileData.social_linkedin ?? '',
+                social_instagram: profileData.social_instagram ?? '',
+                social_substack: profileData.social_substack ?? '',
+                social_reddit: profileData.social_reddit ?? '',
+                social_twitter: profileData.social_twitter ?? '',
+                social_youtube: profileData.social_youtube ?? '',
+                social_quora: profileData.social_quora ?? '',
+                social_tiktok: profileData.social_tiktok ?? '',
+            };
+            const res = await apiClient.projects.ingestSocial(projectId, socialPayload);
+            if (res?.snapshot) setSocialSnapshot(res.snapshot);
+            if (res?.project?.socialIngestSnapshot != null && authUserId != null) {
+                const prev = getBrandHubData(authUserId, projectId) || {};
+                const nextLocal = {
+                    ...prev,
+                    ...socialPayload,
+                    socialIngestSnapshot: res.project.socialIngestSnapshot,
+                };
+                setBrandHubData(authUserId, projectId, nextLocal);
+                setUser((u) => ({ ...(u || {}), ...nextLocal }));
+            }
+        } catch (e) {
+            setIngestError(e?.message || 'Social sync failed');
+        } finally {
+            setIngestLoading(false);
+        }
+    }, [userProp?.projectId, authUserId, profileData.social_linkedin, profileData.social_instagram, profileData.social_substack, profileData.social_reddit, profileData.social_twitter, profileData.social_youtube, profileData.social_quora, profileData.social_tiktok]);
 
     const handleSave = async () => {
         setSaving(true);
-        await base44.auth.updateMe(profileData);
-        setSaving(false);
+        const projectId = userProp?.projectId;
+        const existing = projectId != null
+            ? getBrandHubData(authUserId, projectId) || {}
+            : getDashboardUser(authUserId) || {};
+        const toSave = { ...existing, ...profileData };
+        
+        try {
+            if (projectId != null) {
+                // Update via true remote backend now available
+                await apiClient.projects.update(projectId, toSave);
+                setBrandHubData(authUserId, projectId, toSave); // mirror local map
+            } else {
+                setDashboardUser(authUserId, toSave);
+            }
+            setUser({ ...userProp, ...toSave });
+        } catch (error) {
+            console.error('Failed to sync Brand Hub profile:', error);
+        } finally {
+            setSaving(false);
+        }
     };
 
+    const getDomainColor = (domain) => {
+        const colors = [
+            'text-blue-400 bg-blue-400/10 border-blue-400/20',
+            'text-emerald-400 bg-emerald-400/10 border-emerald-400/20',
+            'text-purple-400 bg-purple-400/10 border-purple-400/20',
+            'text-amber-400 bg-amber-400/10 border-amber-400/20',
+            'text-pink-400 bg-pink-400/10 border-pink-400/20',
+            'text-cyan-400 bg-cyan-400/10 border-cyan-400/20',
+            'text-[#E92A15] bg-[#E92A15]/10 border-[#E92A15]/20'
+        ];
+        let hash = 0;
+        const safeDomain = domain || '';
+        for (let i = 0; i < safeDomain.length; i++) hash = safeDomain.charCodeAt(i) + ((hash << 5) - hash);
+        return colors[Math.abs(hash) % colors.length];
+    };
+
+    const BrandLogo = ({ domain }) => {
+        const [error, setError] = useState(false);
+        if (error || !domain) {
+            return (
+                <div className={`w-14 h-14 rounded-full flex items-center justify-center border shrink-0 ${getDomainColor(domain)}`}>
+                    <span className="text-[24px] font-extrabold top-[0.5px] relative">
+                        {(domain || 'S').replace(/^(https?:\/\/)?(www\.)?/, '').charAt(0).toUpperCase()}
+                    </span>
+                </div>
+            );
+        }
+        return (
+            <div className="w-14 h-14 rounded-full bg-white flex items-center justify-center border border-[#333] shrink-0 overflow-hidden shadow-[0_4px_20px_rgba(255,255,255,0.08)]">
+                <img 
+                    src={`https://www.google.com/s2/favicons?domain=${domain}&sz=128`} 
+                    alt="" 
+                    className="w-[28px] h-[28px] object-contain border-none outline-none"
+                    onError={() => setError(true)} 
+                />
+            </div>
+        );
+    };
+
+    const displayBrandName = user?.brandName || user?.name || user?.full_name || 'Camana Homes';
+
     return (
-        <div className="space-y-6 max-w-4xl">
-            {/* Header */}
-            <div>
-                <h1 className="text-xl font-semibold text-white">Brand Hub</h1>
-                <p className="text-white/40 text-sm mt-1">Define your brand identity so we can create content that sounds exactly like you.</p>
-            </div>
-
-            {/* Profile Card */}
-            <div className="bg-[#0a0a0a] border border-white/[0.06] rounded-2xl p-6">
-                <div className="flex items-center gap-4 mb-6">
-                    <div className="w-16 h-16 bg-red-600 rounded-2xl flex items-center justify-center">
-                        <UserCircle className="w-8 h-8 text-white" />
+        <div className="w-full pb-10">
+            {/* Full-width Header */}
+            <div className="h-[93px] flex items-center justify-between -mt-8 -mx-8 px-8 border-b border-[#222] bg-[#000000] sticky top-0 z-30">
+                <div className="flex items-center gap-4">
+                    <div className="w-11 h-11 bg-[#120404] rounded-xl flex items-center justify-center border border-[#E92A15]/40 shadow-[0_0_15px_rgba(233,42,21,0.15)]">
+                        <Box className="w-[20px] h-[20px] text-[#E92A15]" />
                     </div>
                     <div>
-                        <h2 className="text-white font-medium">{user?.full_name || 'Your Name'}</h2>
-                        <p className="text-white/30 text-sm">{user?.email || ''}</p>
+                        <h1 className="text-[19px] font-semibold text-white tracking-tight">Brand Hub</h1>
+                        <p className="text-[#888] text-[13px] mt-0.5">Define your brand identity so we can create content that sounds exactly like you.</p>
                     </div>
                 </div>
-
-                {/* Role Selection */}
-                <div className="mb-6">
-                    <label className="text-white/50 text-xs font-medium mb-2 block">I am a...</label>
-                    <div className="flex gap-2">
-                        {['founder', 'creator', 'influencer', 'brand'].map((role) => (
-                            <button
-                                key={role}
-                                onClick={() => setProfileData(prev => ({ ...prev, role_type: role }))}
-                                className={`px-4 py-2 rounded-xl text-sm capitalize transition-all ${
-                                    profileData.role_type === role
-                                        ? 'bg-red-500/20 text-red-300 border border-red-500/30'
-                                        : 'bg-white/[0.03] text-white/40 border border-white/[0.06] hover:border-white/10'
-                                }`}
-                            >
-                                {role}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Profile Fields */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label className="text-white/50 text-xs font-medium mb-1.5 block">Industry</label>
-                        <Input 
-                            value={profileData.industry}
-                            onChange={(e) => setProfileData(prev => ({ ...prev, industry: e.target.value }))}
-                            placeholder="e.g. SaaS, HealthTech, FinTech"
-                            className="bg-white/[0.03] border-white/[0.06] text-white placeholder:text-white/20 rounded-xl"
-                        />
-                    </div>
-                    <div>
-                        <label className="text-white/50 text-xs font-medium mb-1.5 block">Target Audience</label>
-                        <Input 
-                            value={profileData.target_audience}
-                            onChange={(e) => setProfileData(prev => ({ ...prev, target_audience: e.target.value }))}
-                            placeholder="e.g. Startup founders, CTOs, Marketers"
-                            className="bg-white/[0.03] border-white/[0.06] text-white placeholder:text-white/20 rounded-xl"
-                        />
-                    </div>
-                    <div>
-                        <label className="text-white/50 text-xs font-medium mb-1.5 block">Location</label>
-                        <Input 
-                            value={profileData.location}
-                            onChange={(e) => setProfileData(prev => ({ ...prev, location: e.target.value }))}
-                            placeholder="e.g. San Francisco, London, Mumbai"
-                            className="bg-white/[0.03] border-white/[0.06] text-white placeholder:text-white/20 rounded-xl"
-                        />
-                    </div>
-                    <div>
-                        <label className="text-white/50 text-xs font-medium mb-1.5 block">Website URL</label>
-                        <Input 
-                            value={profileData.website_url}
-                            onChange={(e) => setProfileData(prev => ({ ...prev, website_url: e.target.value }))}
-                            placeholder="https://yourwebsite.com"
-                            className="bg-white/[0.03] border-white/[0.06] text-white placeholder:text-white/20 rounded-xl"
-                        />
-                    </div>
-                </div>
-
-                <Button 
-                    onClick={handleSave} 
-                    disabled={saving}
-                    className="mt-5 bg-red-600 hover:bg-red-700 text-white rounded-xl"
+                <button
+                    className="flex items-center gap-2 px-5 py-2.5 bg-[#E92A15] hover:bg-[#D12512] text-white text-[13px] font-medium rounded-full transition-all shadow-[0_0_20px_rgba(233,42,21,0.35)]"
                 >
-                    {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-                    Save Profile
-                </Button>
+                    <RefreshCw className="w-4 h-4" /> Re-scan
+                </button>
             </div>
 
-            {/* Social Accounts */}
-            <div className="bg-[#0a0a0a] border border-white/[0.06] rounded-2xl p-6">
-                <div className="flex items-center justify-between mb-5">
-                    <div>
-                        <h3 className="text-white font-medium text-sm">Connected Accounts</h3>
-                        <p className="text-white/30 text-xs mt-0.5">We analyze your content to learn your writing style</p>
-                    </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {socialPlatforms.map((platform) => (
-                        <div key={platform.id} className="flex items-center gap-3 p-3 bg-white/[0.02] border border-white/[0.06] rounded-xl">
-                            <div className="w-10 h-10 bg-white/[0.03] rounded-lg flex items-center justify-center">
-                                <platform.icon className={`w-5 h-5 ${platform.color}`} />
+            <div className="space-y-6 max-w-5xl mt-8">
+                {/* Profile Card */}
+                <div className="bg-[#0B0B0B] border border-[#222] rounded-2xl p-7">
+                    
+                    {/* Top Identity Row */}
+                    <div className="flex items-center justify-between mb-8 pb-8 border-b border-[#222]">
+                        <div className="flex items-center gap-4">
+                            <BrandLogo domain={user?.domain || 'camanahomes.com'} />
+                            <div>
+                                <h2 className="text-white text-[18px] font-semibold tracking-tight">{displayBrandName}</h2>
+                                <a href={`https://${user?.domain || 'camanahomes.com'}`} target="_blank" rel="noopener noreferrer" className="text-[#666] hover:text-[#aaa] text-[13px] flex items-center gap-1.5 transition-colors mt-0.5">
+                                    <Link2 className="w-3.5 h-3.5" /> https://{user?.domain || 'camanahomes.com'}
+                                </a>
                             </div>
-                            <div className="flex-1">
-                                <p className="text-white text-xs font-medium">{platform.name}</p>
-                                <Input
-                                    value={profileData[`social_${platform.id}`] || ''}
-                                    onChange={(e) => setProfileData(prev => ({ ...prev, [`social_${platform.id}`]: e.target.value }))}
-                                    placeholder={platform.placeholder}
-                                    className="bg-transparent border-0 text-white/60 placeholder:text-white/15 text-xs h-7 p-0 focus-visible:ring-0 shadow-none"
+                        </div>
+                    </div>
+
+                    {/* Role Selection */}
+                    <div className="mb-8">
+                        <label className="text-[#666] text-[10px] font-bold uppercase tracking-[0.15em] mb-4 block">I am a...</label>
+                        <div className="flex flex-wrap gap-2.5">
+                            {['founder', 'creator', 'influencer', 'brand'].map((role) => (
+                                <button
+                                    key={role}
+                                    onClick={() => setProfileData(prev => ({ ...prev, role_type: role }))}
+                                    className={`px-6 py-2 rounded-full text-[13px] font-medium capitalize transition-all ${
+                                        profileData.role_type === role
+                                            ? 'bg-[#E92A15] text-white border border-[#E92A15] shadow-[0_0_15px_rgba(233,42,21,0.3)]'
+                                            : 'bg-transparent text-[#aaa] border border-[#333] hover:bg-[#1A1A1A] hover:text-white'
+                                    }`}
+                                >
+                                    {role}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Profile Fields Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-6">
+                        <div className="flex flex-col gap-2">
+                            <label htmlFor="brandhub-industry" className="text-[#666] text-[10px] font-bold uppercase tracking-[0.15em] ml-1">Industry</label>
+                            <CommaCapsuleField
+                                id="brandhub-industry"
+                                icon={Building2}
+                                placeholder="e.g. SaaS, Real Estate"
+                                value={profileData.industry}
+                                onChange={(next) => setProfileData((prev) => ({ ...prev, industry: next }))}
+                            />
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                            <label htmlFor="brandhub-audience" className="text-[#666] text-[10px] font-bold uppercase tracking-[0.15em] ml-1">Target Audience</label>
+                            <CommaCapsuleField
+                                id="brandhub-audience"
+                                icon={Target}
+                                placeholder="e.g. Startup founders, CTOs, SMB owners"
+                                value={profileData.target_audience}
+                                onChange={(next) => setProfileData((prev) => ({ ...prev, target_audience: next }))}
+                            />
+                        </div>
+
+                        <p className="md:col-span-2 text-[10px] text-[#555] -mt-1 mb-0 ml-1 leading-relaxed">
+                            Type and use commas or Enter — each value becomes its own capsule. Case-insensitive duplicates are skipped.
+                        </p>
+
+                        <div className="flex flex-col gap-2">
+                            <label className="text-[#666] text-[10px] font-bold uppercase tracking-[0.15em] ml-1">Primary location</label>
+                            <div className="relative">
+                                <MapPin className="w-[18px] h-[18px] text-[#666] flex-shrink-0 absolute left-4 top-1/2 -translate-y-1/2" />
+                                <input 
+                                    value={profileData.location}
+                                    onChange={(e) => setProfileData(prev => ({ ...prev, location: e.target.value }))}
+                                    placeholder="Dubai"
+                                    className="w-full bg-[#111] border border-[#222] focus:border-[#E92A15]/50 focus:bg-[#1A1A1A] outline-none text-white text-[14px] placeholder:text-[#555] rounded-xl py-3 pl-12 pr-4 transition-all"
                                 />
                             </div>
-                            {profileData[`social_${platform.id}`] ? (
-                                <CheckCircle className="w-4 h-4 text-white" />
-                            ) : (
-                                <Plus className="w-4 h-4 text-white/20" />
-                            )}
                         </div>
-                    ))}
-                </div>
-            </div>
 
-            {/* Writing Style Analysis */}
-            <div className="bg-[#0a0a0a] border border-white/[0.06] rounded-2xl p-6">
-                <div className="flex items-center justify-between mb-5">
-                    <div>
-                        <h3 className="text-white font-medium text-sm flex items-center gap-2">
-                            <Sparkles className="w-4 h-4 text-red-400" />
-                            Your Writing Style Signature
-                        </h3>
-                        <p className="text-white/30 text-xs mt-0.5">AI-analyzed from your connected accounts and content</p>
+                        <div className="flex flex-col gap-2">
+                            <label className="text-[#666] text-[10px] font-bold uppercase tracking-[0.15em] ml-1">Website URL</label>
+                            <div className="relative">
+                                <Globe className="w-[18px] h-[18px] text-[#666] flex-shrink-0 absolute left-4 top-1/2 -translate-y-1/2" />
+                                <input 
+                                    value={profileData.website_url}
+                                    onChange={(e) => setProfileData(prev => ({ ...prev, website_url: e.target.value }))}
+                                    placeholder="https://camanahomes.com"
+                                    className="w-full bg-[#111] border border-[#222] focus:border-[#E92A15]/50 focus:bg-[#1A1A1A] outline-none text-white text-[14px] placeholder:text-[#555] rounded-xl py-3 pl-12 pr-4 transition-all"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex flex-col gap-2 md:col-span-2">
+                            <label htmlFor="brandhub-tracking-markets" className="text-[#666] text-[10px] font-bold uppercase tracking-[0.15em] ml-1">
+                                Visibility markets (max 3)
+                            </label>
+                            <TrackingMarketsField
+                                id="brandhub-tracking-markets"
+                                value={profileData.trackingLocations}
+                                onChange={(next) =>
+                                    setProfileData((prev) => ({ ...prev, trackingLocations: next }))
+                                }
+                            />
+                            <p className="text-[10px] text-[#555] ml-1 leading-relaxed">
+                                Each scan weaves these regions into prompts so models compare your brand vs competitors by market (share of voice, rank, sentiment). Leave empty to use primary location only.
+                            </p>
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                            <label className="text-[#666] text-[10px] font-bold uppercase tracking-[0.15em] ml-1">Company Size</label>
+                            <div className="relative">
+                                <Users className="w-[18px] h-[18px] text-[#666] flex-shrink-0 absolute left-4 top-1/2 -translate-y-1/2" />
+                                <input 
+                                    value={profileData.companySize}
+                                    onChange={(e) => setProfileData(prev => ({ ...prev, companySize: e.target.value }))}
+                                    placeholder="11-100"
+                                    className="w-full bg-[#111] border border-[#222] focus:border-[#E92A15]/50 focus:bg-[#1A1A1A] outline-none text-white text-[14px] placeholder:text-[#555] rounded-xl py-3 pl-12 pr-4 transition-all"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                            <label className="text-[#666] text-[10px] font-bold uppercase tracking-[0.15em] ml-1">Market Reach</label>
+                            <div className="relative">
+                                <BarChart3 className="w-[18px] h-[18px] text-[#666] flex-shrink-0 absolute left-4 top-1/2 -translate-y-1/2" />
+                                <input 
+                                    value={profileData.reach}
+                                    onChange={(e) => setProfileData(prev => ({ ...prev, reach: e.target.value }))}
+                                    placeholder="worldwide"
+                                    className="w-full bg-[#111] border border-[#222] focus:border-[#E92A15]/50 focus:bg-[#1A1A1A] outline-none text-white text-[14px] placeholder:text-[#555] rounded-xl py-3 pl-12 pr-4 transition-all"
+                                />
+                            </div>
+                        </div>
                     </div>
-                    <Button variant="outline" size="sm" className="border-red-500/30 text-red-400 hover:bg-red-500/10 rounded-xl text-xs">
-                        Re-analyze
-                    </Button>
+
+                    <div className="flex items-center justify-between mt-8 pt-8 border-t border-[#222]">
+                        <p className="text-[#666] text-[13px]">Your brand identity powers all AI-generated content</p>
+                        <button 
+                            onClick={handleSave} 
+                            disabled={saving}
+                            className="bg-[#E92A15] hover:bg-[#D12512] text-white px-6 py-2.5 rounded-full text-[13px] font-medium flex items-center transition-all shadow-[0_0_20px_rgba(233,42,21,0.25)]"
+                        >
+                            {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                            Save Profile
+                        </button>
+                    </div>
                 </div>
 
-                {styleAnalyzed ? (
-                    <div className="space-y-3">
-                        {styleTraits.map((trait, i) => (
-                            <div key={i} className="flex items-center justify-between p-3 bg-white/[0.02] border border-white/[0.06] rounded-xl">
-                                <div>
-                                    <p className="text-white/40 text-[10px] uppercase tracking-wider">{trait.label}</p>
-                                    <p className="text-white text-sm mt-0.5">{trait.value}</p>
+                {/* Social Accounts */}
+                <div className="bg-[#0B0B0B] border border-[#222] rounded-2xl p-7">
+                    <div className="mb-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                        <div>
+                            <h3 className="text-white font-semibold text-[18px]">Writing style sources</h3>
+                            <p className="text-[#666] text-[13px] mt-1">
+                                Add links below, then <strong className="text-[#888] font-medium">Extract writing style</strong> — we read public titles only (Substack &amp; Reddit need no extra setup; YouTube needs a server <code className="text-[11px] text-[#666]">YOUTUBE_API_KEY</code>) and infer your voice from those titles.{' '}
+                                <span className="text-[#555]">Nothing is posted or published on your behalf.</span>
+                            </p>
+                        </div>
+                        {userProp?.projectId != null && (
+                            <button
+                                type="button"
+                                onClick={handleSyncSocial}
+                                disabled={ingestLoading}
+                                className="shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-full text-[13px] font-medium bg-[#1A1A1A] border border-[#333] text-white hover:border-[#E92A15]/50 hover:bg-[#222] disabled:opacity-50 transition-all"
+                            >
+                                {ingestLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                                Extract writing style
+                            </button>
+                        )}
+                    </div>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {socialPlatforms.map((platform) => (
+                            <div key={platform.id} className="flex items-center gap-4 p-4 bg-[#111] border border-[#222] rounded-2xl group transition-all hover:bg-[#1A1A1A] hover:border-[#333]">
+                                <div className="w-12 h-12 bg-[#1A1A1A] border border-[#333] rounded-[14px] flex items-center justify-center shrink-0 transition-colors group-hover:border-[#555]">
+                                    <platform.icon className={`w-[22px] h-[22px] ${platform.color}`} />
                                 </div>
-                                <div className="text-right">
-                                    <p className="text-red-400 text-xs font-medium">{trait.confidence}%</p>
-                                    <p className="text-white/20 text-[10px]">confidence</p>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-white text-[14px] font-medium">{platform.name}</p>
+                                    <input
+                                        value={profileData[`social_${platform.id}`] || ''}
+                                        onChange={(e) => setProfileData(prev => ({ ...prev, [`social_${platform.id}`]: e.target.value }))}
+                                        placeholder={platform.placeholder}
+                                        className="bg-transparent border-0 text-[#888] placeholder:text-[#444] text-[12px] h-6 p-0 w-full focus:outline-none focus:ring-0 mt-0.5"
+                                    />
                                 </div>
+                                <button className="w-8 h-8 rounded-full bg-[#1A1A1A] border border-[#333] flex items-center justify-center shrink-0 hover:border-[#E92A15] hover:text-[#E92A15] text-[#888] transition-all">
+                                    {profileData[`social_${platform.id}`] ? (
+                                        <CheckCircle className="w-4 h-4 text-[#00D26A]" />
+                                    ) : (
+                                        <Plus className="w-4 h-4" />
+                                    )}
+                                </button>
                             </div>
                         ))}
                     </div>
-                ) : (
-                    <div className="text-center py-8">
-                        <PenTool className="w-8 h-8 text-white/10 mx-auto mb-3" />
-                        <p className="text-white/40 text-sm">Connect your social accounts and save your profile</p>
-                        <p className="text-white/20 text-xs mt-1">We'll analyze your writing style automatically</p>
+
+                    {ingestError && (
+                        <p className="text-red-400 text-[12px] mt-3">{ingestError}</p>
+                    )}
+
+                    {socialSnapshot?.fetchedAt && (
+                        <details className="mt-6 border border-[#2a2a2a] rounded-2xl bg-[#111] p-4 group/open:pb-4">
+                            <summary className="cursor-pointer list-none flex items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
+                                <span className="text-white text-[13px] font-semibold">
+                                    Sample titles used for inference
+                                    {typeof socialSnapshot?.writingStyle?.sampleCount === 'number' && socialSnapshot.writingStyle.sampleCount > 0
+                                        ? ` (${socialSnapshot.writingStyle.sampleCount})`
+                                        : ''}
+                                </span>
+                                <span className="text-[#666] text-[10px] shrink-0">
+                                    Last extract: {new Date(socialSnapshot.fetchedAt).toLocaleString()}
+                                </span>
+                            </summary>
+                            <p className="text-[#555] text-[11px] mt-2 mb-3">
+                                Read-only references — we do not post or modify your accounts.
+                            </p>
+                            <div className="space-y-4 pt-1 border-t border-[#222]">
+                                {Object.entries(socialSnapshot.platforms || {}).map(([key, block]) => (
+                                    <div key={key} className="border-t border-[#222] pt-3 first:border-t-0 first:pt-0">
+                                        <p className="text-[#E92A15] text-[11px] font-bold uppercase tracking-wider mb-2">{key}</p>
+                                        {block?.channelTitle && (
+                                            <p className="text-[#aaa] text-[12px] mb-1">Channel: {block.channelTitle}</p>
+                                        )}
+                                        {block?.feedUrl && (
+                                            <p className="text-[#666] text-[11px] mb-1 truncate" title={block.feedUrl}>{block.feedUrl}</p>
+                                        )}
+                                        {block?.needsOAuth && (
+                                            <p className="text-[#eab308] text-[12px] leading-snug">{block.message}</p>
+                                        )}
+                                        {block?.needsConfig && (
+                                            <p className="text-amber-400/90 text-[12px] leading-snug">{block.message}</p>
+                                        )}
+                                        {block?.message && !block?.needsOAuth && !block?.needsConfig && block?.ok === false && (
+                                            <p className="text-[#888] text-[12px]">{block.message}</p>
+                                        )}
+                                        {Array.isArray(block?.items) && block.items.length > 0 && (
+                                            <ul className="mt-2 space-y-1.5 max-h-[160px] overflow-y-auto custom-scrollbar pr-1">
+                                                {block.items.map((it, idx) => (
+                                                    <li key={idx} className="text-[12px] text-[#ccc] leading-snug">
+                                                        {it.url ? (
+                                                            <a href={it.url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
+                                                                {it.title || it.url}
+                                                            </a>
+                                                        ) : (
+                                                            <span>{it.title}</span>
+                                                        )}
+                                                        {it.pubDate && <span className="text-[#555] text-[10px] ml-1">({it.pubDate})</span>}
+                                                        {it.subreddit && <span className="text-[#555] text-[10px] ml-1">r/{it.subreddit}</span>}
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </details>
+                    )}
+
+                    <div className="flex items-start gap-3 p-4 mt-6 border border-[#E92A15]/20 bg-[#E92A15]/5 rounded-xl">
+                        <AlertCircle className="w-4 h-4 text-[#E92A15] shrink-0 mt-0.5" />
+                        <span className="text-[#aaa] text-[13px] leading-relaxed">
+                            Save your profile after editing links, then use <strong className="text-[#ccc] font-semibold">Extract writing style</strong>. YouTube needs <code className="text-[#888] text-[11px]">YOUTUBE_API_KEY</code> on the server. LinkedIn, X, Instagram, TikTok, and Quora need OAuth or partner APIs to read posts — we show status only; we never publish for you.
+                        </span>
                     </div>
-                )}
+                </div>
+
+                {/* Writing Style Analysis */}
+                <div className="bg-[#0B0B0B] border border-[#222] rounded-2xl p-7 flex flex-col">
+                    <div className="flex items-center justify-between mb-8">
+                        <div>
+                            <h3 className="text-white font-semibold text-[18px]">Saved writing style</h3>
+                            <p className="text-[#666] text-[13px] mt-1">
+                                Inferred from public titles and stored on your project — used to match your voice in generated content. Run <strong className="text-[#888] font-medium">Extract writing style</strong> above after saving links.
+                            </p>
+                            {socialSnapshot?.writingStyle?.summary && (
+                                <p className="text-[#888] text-[12px] mt-2 leading-relaxed border-l-2 border-[#333] pl-3">
+                                    {socialSnapshot.writingStyle.summary}
+                                </p>
+                            )}
+                        </div>
+                        <button
+                            type="button"
+                            onClick={handleSyncSocial}
+                            disabled={ingestLoading || userProp?.projectId == null}
+                            className="px-6 py-2 border border-[#333] text-[#ccc] hover:border-[#E92A15]/40 flex items-center gap-2 rounded-full text-[13px] font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                        >
+                            {ingestLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                            Extract writing style
+                        </button>
+                    </div>
+
+                    {Array.isArray(socialSnapshot?.writingStyle?.traits) && socialSnapshot.writingStyle.traits.length > 0 ? (
+                        <div className="grid grid-cols-2 gap-4">
+                            {socialSnapshot.writingStyle.traits.map((trait, i) => (
+                                <div key={`${trait.label}-${i}`} className="flex items-center justify-between p-5 bg-[#111] border border-[#222] rounded-2xl">
+                                    <div className="min-w-0 pr-2">
+                                        <p className="text-[#666] text-[10px] font-bold uppercase tracking-wider">{trait.label}</p>
+                                        <p className="text-white text-[14px] font-medium mt-1 break-words">{trait.value}</p>
+                                    </div>
+                                    <div className="flex flex-col items-end shrink-0">
+                                        <span className="text-[#00D26A] text-[16px] font-bold">{trait.confidence}%</span>
+                                        <span className="text-[#666] text-[10px] uppercase">confidence</span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="flex-1 flex flex-col items-center justify-center py-16 gap-4 border border-dashed border-[#222] bg-[#111]/50 rounded-2xl">
+                            <div className="w-14 h-14 rounded-[14px] border border-[#333] bg-[#1A1A1A] flex items-center justify-center">
+                                <PenTool className="w-6 h-6 text-[#555]" />
+                            </div>
+                            <div className="text-center max-w-md px-4">
+                                <p className="text-[#aaa] text-[14px] font-medium">No writing style saved yet</p>
+                                <p className="text-[#666] text-[12px] mt-1">
+                                    Add at least one link we can read (e.g. YouTube with API key, Substack, Reddit), save your profile, then extract. We only save the style profile — we never post for you.
+                                </p>
+                            </div>
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );

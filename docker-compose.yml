@@ -1,0 +1,120 @@
+services:
+
+  # ---------- App Stack ----------
+
+  # Postgres DB (app data)
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: searchlyst
+      POSTGRES_PASSWORD: searchlyst
+      POSTGRES_DB: searchlyst
+    ports:
+      - "5432:5432"
+    volumes:
+      - searchlyst_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U searchlyst"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Backend API
+  searchlyst-api:
+    container_name: searchlyst-api
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - ./backend/.env
+    environment:
+      - DATABASE_URL=postgresql://searchlyst:searchlyst@db:5432/searchlyst
+      - PORT=3000
+      - NODE_ENV=development
+      - BIND_LOCAL_ONLY=false
+      - REDIS_ENABLED=false
+      # JWT_SECRET must be set in backend/.env
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # Frontend UI (React/Vite → nginx)
+  searchlyst-ui:
+    container_name: searchlyst-ui
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Baked into the JS bundle at build time — set to wherever the API is reachable
+        # from the user's browser (not the Docker network hostname).
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:3000/api}
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      searchlyst-api:
+        condition: service_healthy
+
+  # ---------- Integration Test Stack ----------
+
+  # Dedicated DB for integration tests (isolated from main app DB)
+  searchlyst-db-test:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: searchlyst
+      POSTGRES_PASSWORD: searchlyst
+      POSTGRES_DB: searchlyst_test
+
+  # Dedicated API for integration tests (uses searchlyst-db-test)
+  searchlyst-api-test:
+    container_name: searchlyst-api-test
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3000"
+    depends_on:
+      - searchlyst-db-test
+    environment:
+      - DATABASE_URL=postgresql://searchlyst:searchlyst@searchlyst-db-test:5432/searchlyst_test
+      - PORT=3000
+      - NODE_ENV=test
+      - JWT_SECRET=integration-test-secret-key
+      - FRONTEND_URL=http://localhost:5173
+      - BIND_LOCAL_ONLY=false
+      - REDIS_ENABLED=false
+      - ALLOW_ADMIN_SETUP=true
+      - SEND_WELCOME_EMAIL=false
+      - GEMINI_API_KEY=fake-key-for-tests
+      - DEV_SEED_EMAIL=testuser@integration.test
+      - DEV_SEED_PASSWORD=testpass1234
+      - DEV_SEED_NAME=Test User
+      - DEV_SEED_ADMIN_EMAIL=admin@integration.test
+      - DEV_SEED_ADMIN_PASSWORD=adminpass1234
+
+  # Test runner: waits for API health, then runs Vitest
+  searchlyst-integration-tests:
+    container_name: searchlyst-integration-tests
+    build:
+      context: ./backend
+      dockerfile: tests/Dockerfile
+    volumes:
+      - ./.appdata/integrationtests:/app/results
+    depends_on:
+      - searchlyst-api-test
+    environment:
+      - API_HOST=searchlyst-api-test
+      - API_PORT=3000
+
+volumes:
+  searchlyst_pgdata:

@@ -1,0 +1,79 @@
+import { z } from 'zod';
+
+// Flexible website validation: accepts website.com, www.website.com, https://website.com, https://www.website.com
+const websiteUrlRegex = /^(https?:\/\/)?(www\.)?[\w][\w.-]*\.[a-zA-Z]{2,}(\/.*)?$/i;
+
+export const waitlistSchema = z.object({
+  full_name: z.string().min(2, 'Full name must be at least 2 characters').max(255),
+  email: z.string().email('Must be a valid email address'),
+  website_url: z.string()
+    .min(1, 'Website is required')
+    .refine((val) => websiteUrlRegex.test(val.trim()), 'Must be a valid website')
+    .transform((val) => {
+      const trimmed = val.trim();
+      if (/^https?:\/\//i.test(trimmed)) return trimmed;
+      return `https://${trimmed}`;
+    }),
+  source: z.enum(['home', 'about', 'pricing', 'unknown']).optional().default('unknown'),
+});
+
+export const loginSchema = z.object({
+  email: z.string().email('Must be a valid email'),
+  password: z.string().min(1, 'Password is required'),
+});
+
+export const googleLoginSchema = z.object({
+  idToken: z.string().min(1, 'Google ID token is required'),
+});
+
+export const createAdminSchema = z.object({
+  email: z.string().email('Must be a valid email'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  name: z.string().min(2, 'Name must be at least 2 characters').max(255),
+});
+
+export const verifyOtpSchema = z.object({
+  email: z.string().email('Must be a valid email'),
+  otp: z.string().length(6, 'OTP must be exactly 6 digits').regex(/^\d{6}$/, 'OTP must be 6 digits'),
+});
+
+
+export const updateStatusSchema = z.object({
+  status: z.enum(['pending', 'welcome_email_sent', 'contacted', 'converted']),
+});
+
+const bulkWaitlistItemSchema = z.object({
+  full_name: z.string().min(2, 'Full name must be at least 2 characters').max(255),
+  email: z.string().email('Must be a valid email address'),
+  website_url: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((v) => {
+      if (!v || typeof v !== 'string') return null;
+      const trimmed = String(v).trim();
+      if (!trimmed) return null;
+      if (websiteUrlRegex.test(trimmed)) {
+        return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+      }
+      return trimmed;
+    }),
+});
+
+export const bulkWaitlistSchema = z.object({
+  entries: z.array(bulkWaitlistItemSchema).min(1, 'At least one entry required').max(1000, 'Maximum 1000 entries per upload'),
+});
+
+export const sendWelcomeBulkSchema = z.object({
+  entryIds: z.array(z.number().int().positive()).min(1, 'At least one entry ID required').max(500, 'Maximum 500 entries per job'),
+});
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().email('Must be a valid email'),
+});
+
+export const resetPasswordSchema = z.object({
+  email: z.string().email('Must be a valid email'),
+  otp: z.string().length(6, 'OTP must be exactly 6 digits').regex(/^\d{6}$/, 'OTP must be 6 digits'),
+  newPassword: z.string().min(8, 'Password must be at least 8 characters'),
+});

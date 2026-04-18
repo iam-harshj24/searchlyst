@@ -1,0 +1,151 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            Int       @id @default(autoincrement())
+  email         String    @unique
+  password_hash String?
+  auth_provider String    @default("local")
+  google_id     String?   @unique
+  name          String
+  role_type     String?   @default("founder")
+  onboarded     Boolean   @default(false)
+  created_at    DateTime? @default(now())
+  updated_at    DateTime? @default(now())
+  projects        Project[]
+  auditJobs       AuditJob[]
+  visibilityScans VisibilityScan[]
+  contents        Content[]
+
+  @@index([email], map: "idx_user_email")
+  @@map("users")
+}
+
+model AdminUser {
+  id            Int       @id @default(autoincrement())
+  email         String    @unique
+  password_hash String
+  name          String
+  created_at    DateTime? @default(now())
+  last_login    DateTime?
+
+  @@index([email], map: "idx_admin_email")
+  @@map("admin_users")
+}
+
+model waitlist {
+  id          Int       @id @default(autoincrement())
+  full_name   String
+  email       String    @unique
+  website_url String?
+  source      String?
+  status      String?   @default("pending")
+  created_at  DateTime? @default(now())
+  updated_at  DateTime? @default(now())
+
+  @@index([email], map: "idx_waitlist_email")
+  @@index([status], map: "idx_waitlist_status")
+}
+
+model Project {
+  id               Int              @id @default(autoincrement())
+  userId           Int
+  brandName        String
+  domain           String
+  industry         String?
+  companySize      String?
+  location         String?
+  /// JSON array of up to 3 market labels (e.g. "Austin, TX", "India") for visibility prompts + Infatica region hint
+  trackingLocations String?
+  language         String?
+  reach            String?
+  competitors      String?
+  target_audience  String?
+  social_linkedin  String?
+  social_instagram String?
+  social_substack  String?
+  social_reddit    String?
+  social_twitter   String?
+  social_youtube   String?
+  social_quora     String?
+  social_tiktok    String?
+  /// Last extract: platform fetch metadata + inferred writingStyle (read-only; never used to post)
+  socialIngestSnapshot String?
+  created_at       DateTime?        @default(now())
+  updated_at       DateTime?        @default(now())
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  visibilityScans  VisibilityScan[]
+  auditJobs        AuditJob[]
+  contents         Content[]
+
+  @@unique([userId, domain], map: "unique_user_domain")
+  @@index([userId], map: "idx_project_user")
+  @@map("projects")
+}
+
+model Content {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  projectId  Int?
+  topic      String
+  platform   String   @default("Blog")
+  title      String
+  payload    String
+  status     String   @default("draft")
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project    Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([userId], map: "idx_content_user")
+  @@index([projectId], map: "idx_content_project")
+  @@map("contents")
+}
+
+model AuditJob {
+  id         String   @id
+  userId     Int
+  projectId  Int?
+  url        String
+  status     String   @default("pending")
+  progress   String?
+  results    String?
+  error      String?
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project    Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([userId], map: "idx_audit_user")
+  @@index([projectId], map: "idx_audit_project")
+  @@map("audit_jobs")
+}
+
+model VisibilityScan {
+  id         String   @id
+  userId     Int
+  projectId  Int?
+  brandName  String
+  domain     String
+  industry   String?
+  status     String   @default("pending")
+  progress   String?
+  allRuns    String?
+  results    String?
+  error      String?
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project    Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([userId], map: "idx_scan_user")
+  @@index([projectId], map: "idx_scan_project")
+  @@index([projectId, created_at], map: "idx_scan_project_date")
+  @@map("visibility_scans")
+}
