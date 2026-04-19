@@ -1,0 +1,14 @@
+# Copy to envs/<env>.tfvars and fill in.
+# Never commit a .tfvars file containing real values - .gitignore blocks them
+# except for explicitly-listed env files like envs/staging.tfvars.
+
+project_id  = "your-gcp-project-id"
+environment = "staging"
+alert_email = "you@example.com"
+
+# Optional overrides (defaults are sane for staging in asia-south1):
+# region              = "asia-south1"
+# zone                = "asia-south1-a"
+# vm_machine_type     = "e2-small"
+# db_tier             = "db-f1-micro"
+# ssh_source_ranges   = ["1.2.3.4/32"]   # IAP-only by default; add your IP for direct SSH

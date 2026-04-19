@@ -7,9 +7,26 @@
 deploy.config
 *.sh
 !backend/scripts/entrypoint.sh
+!infra/**/*.sh
 *.md
 !README.md
+!DEPLOY.md
 !docs/PROJECT_AUDIT_REPORT.md
+!infra/**/*.md
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+# Keep .terraform.lock.hcl in version control - pins provider versions for reproducibility.
+# tfvars typically contain secrets — block all by default, then allow committed env files
+*.tfvars
+*.tfvars.json
+!infra/terraform/envs/*.tfvars
+!infra/terraform/terraform.tfvars.example
 
 # Integration test artifacts (produced by `make buildup-it`)
 .appdata/
