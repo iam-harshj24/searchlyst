@@ -1,0 +1,63 @@
+{
+  "name": "User",
+  "type": "object",
+  "properties": {
+    "role_type": {
+      "type": "string",
+      "enum": [
+        "founder",
+        "creator",
+        "influencer"
+      ],
+      "description": "User role type selected during onboarding"
+    },
+    "industry": {
+      "type": "string",
+      "description": "User's industry or niche"
+    },
+    "target_audience": {
+      "type": "string",
+      "description": "User's target audience"
+    },
+    "location": {
+      "type": "string",
+      "description": "Primary location or market"
+    },
+    "website_url": {
+      "type": "string",
+      "description": "User's website URL"
+    },
+    "social_linkedin": {
+      "type": "string",
+      "description": "LinkedIn profile"
+    },
+    "social_instagram": {
+      "type": "string",
+      "description": "Instagram handle"
+    },
+    "social_substack": {
+      "type": "string",
+      "description": "Substack URL"
+    },
+    "social_reddit": {
+      "type": "string",
+      "description": "Reddit profile"
+    },
+    "onboarded": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether user has completed onboarding"
+    }
+  },
+  "required": [
+    "role_type",
+    "industry",
+    "target_audience",
+    "location",
+    "website_url",
+    "social_linkedin",
+    "social_instagram",
+    "social_substack",
+    "social_reddit"
+  ]
+}

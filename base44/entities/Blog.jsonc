@@ -1,0 +1,92 @@
+{
+  "name": "Blog",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Blog post title"
+    },
+    "summary": {
+      "type": "string",
+      "description": "Short summary/description"
+    },
+    "featured_image": {
+      "type": "string",
+      "description": "Featured image URL"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "Product",
+        "Tech",
+        "Team",
+        "AI",
+        "Data",
+        "Company",
+        "Guides"
+      ],
+      "description": "Blog category"
+    },
+    "read_time": {
+      "type": "number",
+      "description": "Estimated read time in minutes"
+    },
+    "content": {
+      "type": "string",
+      "description": "Main blog content (HTML or markdown)"
+    },
+    "key_takeaways": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Array of key takeaways (5 bullet points)"
+    },
+    "faq": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "question": {
+            "type": "string"
+          },
+          "answer": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "FAQ section with questions and answers"
+    },
+    "author_name": {
+      "type": "string",
+      "description": "Author name or team name"
+    },
+    "author_title": {
+      "type": "string",
+      "description": "Author title/designation"
+    },
+    "author_bio": {
+      "type": "string",
+      "description": "Short bio about the author"
+    },
+    "author_initials": {
+      "type": "string",
+      "description": "Author initials for avatar (e.g., 'RT')"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "published"
+      ],
+      "default": "draft",
+      "description": "Publication status"
+    }
+  },
+  "required": [
+    "title",
+    "summary",
+    "category",
+    "content"
+  ]
+}

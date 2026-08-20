@@ -1,0 +1,43 @@
+{
+  "name": "Domain",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Domain display name"
+    },
+    "url": {
+      "type": "string",
+      "description": "Domain URL"
+    },
+    "visibility_score": {
+      "type": "number",
+      "description": "Current visibility score (0-100)"
+    },
+    "total_citations": {
+      "type": "number",
+      "description": "Total AI citations"
+    },
+    "sentiment": {
+      "type": "number",
+      "description": "Sentiment score (0-1)"
+    },
+    "issues_count": {
+      "type": "number",
+      "description": "Number of active issues"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "paused",
+        "pending"
+      ],
+      "default": "active"
+    }
+  },
+  "required": [
+    "name",
+    "url"
+  ]
+}

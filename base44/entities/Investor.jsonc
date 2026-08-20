@@ -1,0 +1,66 @@
+{
+  "name": "Investor",
+  "type": "object",
+  "properties": {
+    "full_name": {
+      "type": "string",
+      "description": "Full name of the investor"
+    },
+    "email": {
+      "type": "string",
+      "description": "Direct email address"
+    },
+    "linkedin_url": {
+      "type": "string",
+      "description": "LinkedIn profile URL"
+    },
+    "firm_name": {
+      "type": "string",
+      "description": "Firm / Syndicate name"
+    },
+    "location": {
+      "type": "string",
+      "description": "Location"
+    },
+    "investor_type": {
+      "type": "string",
+      "enum": [
+        "Angel",
+        "VC Fund",
+        "Family Office",
+        "Strategic"
+      ],
+      "description": "Type of investor"
+    },
+    "investment_interest": {
+      "type": "string",
+      "enum": [
+        "$50,000 - $100,000 (Angel)",
+        "$100,000 - $250,000 (Super Angel)",
+        "$250,000 - $500,000 (Strategic)",
+        "$500,000 - $1,000,000 (Lead)",
+        "$1,000,000+ (Full Round)"
+      ],
+      "description": "Investment interest range"
+    },
+    "value_add": {
+      "type": "string",
+      "description": "How can you help beyond capital"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "contacted",
+        "in_discussion",
+        "committed"
+      ],
+      "default": "pending",
+      "description": "Status of the investor lead"
+    }
+  },
+  "required": [
+    "full_name",
+    "email"
+  ]
+}

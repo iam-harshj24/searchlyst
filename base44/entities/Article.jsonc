@@ -1,0 +1,41 @@
+{
+  "name": "Article",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Article title"
+    },
+    "content": {
+      "type": "string",
+      "description": "Article content in markdown"
+    },
+    "domain_id": {
+      "type": "string",
+      "description": "Associated domain ID"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "published"
+      ],
+      "default": "draft"
+    },
+    "seo_score": {
+      "type": "number",
+      "description": "SEO optimization score"
+    },
+    "target_keywords": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Target keywords for the article"
+    }
+  },
+  "required": [
+    "title",
+    "content"
+  ]
+}

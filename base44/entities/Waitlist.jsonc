@@ -1,0 +1,43 @@
+{
+  "name": "Waitlist",
+  "type": "object",
+  "properties": {
+    "full_name": {
+      "type": "string",
+      "description": "Full name of the person"
+    },
+    "email": {
+      "type": "string",
+      "description": "Work email address"
+    },
+    "website_url": {
+      "type": "string",
+      "description": "Company website URL"
+    },
+    "source": {
+      "type": "string",
+      "enum": [
+        "home",
+        "about",
+        "pricing"
+      ],
+      "default": "home",
+      "description": "Where the signup came from"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "contacted",
+        "converted"
+      ],
+      "default": "pending",
+      "description": "Status of the lead"
+    }
+  },
+  "required": [
+    "full_name",
+    "email",
+    "website_url"
+  ]
+}
